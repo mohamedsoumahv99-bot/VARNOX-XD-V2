@@ -1,7 +1,12 @@
 /**
- * VARNOX XD V2 — web.js  v10
+ * VARNOX XD V2 — web.js  v11
  *
- * FIXES v10 (pairing reliability):
+ * FIXES v11 (Baileys v7 upgrade):
+ *  - @whiskeysockets/baileys → 7.0.0-rc14 (latest, replaces 6.7.x)
+ *  - Removed options dropped in v7: syncFullHistory, markOnlineOnConnect,
+ *    generateHighQualityLinkPreview (causes TypeError if passed)
+ *
+ *  FIXES v10 (pairing reliability):
  *  - NEVER call sock.end() before saveCreds() finishes → was losing creds.json
  *  - await saveCreds() explicitly after connection open/close
  *  - Wait 4s after saveCreds() before closing the pairing socket
@@ -193,7 +198,7 @@ app.get('/health', (_req, res) => {
   res.json({
     status      : 'online',
     bot         : 'VARNOX XD V2',
-    version     : '10.0.0',
+    version     : '11.0.0',
     platform    : process.env.RENDER_EXTERNAL_HOSTNAME ? 'render'
                 : process.env.RAILWAY_ENVIRONMENT || 'local',
     uptime      : Math.floor(process.uptime()),
@@ -211,7 +216,7 @@ app.get('/debug', (_req, res) => {
   try { ownerData = JSON.parse(fs.readFileSync(OWNER_JSON, 'utf8')); } catch {}
   res.json({
     ok              : true,
-    version         : '10.0.0',
+    version         : '11.0.0',
     nodeVersion     : process.version,
     platform        : process.env.RENDER_EXTERNAL_HOSTNAME ? 'render'
                     : process.env.RAILWAY_ENVIRONMENT || 'local',
@@ -345,9 +350,6 @@ app.get('/code', async (req, res) => {
       msgRetryCounterCache    : new NodeCache({ stdTTL: 120 }),
       connectTimeoutMs        : 60000,
       keepAliveIntervalMs     : 10_000,
-      syncFullHistory         : false,
-      markOnlineOnConnect     : true,
-      generateHighQualityLinkPreview: false,
     });
 
     /* ── CRITICAL: save creds on every update ── */
@@ -550,7 +552,7 @@ app.get('*', (_req, res) => {
 /* ─── Start server ────────────────────────────────────── */
 app.listen(PORT, () => {
   console.log(`\n╔══════════════════════════════════════╗`);
-  console.log(`║  VARNOX XD V2 v10  —  Port ${PORT}     ║`);
+  console.log(`║  VARNOX XD V2 v11  —  Port ${PORT}     ║`);
   console.log(`╠══════════════════════════════════════╣`);
   console.log(`║  Panel  : http://localhost:${PORT}       ║`);
   console.log(`║  Debug  : http://localhost:${PORT}/debug ║`);
