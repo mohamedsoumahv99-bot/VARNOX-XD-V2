@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: varnox-xd-v2
+    env: node
+    plan: free
+    buildCommand: npm install --legacy-peer-deps
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      - key: OWNER_NUMBER
+        sync: false
+    disk:
+      name: varnox-session
+      mountPath: /opt/render/project/src/session
+      sizeGB: 1
