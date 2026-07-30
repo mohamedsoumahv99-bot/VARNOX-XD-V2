@@ -13,6 +13,11 @@ services:
         value: production
       - key: OWNER_NUMBER
         sync: false
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: varnox-xd-v2
+          property: host
     disk:
       name: varnox-session
       mountPath: /opt/render/project/src/session

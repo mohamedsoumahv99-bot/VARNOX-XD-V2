@@ -1,22 +1,27 @@
 /**
- * VARNOX XD V2 - web.js  v9
+ * VARNOX XD V2 — web.js  v10
  *
- * CORRIGÉ v9 :
- *  - owner.json toujours initialisé avec OWNER_NUMBER (plus jamais "TON_NUMERO_ICI")
- *  - index.js : stdout+stderr capturés → /bot-logs pour voir les crashs
- *  - /reset endpoint : efface la session pour re-pairer proprement
- *  - /start-bot endpoint : force le démarrage du bot manuellement
- *  - Meilleure gestion des crashs répétés d'index.js
+ * FIXES v10 (pairing reliability):
+ *  - NEVER call sock.end() before saveCreds() finishes → was losing creds.json
+ *  - await saveCreds() explicitly after connection open/close
+ *  - Wait 4s after saveCreds() before closing the pairing socket
+ *  - Keep-alive self-ping every 14 min to prevent Render free-tier sleep
+ *  - Baileys version updated in package.json (^6.7.4 → ^6.7.18)
+ *  - Cold-start fallback delay increased to 8s
+ *  - Cleanup timer raised to 15 min (user may be slow entering code)
+ *  - Added /ping endpoint for uptime monitors (UptimeRobot etc.)
  */
 
 'use strict';
 
 require('dotenv').config();
-const express   = require('express');
-const cors      = require('cors');
-const path      = require('path');
-const fs        = require('fs');
-const { spawn } = require('child_process');
+const express     = require('express');
+const cors        = require('cors');
+const path        = require('path');
+const fs          = require('fs');
+const https       = require('https');
+const http        = require('http');
+const { spawn }   = require('child_process');
 
 const {
   default: makeWASocket,
@@ -32,20 +37,23 @@ const NodeCache = require('node-cache');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-/* ─── Chemins ────────────────────────────────────────── */
+/* ─── Paths ───────────────────────────────────────────── */
 const SESSION_DIR = path.join(__dirname, 'session');
 const DATA_DIR    = path.join(__dirname, 'data');
 const OWNER_JSON  = path.join(DATA_DIR, 'owner.json');
 
-/* ─── Créer les dossiers nécessaires si absents ──────── */
+/* ─── Create directories ─────────────────────────────── */
 [SESSION_DIR, DATA_DIR].forEach(d => {
   try { fs.mkdirSync(d, { recursive: true }); } catch {}
 });
 
-/* ─── Initialiser owner.json (FIX : toujours corriger "TON_NUMERO_ICI") ── */
+/* ─── owner.json initializer ─────────────────────────── */
 function initOwnerJson(overrideNumber) {
   let current = {};
-  try { if (fs.existsSync(OWNER_JSON)) current = JSON.parse(fs.readFileSync(OWNER_JSON, 'utf8')); } catch {}
+  try {
+    if (fs.existsSync(OWNER_JSON))
+      current = JSON.parse(fs.readFileSync(OWNER_JSON, 'utf8'));
+  } catch {}
 
   const placeholder = !current.ownerNumber
     || current.ownerNumber === 'TON_NUMERO_ICI'
@@ -59,18 +67,18 @@ function initOwnerJson(overrideNumber) {
   if (overrideNumber || placeholder) {
     try {
       fs.writeFileSync(OWNER_JSON, JSON.stringify({
-        ownerNumber: realNumber,
-        ownerName  : current.ownerName  || 'Owner',
-        botName    : current.botName    || 'VARNOX XD V2',
-        prefix     : current.prefix     || process.env.PREFIX || '.',
-        version    : '2.0.0',
-        mess       : current.mess       || 'Owner',
+        ownerNumber : realNumber,
+        ownerName   : current.ownerName  || 'Owner',
+        botName     : current.botName    || 'VARNOX XD V2',
+        prefix      : current.prefix     || process.env.PREFIX || '.',
+        version     : '2.0.0',
+        mess        : current.mess       || 'Owner',
       }, null, 2));
-      console.log(`[VARNOX] owner.json initialisé → ownerNumber=${realNumber || '(vide)'}`);
+      console.log(`[VARNOX] owner.json → ownerNumber=${realNumber || '(empty)'}`);
     } catch (e) { console.error('[VARNOX] owner.json write error:', e.message); }
   }
 }
-initOwnerJson();  // Corrige "TON_NUMERO_ICI" dès le démarrage
+initOwnerJson();
 
 app.use(cors());
 app.use(express.json());
@@ -82,10 +90,8 @@ let botProcess    = null;
 let botConnected  = false;
 let _currentQR    = null;
 const activeSockets = new Map();
-
-// Capture des logs du bot (dernières 200 lignes)
 const botLogs     = [];
-const MAX_LOGS    = 200;
+const MAX_LOGS    = 300;
 let   crashCount  = 0;
 let   lastCrash   = null;
 
@@ -96,12 +102,12 @@ function appendLog(line) {
 
 function startBot() {
   if (botProcess) return;
-  console.log('[VARNOX] Démarrage index.js…');
-  appendLog('[web] Démarrage index.js');
+  console.log('[VARNOX] Starting index.js…');
+  appendLog('[web] Starting index.js');
   botConnected = false;
 
   botProcess = spawn('node', ['index.js'], {
-    stdio : ['ignore', 'pipe', 'pipe'],   // capture stdout + stderr
+    stdio : ['ignore', 'pipe', 'pipe'],
     env   : { ...process.env, SKIP_PAIRING: '1', FORCE_COLOR: '0' },
     cwd   : __dirname,
   });
@@ -110,6 +116,9 @@ function startBot() {
     String(d).split('\n').filter(Boolean).forEach(l => {
       process.stdout.write('[BOT] ' + l + '\n');
       appendLog('[out] ' + l);
+      if (l.includes('✅') || l.includes('connected') || l.includes('connecté')) {
+        botConnected = true;
+      }
     });
   });
   botProcess.stderr?.on('data', d => {
@@ -118,58 +127,75 @@ function startBot() {
       appendLog('[err] ' + l);
     });
   });
-
   botProcess.on('error', err => {
     console.error('[VARNOX] spawn error:', err.message);
     appendLog('[web] spawn error: ' + err.message);
-    botProcess   = null;
-    lastCrash    = err.message;
-    crashCount++;
+    botProcess = null; lastCrash = err.message; crashCount++;
   });
-
   botProcess.on('exit', (code, signal) => {
     const msg = `exit code=${code} signal=${signal}`;
-    console.log(`[VARNOX] Bot terminé (${msg}). Redémarrage dans 10s…`);
-    appendLog('[web] Bot terminé: ' + msg);
-    botProcess   = null;
-    botConnected = false;
-    lastCrash    = msg;
-    crashCount++;
+    console.log(`[VARNOX] Bot stopped (${msg}). Restarting in 10s…`);
+    appendLog('[web] Bot stopped: ' + msg);
+    botProcess = null; botConnected = false; lastCrash = msg; crashCount++;
 
-    // Redémarrage automatique — seulement si creds.json existe toujours
     setTimeout(() => {
       if (fs.existsSync(path.join(SESSION_DIR, 'creds.json'))) {
-        appendLog('[web] Redémarrage automatique…');
+        appendLog('[web] Auto-restarting…');
         startBot();
       } else {
-        appendLog('[web] Pas de session — redémarrage annulé');
+        appendLog('[web] No session — restart cancelled');
       }
     }, 10000);
   });
 }
 
-/* ─── Auto-démarrage si session déjà présente ────────── */
+/* ─── Auto-start if session present ─────────────────── */
 setTimeout(() => {
   if (fs.existsSync(path.join(SESSION_DIR, 'creds.json'))) {
-    console.log('[VARNOX] Session trouvée → démarrage auto du bot');
+    console.log('[VARNOX] Session found → auto-starting bot');
     startBot();
   } else {
-    console.log('[VARNOX] Aucune session → panel de pairage prêt');
+    console.log('[VARNOX] No session → pairing panel ready');
   }
 }, 2000);
 
-/* ══════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════
+ *  KEEP-ALIVE  — prevent Render free-tier from sleeping
+ *  Pings /ping every 14 minutes.
+ *  Works automatically if RENDER_EXTERNAL_URL is set.
+ * ════════════════════════════════════════════════════════ */
+const SELF_URL = process.env.RENDER_EXTERNAL_URL
+  || (process.env.RENDER_EXTERNAL_HOSTNAME
+      ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`
+      : null);
+
+if (SELF_URL) {
+  console.log(`[VARNOX] Keep-alive enabled → ${SELF_URL}/ping every 14 min`);
+  setInterval(() => {
+    const mod = SELF_URL.startsWith('https') ? https : http;
+    const req = mod.get(`${SELF_URL}/ping`, (r) => {
+      appendLog(`[keepalive] ping → ${r.statusCode}`);
+    });
+    req.on('error', (e) => appendLog(`[keepalive] ping error: ${e.message}`));
+    req.end();
+  }, 14 * 60 * 1000); // 14 minutes
+}
+
+/* ════════════════════════════════════════════════════════
  *   ROUTES
- * ══════════════════════════════════════════════════════ */
+ * ════════════════════════════════════════════════════════ */
+
+/* ─── /ping — for uptime monitors & keep-alive ───────── */
+app.get('/ping', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
 /* ─── /health ─────────────────────────────────────────── */
 app.get('/health', (_req, res) => {
   res.json({
     status      : 'online',
     bot         : 'VARNOX XD V2',
-    version     : '9.0.0',
-    build       : '2026-07-20-v9',
-    platform    : process.env.RENDER_EXTERNAL_HOSTNAME ? 'render' : process.env.RAILWAY_ENVIRONMENT || 'local',
+    version     : '10.0.0',
+    platform    : process.env.RENDER_EXTERNAL_HOSTNAME ? 'render'
+                : process.env.RAILWAY_ENVIRONMENT || 'local',
     uptime      : Math.floor(process.uptime()),
     botRunning  : !!botProcess,
     botConnected,
@@ -177,45 +203,41 @@ app.get('/health', (_req, res) => {
   });
 });
 
-/* ─── /debug — diagnostic complet ────────────────────── */
+/* ─── /debug ──────────────────────────────────────────── */
 app.get('/debug', (_req, res) => {
   const sessionFiles = (() => { try { return fs.readdirSync(SESSION_DIR); } catch { return []; } })();
   const dataFiles    = (() => { try { return fs.readdirSync(DATA_DIR);    } catch { return []; } })();
   let ownerData = null;
   try { ownerData = JSON.parse(fs.readFileSync(OWNER_JSON, 'utf8')); } catch {}
-
   res.json({
-    ok            : true,
-    version       : '9.0.0',
-    build         : '2026-07-20-v9',
-    nodeVersion   : process.version,
-    platform      : process.env.RENDER_EXTERNAL_HOSTNAME ? 'render' : process.env.RAILWAY_ENVIRONMENT || 'local',
-    port          : PORT,
-    uptime        : Math.floor(process.uptime()),
-    botRunning    : !!botProcess,
+    ok              : true,
+    version         : '10.0.0',
+    nodeVersion     : process.version,
+    platform        : process.env.RENDER_EXTERNAL_HOSTNAME ? 'render'
+                    : process.env.RAILWAY_ENVIRONMENT || 'local',
+    port            : PORT,
+    uptime          : Math.floor(process.uptime()),
+    botRunning      : !!botProcess,
     botConnected,
     crashCount,
     lastCrash,
-    activeSockets : activeSockets.size,
-    sessionDir    : SESSION_DIR,
+    activeSockets   : activeSockets.size,
+    hasCredentials  : sessionFiles.includes('creds.json'),
     sessionFiles,
-    hasCredentials: sessionFiles.includes('creds.json'),
     dataFiles,
-    ownerNumber   : ownerData?.ownerNumber || 'non défini',
+    ownerNumber     : ownerData?.ownerNumber || 'not set',
+    keepAliveUrl    : SELF_URL || 'not configured',
     envVars: {
-      PORT                 : !!process.env.PORT,
-      OWNER_NUMBER         : !!process.env.OWNER_NUMBER,
-      SKIP_PAIRING         : !!process.env.SKIP_PAIRING,
-      RAILWAY_ENVIRONMENT  : !!process.env.RAILWAY_ENVIRONMENT,
-      RENDER               : !!process.env.RENDER,
-      RENDER_EXTERNAL_URL  : !!process.env.RENDER_EXTERNAL_URL,
-      RAILWAY_PUBLIC_DOMAIN: !!process.env.RAILWAY_PUBLIC_DOMAIN,
+      PORT                : !!process.env.PORT,
+      OWNER_NUMBER        : !!process.env.OWNER_NUMBER,
+      RENDER              : !!process.env.RENDER,
+      RENDER_EXTERNAL_URL : !!process.env.RENDER_EXTERNAL_URL,
     },
-    lastBotLogs: botLogs.slice(-20),  // 20 dernières lignes
+    lastBotLogs     : botLogs.slice(-30),
   });
 });
 
-/* ─── /bot-logs — logs complets du bot ───────────────── */
+/* ─── /bot-logs ───────────────────────────────────────── */
 app.get('/bot-logs', (_req, res) => {
   res.json({ count: botLogs.length, logs: botLogs });
 });
@@ -231,78 +253,71 @@ app.get('/botStatus', (_req, res) => {
   });
 });
 
-/* ─── /reset — efface la session pour re-pairer ─────── */
+/* ─── /reset ──────────────────────────────────────────── */
 app.get('/reset', (_req, res) => {
   try {
-    // Tuer le bot s'il tourne
     if (botProcess) {
       try { botProcess.kill('SIGTERM'); } catch {}
-      botProcess   = null;
-      botConnected = false;
+      botProcess = null; botConnected = false;
     }
-    // Fermer tous les sockets de pairage
     activeSockets.forEach(({ sock, timer }) => {
       clearTimeout(timer);
-      try { sock.end(); } catch {}
+      try { sock.ws?.close(); } catch {}
     });
     activeSockets.clear();
-
-    // Effacer la session
     try { fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch {}
     fs.mkdirSync(SESSION_DIR, { recursive: true });
-
-    appendLog('[web] /reset exécuté — session effacée');
-    crashCount = 0;
-    lastCrash  = null;
-
-    res.json({ ok: true, message: 'Session effacée. Retourne sur le panel pour re-pairer.' });
+    appendLog('[web] /reset — session cleared');
+    crashCount = 0; lastCrash = null;
+    res.json({ ok: true, message: 'Session cleared. Go back to the panel to re-pair.' });
   } catch (e) {
     res.json({ ok: false, error: e.message });
   }
 });
 
-/* ─── /start-bot — forcer démarrage manuel du bot ────── */
+/* ─── /start-bot ──────────────────────────────────────── */
 app.get('/start-bot', (_req, res) => {
-  if (botProcess) return res.json({ ok: false, message: 'Bot déjà en train de tourner (pid=' + botProcess.pid + ')' });
+  if (botProcess)
+    return res.json({ ok: false, message: `Bot already running (pid=${botProcess.pid})` });
   if (!fs.existsSync(path.join(SESSION_DIR, 'creds.json')))
-    return res.json({ ok: false, message: 'Aucune session. Fais le pairage d\'abord.' });
-
+    return res.json({ ok: false, message: 'No session. Do the pairing first.' });
   startBot();
-  res.json({ ok: true, message: 'Bot démarré. Vérifie /bot-logs dans quelques secondes.' });
+  res.json({ ok: true, message: 'Bot started. Check /bot-logs in a few seconds.' });
 });
 
-/* ─── /code — génère un code de pairage ─────────────── */
+/* ════════════════════════════════════════════════════════
+ *   /code  —  PAIRING CODE (v10 — fixed creds save race)
+ * ════════════════════════════════════════════════════════ */
 app.get('/code', async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
 
-  if (botProcess && botConnected) {
-    return res.json({ error: true, message: 'Bot déjà connecté. Va sur /reset pour changer de compte.' });
-  }
+  if (botProcess && botConnected)
+    return res.json({ error: true, message: 'Bot already connected. Go to /reset to change accounts.' });
 
   let { number } = req.query;
-  if (!number) return res.json({ error: true, message: 'Numéro requis' });
+  if (!number) return res.json({ error: true, message: 'Phone number required' });
   number = number.replace(/[^0-9]/g, '');
   if (number.length < 7 || number.length > 15)
-    return res.json({ error: true, message: 'Numéro invalide (7–15 chiffres)' });
+    return res.json({ error: true, message: 'Invalid number (must be 7–15 digits with country code, no +)' });
 
-  /* Couper l'ancien socket pour ce numéro */
+  /* Close any existing socket for this number */
   if (activeSockets.has(number)) {
     const old = activeSockets.get(number);
     clearTimeout(old.timer);
-    try { old.sock.end(); } catch {}
+    try { old.sock.ws?.close(); } catch {}
     activeSockets.delete(number);
   }
 
-  /* Effacer l'ancienne session seulement si le bot ne tourne pas */
+  /* Clear old session — only if bot is not running */
   if (!botProcess) {
     try { fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch {}
   }
   fs.mkdirSync(SESSION_DIR, { recursive: true });
 
-  appendLog(`[web] /code demandé pour ${number}`);
+  appendLog(`[web] /code requested for ${number}`);
 
   try {
-    /* fetchLatestBaileysVersion avec timeout + fallback */
+    /* ── Fetch latest Baileys version with fallback ── */
     let version = [2, 3000, 1023097280];
     try {
       const result = await Promise.race([
@@ -310,6 +325,7 @@ app.get('/code', async (req, res) => {
         new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 8000)),
       ]);
       if (result?.version) version = result.version;
+      appendLog(`[web] Baileys version: ${version.join('.')}`);
     } catch (e) {
       appendLog('[web] fetchLatestBaileysVersion fallback: ' + e.message);
     }
@@ -320,202 +336,228 @@ app.get('/code', async (req, res) => {
     const sock = makeWASocket({
       version,
       logger,
-      printQRInTerminal: false,
-      browser          : Browsers.ubuntu('Chrome'),
+      printQRInTerminal : false,
+      browser           : Browsers.ubuntu('Chrome'),
       auth: {
-        creds: state.creds,
-        keys : makeCacheableSignalKeyStore(state.keys, logger),
+        creds : state.creds,
+        keys  : makeCacheableSignalKeyStore(state.keys, logger),
       },
-      msgRetryCounterCache: new NodeCache({ stdTTL: 120 }),
-      connectTimeoutMs    : 60000,
-      keepAliveIntervalMs : 10_000,  // ← FIX PRINCIPAL : empêche Railway de tuer la WS idle
-      syncFullHistory     : false,
-      markOnlineOnConnect : true,
+      msgRetryCounterCache    : new NodeCache({ stdTTL: 120 }),
+      connectTimeoutMs        : 60000,
+      keepAliveIntervalMs     : 10_000,
+      syncFullHistory         : false,
+      markOnlineOnConnect     : true,
+      generateHighQualityLinkPreview: false,
     });
 
+    /* ── CRITICAL: save creds on every update ── */
     sock.ev.on('creds.update', saveCreds);
 
-    /* ─── UN SEUL handler connection.update (pas de race condition) ─── */
+    /* ── Pairing code promise ── */
     let codeResolve, codeReject;
-    let codeDone        = false;
-    let connectingFired = false;
-    let attempts        = 0;
-    const MAX_TRIES     = 4;
+    let codeDone      = false;
+    let pairStarted   = false;
+    let attempts      = 0;
+    const MAX_TRIES   = 5;
 
-    const codePromise = new Promise((res, rej) => { codeResolve = res; codeReject = rej; });
+    const codePromise = new Promise((res, rej) => {
+      codeResolve = res;
+      codeReject  = rej;
+    });
 
-    /* Timeout global 40s */
+    /* Hard timeout 45s */
     const hardTimeout = setTimeout(() => {
       if (!codeDone) {
         codeDone = true;
-        codeReject(new Error('Timeout 40s — WhatsApp ne répond pas. Réessaye.'));
+        codeReject(new Error('Timeout 45s — WhatsApp not responding. Try again.'));
       }
-    }, 40000);
+    }, 45000);
 
-    const tryCode = async () => {
+    async function tryRequestCode() {
       if (codeDone) return;
       attempts++;
-      appendLog(`[web] requestPairingCode tentative ${attempts}`);
+      appendLog(`[web] requestPairingCode attempt ${attempts}`);
       try {
         if (sock.authState?.creds?.registered) {
-          codeDone = true; clearTimeout(hardTimeout);
-          return codeReject(new Error(
-            'Numéro déjà enregistré. Dans WhatsApp → Appareils liés → déconnecte le bot, puis réessaie.'
-          ));
+          if (!codeDone) {
+            codeDone = true; clearTimeout(hardTimeout);
+            codeReject(new Error(
+              'Number already registered. In WhatsApp → Linked Devices → disconnect the bot, then try again.'
+            ));
+          }
+          return;
         }
         const raw = await sock.requestPairingCode(number);
         if (raw && !codeDone) {
           codeDone = true; clearTimeout(hardTimeout);
-          appendLog(`[web] Code reçu pour ${number}`);
+          appendLog(`[web] ✅ Code obtained for ${number}`);
           codeResolve(raw);
-        } else if (!codeDone) {
-          if (attempts < MAX_TRIES) setTimeout(tryCode, 3000);
-          else { codeDone = true; clearTimeout(hardTimeout); codeReject(new Error('Code null reçu. Réessaie.')); }
+        } else if (!raw && !codeDone) {
+          if (attempts < MAX_TRIES) setTimeout(tryRequestCode, 3000);
+          else { codeDone = true; clearTimeout(hardTimeout); codeReject(new Error('Null code after retries. Try again.')); }
         }
       } catch (e) {
-        appendLog(`[web] requestPairingCode erreur: ${e.message}`);
+        appendLog(`[web] requestPairingCode error: ${e.message}`);
         if (codeDone) return;
-        if (attempts < MAX_TRIES) setTimeout(tryCode, 3000);
-        else { codeDone = true; clearTimeout(hardTimeout); codeReject(new Error('Erreur pairage: ' + e.message)); }
+        if (attempts < MAX_TRIES) setTimeout(tryRequestCode, 3000);
+        else { codeDone = true; clearTimeout(hardTimeout); codeReject(new Error('Pairing error: ' + e.message)); }
       }
-    };
+    }
 
-    /* Handler unique enregistré AVANT tout await */
-    sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+    /* ── Async helper: save creds then safely close socket ── */
+    async function saveAndClose(delayMs = 4000) {
+      try {
+        await saveCreds();           // wait for all credential files to be written
+        appendLog('[web] creds saved ✅');
+      } catch (e) {
+        appendLog('[web] saveCreds error: ' + e.message);
+      }
+      await new Promise(r => setTimeout(r, delayMs)); // extra buffer for disk writes
+      try { sock.ws?.close(); } catch {}
+    }
+
+    /* ── Single connection.update handler ── */
+    sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
       if (qr) _currentQR = qr;
 
-      if (connection === 'connecting' && !connectingFired) {
-        connectingFired = true;
-        appendLog('[web] connecting → tryCode dans 1s');
-        setTimeout(tryCode, 1000);
+      /* ── connecting: trigger pairing code request ── */
+      if (connection === 'connecting' && !pairStarted) {
+        pairStarted = true;
+        appendLog('[web] connecting → requestPairingCode in 1.5s');
+        setTimeout(tryRequestCode, 1500);
       }
 
+      /* ── open: pairing succeeded ── */
       if (connection === 'open') {
         _currentQR   = null;
         botConnected = true;
-        appendLog(`[web] ✅ connection open pour ${number} — bot démarré`);
-        console.log(`[VARNOX] ✅ WhatsApp connecté pour ${number}`);
+        appendLog(`[web] ✅ WhatsApp connected for ${number}`);
+        console.log(`[VARNOX] ✅ WhatsApp connected (${number})`);
 
-        /* Mettre à jour owner.json avec le vrai numéro */
         initOwnerJson(number);
 
-        /* Nettoyer le socket de pairage */
+        /* FIX: save creds FIRST, wait, then close socket, then start bot */
+        await saveAndClose(4000);
+
         const entry = activeSockets.get(number);
         if (entry) { clearTimeout(entry.timer); activeSockets.delete(number); }
-        try { sock.end(); } catch {}
 
-        /* Démarrer index.js après 2s */
-        setTimeout(() => startBot(), 2000);
+        startBot();
+        return;
       }
 
+      /* ── close: check if pairing was registered ── */
       if (connection === 'close') {
-        const statusCode = lastDisconnect?.error?.output?.statusCode;
-        // Logger TOUJOURS (même après codeDone) pour voir ce qui se passe
-        appendLog(`[web] connection close — status=${statusCode} codeDone=${codeDone}`);
+        const reason = lastDisconnect?.error?.output?.statusCode;
+        appendLog(`[web] connection close — reason=${reason} codeDone=${codeDone} botConnected=${botConnected}`);
 
+        /* Before code: only reject on loggedOut */
         if (!codeDone) {
-          // Avant le code → rejeter si loggedOut
-          if (statusCode === DisconnectReason.loggedOut) {
+          if (reason === DisconnectReason.loggedOut) {
             codeDone = true; clearTimeout(hardTimeout);
-            codeReject(new Error('Session expirée. Réessaie.'));
+            codeReject(new Error('Session expired. Try again.'));
           }
-          // Autres fermetures avant code → laisser le fallback timeout gérer
           return;
         }
 
-        // ── Après le code : Baileys NE reconnecte PAS ce socket tout seul.
-        // WhatsApp ferme ce socket temporaire une fois le code utilisé — c'est normal.
-        // Il faut vérifier si l'enregistrement a réussi (creds.registered) et,
-        // si oui, démarrer nous-mêmes le vrai bot (index.js) avec la session sauvegardée.
+        /* After code: WhatsApp closes the pairing socket after registration — this is NORMAL.
+           Check if creds.registered was set during the close. */
         const registered = !!sock.authState?.creds?.registered;
+        appendLog(`[web] post-code close — registered=${registered} botConnected=${botConnected}`);
 
         if (registered && !botConnected) {
-          botConnected = true;
-          _currentQR   = null;
-          appendLog(`[web] ✅ Pairing réussi pour ${number} (détecté à la fermeture) — démarrage du bot`);
-          console.log(`[VARNOX] ✅ WhatsApp connecté pour ${number}`);
+          botConnected = true; _currentQR = null;
+          appendLog(`[web] ✅ Pairing confirmed at close for ${number} → starting bot`);
+          console.log(`[VARNOX] ✅ Pairing confirmed (${number})`);
 
           initOwnerJson(number);
 
-          const entry = activeSockets.get(number);
-          if (entry) { clearTimeout(entry.timer); activeSockets.delete(number); }
-          try { sock.end(); } catch {}
+          /* FIX: save creds before starting bot */
+          await saveAndClose(3000);
 
-          setTimeout(() => startBot(), 2000);
-        } else if (!registered && statusCode === DisconnectReason.loggedOut) {
-          // Fermeture après code mais jamais enregistré → vraiment échoué, on nettoie
-          appendLog(`[web] ❌ Pairing échoué pour ${number} (non enregistré, loggedOut)`);
           const entry = activeSockets.get(number);
           if (entry) { clearTimeout(entry.timer); activeSockets.delete(number); }
-          try { fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch {}
+
+          startBot();
+
+        } else if (!registered && reason === DisconnectReason.loggedOut) {
+          appendLog(`[web] ❌ Pairing failed — not registered`);
+          const entry = activeSockets.get(number);
+          if (entry) { clearTimeout(entry.timer); activeSockets.delete(number); }
+          if (!botConnected) {
+            try { fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch {}
+          }
         }
-        // Sinon (fermeture transitoire, pas encore enregistré) → on attend,
-        // le timer de 10 min nettoiera si rien ne se passe.
+        /* Other close reasons while waiting → let the 15-min timer clean up */
       }
     });
 
-    /* Cold-start fallback : si 'connecting' ne fire pas dans 6s */
+    /* ── Cold-start fallback: if 'connecting' doesn't fire in 8s ── */
     setTimeout(() => {
-      if (!codeDone && !connectingFired) {
-        appendLog('[web] cold-start fallback → tryCode forcé');
-        connectingFired = true;
-        tryCode();
+      if (!codeDone && !pairStarted) {
+        appendLog('[web] cold-start fallback → forcing requestPairingCode');
+        pairStarted = true;
+        tryRequestCode();
       }
-    }, 6000);
+    }, 8000);
 
-    /* Attendre le code — le handler 'open' reste actif ensuite */
+    /* ── Wait for code ── */
     const raw       = await codePromise;
     const formatted = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').match(/.{1,4}/g)?.join('-') ?? raw;
 
-    /* Timer 10min — ferme le socket si l'utilisateur n'entre jamais le code */
+    /* ── 15-min cleanup timer ── */
     const timer = setTimeout(() => {
       if (activeSockets.has(number)) {
-        appendLog(`[web] Timeout 10min — socket ${number} fermé`);
-        try { activeSockets.get(number).sock.end(); } catch {}
+        appendLog(`[web] 15-min timeout — closing socket for ${number}`);
+        try { activeSockets.get(number).sock.ws?.close(); } catch {}
         activeSockets.delete(number);
         if (!botConnected) {
           try { fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch {}
         }
       }
-    }, 10 * 60 * 1000);
+    }, 15 * 60 * 1000);
 
     activeSockets.set(number, { sock, timer });
     return res.json({ error: false, code: formatted });
 
   } catch (err) {
-    appendLog('[web] /code erreur: ' + err.message);
-    console.error('[VARNOX] Erreur pairage:', err.message);
+    appendLog('[web] /code error: ' + err.message);
+    console.error('[VARNOX] Pairing error:', err.message);
     if (!botConnected) {
       try { fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch {}
     }
-    return res.json({ error: true, message: err.message || 'Erreur lors de la génération du code' });
+    return res.json({ error: true, message: err.message || 'Error generating code' });
   }
 });
 
-/* ─── /qr ────────────────────────────────────────────── */
+/* ─── /qr ─────────────────────────────────────────────── */
 app.get('/qr', (_req, res) => {
   res.json({ qr: _currentQR, waiting: !_currentQR });
 });
 
-/* ─── /status ────────────────────────────────────────── */
+/* ─── /status ─────────────────────────────────────────── */
 app.get('/status', (req, res) => {
   const clean = req.query.number ? String(req.query.number).replace(/\D/g, '') : null;
   if (!clean) return res.json({ sessions: activeSockets.size, botRunning: !!botProcess });
   res.json({ number: clean, connected: activeSockets.has(clean) || botConnected });
 });
 
-/* ─── SPA fallback ───────────────────────────────────── */
+/* ─── SPA fallback ────────────────────────────────────── */
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-/* ─── Démarrage ──────────────────────────────────────── */
+/* ─── Start server ────────────────────────────────────── */
 app.listen(PORT, () => {
-  console.log(`\n=== VARNOX XD V2 v9 — Port ${PORT} ===`);
-  console.log(`Panel   : http://localhost:${PORT}`);
-  console.log(`Debug   : http://localhost:${PORT}/debug`);
-  console.log(`Logs    : http://localhost:${PORT}/bot-logs`);
-  console.log(`Reset   : http://localhost:${PORT}/reset\n`);
+  console.log(`\n╔══════════════════════════════════════╗`);
+  console.log(`║  VARNOX XD V2 v10  —  Port ${PORT}     ║`);
+  console.log(`╠══════════════════════════════════════╣`);
+  console.log(`║  Panel  : http://localhost:${PORT}       ║`);
+  console.log(`║  Debug  : http://localhost:${PORT}/debug ║`);
+  console.log(`║  Logs   : http://localhost:${PORT}/bot-logs ║`);
+  console.log(`║  Reset  : http://localhost:${PORT}/reset  ║`);
+  console.log(`╚══════════════════════════════════════╝\n`);
+  if (SELF_URL) console.log(`[VARNOX] Keep-alive: ${SELF_URL}`);
 });
 
 module.exports = app;
