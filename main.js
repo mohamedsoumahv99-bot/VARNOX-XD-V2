@@ -382,6 +382,13 @@ async function handleMessages(sock, messageUpdate, printLog) {
         // We'll show typing indicator after command execution if needed
         let commandExecuted = false;
 
+        // ── Instant emoji reaction (per-command, before execution) ──────────
+        // Gives immediate visual feedback so commands never feel "slow".
+        {
+          const cmdKey = userMessage.split(/\s+/)[0]; // e.g. '.ping', '.tagall'
+          await addCommandReaction(sock, message, cmdKey);
+        }
+
         switch (true) {
             case userMessage === '.simage': {
                 const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
@@ -1218,10 +1225,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
             });
         }
 
-        if (userMessage.startsWith('.')) {
-            // After command is processed successfully
-            await addCommandReaction(sock, message);
-        }
     } catch (error) {
         console.error('❌ Error in message handler:', error.message);
         // Only try to send error message if we have a valid chatId
