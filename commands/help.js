@@ -1,164 +1,164 @@
+'use strict';
 const settings = require('../settings');
-const fs = require('fs');
-const path = require('path');
+const os       = require('os');
 
 async function helpCommand(sock, chatId, message) {
-    const helpMessage = `
+  // Extract sender number from message
+  const senderId  = message.key.participant || message.key.remoteJid || '';
+  const senderNum = senderId.split('@')[0] || '?';
+  const runtime   = new Date().toLocaleTimeString('fr-FR', { timeZone: 'Africa/Conakry' });
+  const ram       = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(0);
+  const upSec     = Math.floor(process.uptime());
+  const upH       = Math.floor(upSec / 3600);
+  const upM       = Math.floor((upSec % 3600) / 60);
+  const uptime    = upH > 0 ? `${upH}h ${upM}m` : `${upM}m`;
 
-╭━━━━━⌜𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2⌟
+  const helpMessage =
+`╭━━━━⌜𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2⌟
 ┃❍╭━━━━━━━━━━━━━━≽
-┃❍┃👤ᴜsᴇʀ : @${senderNum}
-┃❍┃👑ᴏᴡɴᴇʀ : ʋαɾɳσx ❍ϝϝιƈια𝚕
-┃❍┃♻️ᴠᴇʀsɪᴏɴ : ${settings.version || '2.0.0'} 
-┃❍┃⚙️ᴍᴏᴅᴇ : ᴘᴜʙʟɪᴄ
-┃❍┃⏰️ʀᴜɴᴛɪᴍᴇ : ${new Date().toLocaleTimeString("fr-FR", {
-  timeZone: "Africa/Conakry"
-})}
-┃❍┃🔆ᴘʀᴇғɪxᴇ : [.]
+┃❍┃ 👤 ᴜsᴇʀ : @${senderNum}
+┃❍┃ 👑 ᴏᴡɴᴇʀ : ʋαɾɳσx ❍ϝϝιƈια𝚕
+┃❍┃ ♻️ ᴠᴇʀsɪᴏɴ : ${settings.version || '2.0.0'}
+┃❍┃ ⚙️ ᴍᴏᴅᴇ : ᴘᴜʙʟɪᴄ
+┃❍┃ ⏰ ʜᴇᴜʀᴇ : ${runtime}
+┃❍┃ ⏱️ ᴜᴘᴛɪᴍᴇ : ${uptime}
+┃❍┃ 💾 ʀᴀᴍ : ${ram} MB
+┃❍┃ 🔆 ᴘʀᴇғɪxᴇ : [.]
 ╰━━━━━━━━━━━━━━━❐
-➥❐ ⌜📦𝗚𝗘𝗡𝗘𝗥𝗔𝗟 𝗠𝗘𝗡𝗨⌟
+
+➥❐ ⌜📦 𝗚𝗘𝗡𝗘𝗥𝗔𝗟 𝗠𝗘𝗡𝗨⌟
 ╭━━━━━━━━━━━━━━━≽
-│⌬┃ʜᴇʟᴘ
-│⌬┃ᴍᴇɴᴜ
-│⌬┃ᴘɪɴɢ
-│⌬┃ᴀʟɪᴠᴇ
-│⌬┃ᴛᴛs
-│⌬┃ᴏᴡɴᴇʀ
-│⌬┃ᴊᴏᴋᴇ
-│⌬┃ǫᴜᴏᴛᴇ
-│⌬┃ғᴀᴄᴛ
-│⌬┃ᴡᴇᴀᴛʜᴇʀ
-│⌬┃ɴᴇᴡs
-│⌬┃ᴀᴛᴛᴘ
-│⌬┃ʟʏʀɪᴄs
-│⌬┃8ʙᴀʟʟ
-│⌬┃ɢʀᴏᴜᴘɪɴғᴏ
-│⌬┃sᴛᴀғғ
-│⌬┃🥷
-│⌬┃ᴛʀᴛ
-│⌬┃ss
-│⌬┃ᴊɪᴅ
-│⌬┃ᴜʀʟ
+│⌬┃ ᴘɪɴɢ
+│⌬┃ ᴀʟɪᴠᴇ
+│⌬┃ ᴏᴡɴᴇʀ
+│⌬┃ ᴛᴛs
+│⌬┃ ᴊᴏᴋᴇ
+│⌬┃ ǫᴜᴏᴛᴇ
+│⌬┃ ғᴀᴄᴛ
+│⌬┃ ᴡᴇᴀᴛʜᴇʀ
+│⌬┃ ɴᴇᴡs
+│⌬┃ ᴀᴛᴛᴘ
+│⌬┃ ʟʏʀɪᴄs
+│⌬┃ 8ʙᴀʟʟ
+│⌬┃ ᴛʀᴛ / ᴛʀᴀɴsʟᴀᴛᴇ
+│⌬┃ ss / sᴄʀᴇᴇɴsʜᴏᴛ
+│⌬┃ ᴜʀʟ
+│⌬┃ ᴊɪᴅ
 ╰━━━━━━━━━━━━❍
-➥❐  ⌜🛠𝗔𝗗𝗠𝗜𝗡 𝗠𝗘𝗡𝗨⌟
+
+➥❐ ⌜🛠 𝗔𝗗𝗠𝗜𝗡 𝗠𝗘𝗡𝗨⌟
 ╭━━━━━━━━━━━━━━━≽
-┃⌬┃ʙᴀɴ
-│⌬┃ᴋɪᴄᴋ
-│⌬┃ᴡᴀʀɴ
-│⌬┃ᴘʀᴏᴍᴏᴛᴇ
-│⌬┃ᴅᴇᴍᴏᴛᴇ
-│⌬┃ᴍᴜᴛᴇ
-│⌬┃ᴜɴᴍᴜᴛᴇ
-│⌬┃ᴅᴇʟᴇᴛᴇ
-│⌬┃ᴄʟᴇᴀʀ
-│⌬┃ᴛᴀɢᴀʟʟ
-│⌬┃ʜɪᴅᴇᴛᴀɢ
-│⌬┃ᴀɴᴛɪʟɪɴᴋ
-│⌬┃ᴀɴᴛɪʙᴀᴅᴡᴏʀᴅ
-│⌬┃ᴀɴᴛɪʙᴏᴛ
-│⌬┃ᴡᴇʟᴄᴏᴍᴇ
-│⌬┃ɢᴏᴏᴅʙʏᴇ
-│⌬┃sᴇᴛɢɴᴀᴍᴇ
-│⌬┃sᴇᴛɢᴘᴘ
+│⌬┃ ᴛᴀɢᴀʟʟ
+│⌬┃ ᴛᴀɢ
+│⌬┃ ʜɪᴅᴇᴛᴀɢ
+│⌬┃ ᴛᴀɢɴᴏᴛᴀᴅᴍɪɴ
+│⌬┃ ʙᴀɴ / ᴜɴʙᴀɴ
+│⌬┃ ᴋɪᴄᴋ
+│⌬┃ ᴡᴀʀɴ / ᴡᴀʀɴɪɴɢs
+│⌬┃ ᴘʀᴏᴍᴏᴛᴇ / ᴅᴇᴍᴏᴛᴇ
+│⌬┃ ᴍᴜᴛᴇ / ᴜɴᴍᴜᴛᴇ
+│⌬┃ ᴅᴇʟᴇᴛᴇ
+│⌬┃ ᴄʟᴇᴀʀ
+│⌬┃ ʜɪᴅᴇᴛᴀɢ
+│⌬┃ ᴀɴᴛɪʟɪɴᴋ
+│⌬┃ ᴀɴᴛɪʙᴀᴅᴡᴏʀᴅ
+│⌬┃ ᴀɴᴛɪʙᴏᴛ
+│⌬┃ ᴡᴇʟᴄᴏᴍᴇ / ɢᴏᴏᴅʙʏᴇ
+│⌬┃ sᴛᴀғғ
+│⌬┃ ɢʀᴏᴜᴘɪɴғᴏ
+│⌬┃ sᴇᴛɢɴᴀᴍᴇ / sᴇᴛɢᴘᴘ
+│⌬┃ ʀᴇsᴇᴛʟɪɴᴋ
 ╰━━━━━━━━━━━━❍
-➥❐  ⌜👑𝗢𝗪𝗡𝗘𝗥 𝗠𝗘𝗡𝗨⌟
+
+➥❐ ⌜👑 𝗢𝗪𝗡𝗘𝗥 𝗠𝗘𝗡𝗨⌟
 ╭━━━━━━━━━━━━━━━≽
-│⌬┃ᴍᴏᴅᴇ
-│⌬┃ᴄʟᴇᴀʀsᴇssɪᴏɴ
-│⌬┃ᴄʟᴇᴀʀᴛᴍᴘ
-│⌬┃ᴜᴘᴅᴀᴛᴇ
-│⌬┃sᴇᴛᴛɪɴɢs
-│⌬┃ᴀᴜᴛᴏsᴛᴀᴛᴜs
-│⌬┃ᴀᴜᴛᴏʀᴇᴀᴅ
-│⌬┃ᴀɴᴛɪᴄᴀʟʟ
-│⌬┃ᴘᴍʙʟᴏᴄᴋᴇʀ
-│⌬┃sᴇᴛᴘᴘ
-│⌬┃sᴇᴛᴍᴇɴᴛɪᴏɴ
+│⌬┃ ᴍᴏᴅᴇ
+│⌬┃ ᴄʟᴇᴀʀsᴇssɪᴏɴ
+│⌬┃ ᴄʟᴇᴀʀᴛᴍᴘ
+│⌬┃ ᴜᴘᴅᴀᴛᴇ
+│⌬┃ sᴇᴛᴛɪɴɢs
+│⌬┃ ᴀᴜᴛᴏsᴛᴀᴛᴜs
+│⌬┃ ᴀᴜᴛᴏʀᴇᴀᴅ
+│⌬┃ ᴀᴜᴛᴏᴛʏᴘɪɴɢ
+│⌬┃ ᴀɴᴛɪᴄᴀʟʟ
+│⌬┃ ᴘᴍʙʟᴏᴄᴋᴇʀ
+│⌬┃ sᴇᴛᴘᴘ
+│⌬┃ ᴀʀᴇᴀᴄᴛ ᴏɴ/ᴏFF
+│⌬┃ sᴜᴅᴏ
 ╰━━━━━━━━━━━━❍
-➥❐  ⌜🎨𝗦𝗧𝗜𝗖𝗞 𝗠𝗘𝗡𝗨⌟
+
+➥❐ ⌜🎨 𝗦𝗧𝗜𝗖𝗞𝗘𝗥 & 𝗠𝗘𝗗𝗜𝗔⌟
 ╭━━━━━━━━━━━━━━━≽
-│⌬┃sᴛɪᴄᴋᴇʀ
-│⌬┃sɪᴍᴀɢᴇ
-│⌬┃ʀᴇᴍɪɴɪ
-│⌬┃ʀᴇᴍᴏᴠᴇʙɢ
-│⌬┃ʙʟᴜʀ
-│⌬┃ᴄʀᴏᴘ
-│⌬┃ᴍᴇᴍᴇ
-│⌬┃ᴛᴀᴋᴇ
-│⌬┃ᴇᴍᴏᴊɪᴍɪx
-┃⌬┃ɪɢs
-│⌬┃ɪɢsᴄ
+│⌬┃ sᴛɪᴄᴋᴇʀ
+│⌬┃ sɪᴍᴀɢᴇ
+│⌬┃ ʀᴇᴍɪɴɪ
+│⌬┃ ʀᴇᴍᴏᴠᴇʙɢ
+│⌬┃ ʙʟᴜʀ
+│⌬┃ ᴄʀᴏᴘ
+│⌬┃ ᴍᴇᴍᴇ
+│⌬┃ ᴛᴀᴋᴇ
+│⌬┃ ᴇᴍᴏᴊɪᴍɪx
+│⌬┃ ɪɢs / ɪɢsᴄ
+│⌬┃ ᴡᴀsᴛᴇᴅ
 ╰━━━━━━━━━━━━❍
-➥❐  ⌜📌𝗔𝗜 & 𝗚𝗔𝗠𝗘𝗦⌟
+
+➥❐ ⌜📌 𝗔𝗜 & 𝗝𝗘𝗨𝗫⌟
 ╭━━━━━━━━━━━━━━━≽
-│⌬┃ɢᴘᴛ
-│⌬┃ɢᴇᴍɪɴɪ
-│⌬┃ɪᴍᴀɢɪɴᴇ
-│⌬┃ғʟᴜx
-│⌬┃sᴏʀᴀ
-│⌬┃ᴛɪᴄᴛᴀᴄᴛᴏᴇ
-│⌬┃ʜᴀɴɢᴍᴀɴ
-│⌬┃ᴛʀɪᴠɪᴀ
-│⌬┃ᴛʀᴜᴛʜ
-│⌬┃ᴅᴀʀᴇ
+│⌬┃ ɢᴘᴛ / ɢᴇᴍɪɴɪ
+│⌬┃ ɪᴍᴀɢɪɴᴇ / ғʟᴜx
+│⌬┃ sᴏʀᴀ
+│⌬┃ ᴛɪᴄᴛᴀᴄᴛᴏᴇ
+│⌬┃ ʜᴀɴɢᴍᴀɴ
+│⌬┃ ᴛʀɪᴠɪᴀ
+│⌬┃ ᴛʀᴜᴛʜ / ᴅᴀʀᴇ
+│⌬┃ ғʟɪʀᴛ
+│⌬┃ sʜɪᴘ
+│⌬┃ 8ʙᴀʟʟ
+│⌬┃ ᴄᴏᴍᴘʟɪᴍᴇɴᴛ / ɪɴsᴜʟᴛ
 ╰━━━━━━━━━━━━❍
-➥❐  ⌜📥𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗥⌟
-│⌬┃ᴘʟᴀʏ
-│⌬┃sᴏɴɢ
-│⌬┃ᴠɪᴅᴇᴏ
-│⌬┃sᴘᴏᴛɪғʏ
-│⌬┃ʏᴛᴍᴘ4
-│⌬┃ɪɴsᴛᴀɢʀᴀᴍ
-│⌬┃ғᴀᴄᴇʙᴏᴏᴋ
-│⌬┃ᴛɪᴋᴛᴏᴋ
-╰━━━━━━━━━━━━❍
-➥❐  ⌜🔷️𝗧𝗘𝗫𝗧 𝗠𝗔𝗞𝗘𝗥⌟
+
+➥❐ ⌜📥 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗥⌟
 ╭━━━━━━━━━━━━━━━≽
-│⌬┃ɴᴇᴏɴ
-│⌬┃ɢʟɪᴛᴄʜ
-│⌬┃ғɪʀᴇ
-│⌬┃ɪᴄᴇ
-│⌬┃sɴᴏᴡ
-│⌬┃ᴍᴀᴛʀɪx
-│⌬┃ʜᴀᴄᴋᴇʀ
-│⌬┃ᴅᴇᴠɪʟ
-│⌬┃sᴀɴᴅ
+│⌬┃ ᴘʟᴀʏ / sᴏɴɢ / ᴍᴘ3
+│⌬┃ ᴠɪᴅᴇᴏ / ʏᴛᴍᴘ4
+│⌬┃ sᴘᴏᴛɪғʏ
+│⌬┃ ɪɴsᴛᴀɢʀᴀᴍ
+│⌬┃ ғᴀᴄᴇʙᴏᴏᴋ
+│⌬┃ ᴛɪᴋᴛᴏᴋ
 ╰━━━━━━━━━━━━❍
-➥❐  ⌜🕹𝗦𝗬𝗦𝗧𝗘𝗠 𝗠𝗘𝗡𝗨⌟
+
+➥❐ ⌜🔷 𝗧𝗘𝗫𝗧 𝗠𝗔𝗞𝗘𝗥⌟
 ╭━━━━━━━━━━━━━━━≽
-│⌬┃ɢɪᴛ
-│⌬┃ɢɪᴛʜᴜʙ
-│⌬┃sᴄᴇɴᴇ
-│⌬┃ʀᴇᴘᴏ
-│⌬┃sᴄʀɪᴘᴛ
+│⌬┃ ɴᴇᴏɴ  ɢʟɪᴛᴄʜ  ғɪʀᴇ
+│⌬┃ ɪᴄᴇ  sɴᴏᴡ  ᴍᴀᴛʀɪx
+│⌬┃ ʜᴀᴄᴋᴇʀ  ᴅᴇᴠɪʟ  sᴀɴᴅ
+│⌬┃ ʙʟᴀᴄᴋᴘɪɴᴋ  ᴛʜᴜɴᴅᴇʀ  ᴀʀᴇɴᴀ
 ╰━━━━━━━━━━━━❍
 
 > ©2026 ʋαɾɳσx xᴅ ʋ2 ᴅҽʋҽʅσρҽԃ Ⴆყ ʋαɾɳσx ᴛᴇᴄʜ`;
 
-    const contextInfo = {
+  try {
+    await sock.sendMessage(chatId, {
+      image   : { url: 'https://files.catbox.moe/24ugxs.jpg' },
+      caption : helpMessage,
+      mentions: [senderId],
+      contextInfo: {
         forwardingScore: 1,
-        isForwarded: true,
+        isForwarded    : true,
         forwardedNewsletterMessageInfo: {
-            newsletterJid: '120363424782348922@newsletter',
-            newsletterName: '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2',
-            serverMessageId: -1
-        }
-    };
-
-    try {
-        await sock.sendMessage(chatId, {
-            image: { 
-                url: 'https://files.catbox.moe/24ugxs.jpg'
-            },
-            caption: helpMessage,
-            contextInfo
-        }, { quoted: message });
-    } catch (error) {
-        console.error('Error in help command:', error);
-        await sock.sendMessage(chatId, { 
-            text: helpMessage 
-        });
-    }
+          newsletterJid  : '120363424782348922@newsletter',
+          newsletterName : '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2',
+          serverMessageId: -1,
+        },
+      },
+    }, { quoted: message });
+  } catch (err) {
+    console.error('[help] image failed, sending text:', err.message);
+    await sock.sendMessage(chatId, {
+      text    : helpMessage,
+      mentions: [senderId],
+    }, { quoted: message });
+  }
 }
 
 module.exports = helpCommand;
