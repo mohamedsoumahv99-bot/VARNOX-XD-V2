@@ -15,25 +15,32 @@ async function tagAllCommand(sock, chatId, senderId, message) {
       return;
     }
 
-    const groupName   = groupMetadata.subject || 'Groupe';
-    const count       = participants.length;
-    const senderNum   = senderId.split('@')[0];
+    const groupName  = groupMetadata.subject || 'Groupe';
+    const count      = participants.length;
+    const senderNum  = senderId.split('@')[0];
+    const mentions   = participants.map(p => p.id);
 
-    // Build mention list
-    const mentions = participants.map(p => p.id);
     const memberList = participants
-      .map((p, i) => `  ${i + 1}. @${p.id.split('@')[0]}`)
+      .map((p, i) => `⌬  ${i + 1}. @${p.id.split('@')[0]}`)
       .join('\n');
 
     const tagMessage =
-      `╭━━━━ 『 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2 』 ━━━━╮\n` +
-      `┃ 📢 *TAG ALL*\n` +
-      `┃ 👤 Par : @${senderNum}\n` +
-      `┃ 🏷️ Groupe : *${groupName}*\n` +
-      `┃ 👥 Membres : *${count}*\n` +
-      `╰━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
-      `${memberList}\n\n` +
-      `> © 2026 ʋαɾɳσx ❍ғғɪᴄɪᴀʟ`;
+      `╭━━━━⌜𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2⌟\n` +
+      `┃⌬╭━━━━━━━━━━━━━≽\n` +
+      `┃⌬┃ @${senderNum}\n` +
+      `╰━━━━━━━━━━━━❍\n` +
+      `    📢 𝗔𝗡𝗡𝗢𝗡𝗖𝗘 ❍𝗙𝗙𝗜𝗖𝗜𝗔𝗟\n` +
+      `┃⌬┃ 🏷️ *${groupName}*\n` +
+      `┃⌬┃ 👥 *Membres tagués : ${count}*\n` +
+      `\n` +
+      `${memberList}\n` +
+      `\n` +
+      `┃⌬┃\n` +
+      `┃⌬┃ 🔔 ᴀᴛᴛᴇɴᴛɪᴏɴ ᴛᴏᴜᴛ\n` +
+      `┃⌬┃  ʟᴇ ᴍᴏɴᴅᴇ !\n` +
+      `╰━━━━━━━━━━━━❍\n` +
+      `\n` +
+      `> ©2026 ʋαɾɳσx xᴅ ʋ2 ᴅҽʋҽʅσρҽԃ Ⴆყ ʋαɾɳσx ᴛᴇᴄʜ`;
 
     await sock.sendMessage(chatId, {
       text     : tagMessage,
