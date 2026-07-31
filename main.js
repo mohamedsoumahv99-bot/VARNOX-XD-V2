@@ -382,12 +382,13 @@ async function handleMessages(sock, messageUpdate, printLog) {
         // We'll show typing indicator after command execution if needed
         let commandExecuted = false;
 
-        // ── Instant emoji reaction (per-command, before execution) ──────────
-        // Gives immediate visual feedback so commands never feel "slow".
-        {
-          const cmdKey = userMessage.split(/\s+/)[0]; // e.g. '.ping', '.tagall'
-          await addCommandReaction(sock, message, cmdKey);
-        }
+        // ── Emoji reaction fires IN PARALLEL during execution ───────────────
+        // No await = reaction sends while the command runs → appears "during use"
+        const _cmdKey = userMessage.split(/\s+/)[0];
+        addCommandReaction(sock, message, _cmdKey).catch(() => {});
+
+        // ── Typing presence: "En train d'écrire…" while processing ──────────
+        sock.sendPresenceUpdate('composing', chatId).catch(() => {});
 
         switch (true) {
             case userMessage === '.simage': {
@@ -1202,9 +1203,11 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
         }
 
+        // ── Clear typing presence after command completes ───────────────────
+        sock.sendPresenceUpdate('paused', chatId).catch(() => {});
+
         // If a command was executed, show typing status after command execution
         if (commandExecuted !== false) {
-            // Command was executed, now show typing status after command execution
             await showTypingAfterCommand(sock, chatId);
         }
 
