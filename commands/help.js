@@ -7,7 +7,7 @@ async function helpCommand(sock, chatId, message) {
 
 ╭━━━━━⌜𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2⌟
 ┃❍╭━━━━━━━━━━━━━━≽
-┃❍┃👤ᴜsᴇʀ : @${m.sender.split('@')[0]}
+┃❍┃👤ᴜsᴇʀ : @${senderNum}
 ┃❍┃👑ᴏᴡɴᴇʀ : ʋαɾɳσx ❍ϝϝιƈια𝚕
 ┃❍┃♻️ᴠᴇʀsɪᴏɴ : ${settings.version || '2.0.0'} 
 ┃❍┃⚙️ᴍᴏᴅᴇ : ᴘᴜʙʟɪᴄ
