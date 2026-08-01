@@ -3,387 +3,649 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VARNOX XD V2 — Pairing Code</title>
+  <title>VARNOX XD V2 — Pairing</title>
   <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    :root{
-      --bg:#08090f;
-      --card:#10111a;
-      --border:rgba(255,255,255,.07);
-      --text:#fff;
-      --muted:#7878a0;
-      --row:#14151f;
-      --g1:#e879f9;
-      --g2:#8b5cf6;
-      --g3:#06b6d4;
-    }
-    body{
-      min-height:100vh;
-      background:var(--bg);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
-      color:var(--text);
-      padding:20px;
-    }
-    body::before{
-      content:'';
-      position:fixed;inset:0;
-      background:
-        radial-gradient(ellipse 70% 50% at 50% -10%,rgba(232,121,249,.15),transparent),
-        radial-gradient(ellipse 50% 40% at 0% 60%,rgba(139,92,246,.09),transparent),
-        radial-gradient(ellipse 50% 40% at 100% 60%,rgba(6,182,212,.09),transparent);
-      pointer-events:none;z-index:0;
-    }
-    .card-wrap{
-      position:relative;
-      width:100%;max-width:390px;
-      z-index:1;
-    }
-    /* Glowing gradient border */
-    .card-wrap::before{
-      content:'';
-      position:absolute;inset:-1.5px;
-      border-radius:22px;
-      background:linear-gradient(150deg,#e879f9 0%,#8b5cf6 45%,#06b6d4 100%);
-      z-index:0;
-    }
-    /* Outer glow */
-    .card-wrap::after{
-      content:'';
-      position:absolute;inset:-6px;
-      border-radius:26px;
-      background:linear-gradient(150deg,rgba(232,121,249,.25) 0%,rgba(139,92,246,.15) 50%,rgba(6,182,212,.25) 100%);
-      filter:blur(8px);
-      z-index:-1;
-    }
-    .card{
-      position:relative;
-      background:var(--card);
-      border-radius:21px;
-      padding:30px 22px 26px;
-      z-index:1;
-    }
-    .card::before{
-      content:'';
-      position:absolute;top:0;left:0;right:0;height:120px;
-      background:linear-gradient(180deg,rgba(232,121,249,.05),transparent);
-      border-radius:21px 21px 0 0;
-      pointer-events:none;
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:       #020510;
+      --card:     rgba(8, 12, 35, 0.92);
+      --border:   rgba(255,255,255,.06);
+      --text:     #e8eeff;
+      --muted:    #5a6a9a;
+      --row:      rgba(12, 18, 50, 0.8);
+      --c1:       #e040fb;  /* magenta */
+      --c2:       #7c3aed;  /* purple  */
+      --c3:       #0ea5e9;  /* sky blue */
+      --c4:       #06b6d4;  /* cyan    */
     }
 
-    /* ── Logo ─────────────────── */
-    .logo{
-      display:flex;flex-direction:column;align-items:center;
-      gap:12px;margin-bottom:22px;
-    }
-    .logo-circle{
-      width:72px;height:72px;border-radius:50%;
-      background:linear-gradient(135deg,#7c3aed,#0891b2);
-      display:flex;align-items:center;justify-content:center;
-      box-shadow:0 0 32px rgba(139,92,246,.5),0 0 64px rgba(139,92,246,.15);
-      font-size:30px;line-height:1;
-    }
-    .logo-title{
-      font-size:1.5rem;font-weight:900;letter-spacing:2.5px;
-      background:linear-gradient(90deg,var(--g1) 0%,var(--g2) 50%,var(--g3) 100%);
-      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-      text-align:center;
-    }
-    .logo-sub{
-      font-size:.8rem;color:var(--muted);margin-top:-8px;letter-spacing:.3px;
+    /* ══════════════════════════════════════════
+       FULL-PAGE NEON BLUE BACKGROUND
+    ══════════════════════════════════════════ */
+    body {
+      min-height: 100vh;
+      background: #020510;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      padding: 24px;
+      overflow-x: hidden;
+      position: relative;
     }
 
-    /* ── Server selector (collapsed) ─── */
-    .server-selector{
-      background:var(--row);
-      border:1px solid var(--border);
-      border-radius:14px;
-      padding:13px 15px;
-      margin-bottom:12px;
-      transition:border-color .2s;
-    }
-    .server-selector:hover{border-color:rgba(139,92,246,.35);}
-    .server-row{
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
-    }
-    .server-left{display:flex;align-items:center;gap:11px;}
-    .server-icon-box{
-      width:34px;height:34px;border-radius:9px;flex-shrink:0;
-      background:linear-gradient(135deg,rgba(139,92,246,.25),rgba(6,182,212,.25));
-      display:flex;align-items:center;justify-content:center;
-      font-size:14px;
-    }
-    .server-info-name{font-weight:700;font-size:.9rem;margin-bottom:3px;}
-    .server-info-meta{
-      font-size:.7rem;color:var(--muted);
-      display:flex;align-items:center;gap:6px;
-    }
-    .dot-green{
-      display:inline-block;width:6px;height:6px;border-radius:50%;
-      background:#4ade80;box-shadow:0 0 5px #4ade80;flex-shrink:0;
-    }
-    .btn-select{
-      background:rgba(255,255,255,.06);
-      border:1px solid rgba(255,255,255,.1);
-      color:var(--text);font-size:.78rem;font-weight:700;
-      padding:7px 13px;border-radius:9px;cursor:pointer;
-      transition:background .2s,border-color .2s;white-space:nowrap;flex-shrink:0;
-    }
-    .btn-select:hover{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.18);}
-
-    /* ── Server list (expanded) ─── */
-    .server-list-panel{
-      display:none;
-      background:var(--row);
-      border:1px solid var(--border);
-      border-radius:14px;
-      overflow:hidden;
-      margin-bottom:12px;
-    }
-    .server-list-panel.open{display:block;}
-    .server-list-header{
-      padding:13px 16px 10px;
-      font-weight:800;font-size:.88rem;
-      border-bottom:1px solid rgba(255,255,255,.06);
-      letter-spacing:.3px;
-    }
-    .server-list-scroll{
-      max-height:210px;overflow-y:auto;
-      scrollbar-width:thin;
-      scrollbar-color:rgba(255,255,255,.1) transparent;
-    }
-    .server-list-scroll::-webkit-scrollbar{width:4px;}
-    .server-list-scroll::-webkit-scrollbar-thumb{
-      background:rgba(255,255,255,.1);border-radius:2px;
-    }
-    .server-item{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:11px 16px;
-      border-bottom:1px solid rgba(255,255,255,.035);
-      cursor:pointer;transition:background .15s;
-    }
-    .server-item:last-child{border-bottom:none;}
-    .server-item:hover{background:rgba(255,255,255,.045);}
-    .server-item.active{background:rgba(139,92,246,.14);}
-    .server-item-name{font-weight:700;font-size:.87rem;}
-    .server-item-cta{font-size:.73rem;color:var(--muted);transition:color .15s;}
-    .server-item:hover .server-item-cta{color:var(--g1);}
-    .server-item.active .server-item-cta{color:#a78bfa;}
-
-    /* ── Quick Setup ─── */
-    .info-box{
-      background:rgba(6,182,212,.06);
-      border:1px solid rgba(6,182,212,.18);
-      border-radius:12px;
-      padding:12px 14px;
-      display:flex;gap:10px;
-      margin-bottom:18px;
-      font-size:.78rem;color:#a5f3fc;line-height:1.55;
-    }
-    .info-box-icon{font-size:14px;flex-shrink:0;margin-top:1px;}
-    .info-box-title{font-weight:800;font-size:.8rem;color:#67e8f9;margin-bottom:3px;}
-
-    /* ── Form ─── */
-    .form-label{
-      font-size:.8rem;font-weight:700;color:#ccc;
-      display:block;margin-bottom:8px;
-    }
-    .input-wrap{position:relative;margin-bottom:6px;}
-    .input-ph-icon{
-      position:absolute;left:14px;top:50%;transform:translateY(-50%);
-      color:var(--muted);font-size:14px;pointer-events:none;
-    }
-    .input-wrap input{
-      width:100%;
-      background:var(--row);
-      border:1px solid var(--border);
-      border-radius:12px;
-      padding:13px 14px 13px 40px;
-      color:var(--text);font-size:.9rem;font-family:inherit;
-      outline:none;transition:border-color .2s;
-    }
-    .input-wrap input::placeholder{color:var(--muted);}
-    .input-wrap input:focus{border-color:rgba(139,92,246,.5);}
-    .input-hint{
-      font-size:.7rem;color:var(--muted);
-      margin-bottom:18px;padding-left:3px;display:flex;align-items:center;gap:4px;
+    /* Deep neon atmosphere */
+    .bg-scene {
+      position: fixed; inset: 0; z-index: 0;
+      pointer-events: none; overflow: hidden;
     }
 
-    /* ── Generate button ─── */
-    .btn-pair{
-      width:100%;
-      background:linear-gradient(90deg,var(--g1) 0%,var(--g2) 50%,var(--g3) 100%);
-      border:none;border-radius:12px;
-      color:#fff;font-weight:800;font-size:.95rem;font-family:inherit;
-      padding:14px;cursor:pointer;
-      display:flex;align-items:center;justify-content:center;gap:8px;
-      transition:opacity .2s,transform .15s;
-      margin-bottom:12px;
-      letter-spacing:.3px;
+    /* Large glowing orbs */
+    .bg-scene::before {
+      content: '';
+      position: absolute;
+      width: 700px; height: 700px;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -60%);
+      background: radial-gradient(circle, rgba(14, 165, 233, 0.18) 0%, rgba(124, 58, 237, 0.12) 40%, transparent 70%);
+      animation: orb-pulse 6s ease-in-out infinite alternate;
     }
-    .btn-pair:hover{opacity:.88;transform:translateY(-1px);}
-    .btn-pair:disabled{opacity:.45;cursor:not-allowed;transform:none;}
-
-    /* ── Code output ─── */
-    .code-box{
-      background:rgba(0,0,0,.5);
-      border:1px solid var(--border);
-      border-radius:12px;
-      padding:14px 16px;
-      text-align:center;
-      font-size:.85rem;color:var(--muted);
-      min-height:50px;
-      display:flex;align-items:center;justify-content:center;
-      word-break:break-all;line-height:1.5;
-      margin-bottom:10px;
-    }
-    .code-box.has-code{
-      font-size:1.3rem;font-weight:900;letter-spacing:4px;
-      color:#67e8f9;
-      border-color:rgba(6,182,212,.3);
-      background:rgba(6,182,212,.06);
-    }
-    .code-box.error-code{
-      color:#f87171;border-color:rgba(248,113,113,.2);
-      background:rgba(248,113,113,.04);font-size:.83rem;
+    .bg-scene::after {
+      content: '';
+      position: absolute;
+      width: 500px; height: 500px;
+      left: 50%; bottom: 0;
+      transform: translateX(-50%);
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, rgba(124, 58, 237, 0.08) 50%, transparent 70%);
+      animation: orb-pulse 8s ease-in-out infinite alternate-reverse;
     }
 
-    /* ── Status ─── */
-    .status-msg{
-      font-size:.78rem;text-align:center;
-      min-height:20px;color:var(--muted);padding:2px 0;
-    }
-    .status-msg.ok{color:#4ade80;}
-    .status-msg.err{color:#f87171;}
-
-    /* ── Footer ─── */
-    .footer{
-      text-align:center;font-size:.67rem;
-      color:rgba(255,255,255,.18);margin-top:18px;letter-spacing:.5px;
+    @keyframes orb-pulse {
+      from { opacity: 0.6; transform: translate(-50%, -60%) scale(0.95); }
+      to   { opacity: 1;   transform: translate(-50%, -60%) scale(1.05); }
     }
 
-    /* ── Spinner ─── */
-    .spin{
-      display:inline-block;
-      width:15px;height:15px;
-      border:2px solid rgba(255,255,255,.25);
-      border-top-color:#fff;
-      border-radius:50%;
-      animation:rot .65s linear infinite;
+    /* Floating neon particles */
+    .particles { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    .particle {
+      position: absolute;
+      width: 2px; height: 2px;
+      border-radius: 50%;
+      background: rgba(6, 182, 212, 0.8);
+      animation: float-up linear infinite;
     }
-    @keyframes rot{to{transform:rotate(360deg)}}
+    .particle:nth-child(1)  { left:5%;   bottom:-10px; animation-duration:12s; animation-delay:0s;   width:3px;height:3px; background:rgba(14,165,233,.7); }
+    .particle:nth-child(2)  { left:15%;  bottom:-10px; animation-duration:9s;  animation-delay:2s;   }
+    .particle:nth-child(3)  { left:25%;  bottom:-10px; animation-duration:14s; animation-delay:4s;   background:rgba(124,58,237,.8); }
+    .particle:nth-child(4)  { left:35%;  bottom:-10px; animation-duration:10s; animation-delay:1s;   width:3px;height:3px; }
+    .particle:nth-child(5)  { left:45%;  bottom:-10px; animation-duration:13s; animation-delay:3s;   background:rgba(224,64,251,.8); }
+    .particle:nth-child(6)  { left:55%;  bottom:-10px; animation-duration:11s; animation-delay:5s;   }
+    .particle:nth-child(7)  { left:65%;  bottom:-10px; animation-duration:15s; animation-delay:0.5s; width:3px;height:3px; background:rgba(14,165,233,.6); }
+    .particle:nth-child(8)  { left:75%;  bottom:-10px; animation-duration:8s;  animation-delay:2.5s; }
+    .particle:nth-child(9)  { left:85%;  bottom:-10px; animation-duration:12s; animation-delay:1.5s; background:rgba(6,182,212,.9); width:3px;height:3px; }
+    .particle:nth-child(10) { left:92%;  bottom:-10px; animation-duration:10s; animation-delay:3.5s; }
+
+    @keyframes float-up {
+      0%   { transform: translateY(0) scale(1); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 0.5; }
+      100% { transform: translateY(-100vh) scale(0.5); opacity: 0; }
+    }
+
+    /* Grid lines faint */
+    .bg-grid {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(14,165,233,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(14,165,233,.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+
+    /* ══════════════════════════════════════════
+       CARD
+    ══════════════════════════════════════════ */
+    .card-outer {
+      position: relative; z-index: 10;
+      width: 100%; max-width: 400px;
+    }
+
+    /* Animated gradient border */
+    .card-border {
+      position: relative;
+      padding: 2px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, #e040fb, #7c3aed, #0ea5e9, #06b6d4, #7c3aed, #e040fb);
+      background-size: 300% 300%;
+      animation: border-flow 5s linear infinite;
+    }
+    @keyframes border-flow {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* Outer soft glow behind card */
+    .card-border::before {
+      content: '';
+      position: absolute; inset: -8px;
+      border-radius: 30px;
+      background: linear-gradient(135deg, rgba(224,64,251,.25), rgba(124,58,237,.2), rgba(6,182,212,.25));
+      background-size: 300% 300%;
+      animation: border-flow 5s linear infinite;
+      filter: blur(12px);
+      z-index: -1;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 22px;
+      padding: 32px 24px 28px;
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Inner top shine */
+    .card::before {
+      content: '';
+      position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(14,165,233,.5), rgba(224,64,251,.5), rgba(14,165,233,.5), transparent);
+    }
+
+    /* Inner glow top */
+    .card::after {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 150px;
+      background: radial-gradient(ellipse at 50% 0%, rgba(14,165,233,.08), transparent);
+      pointer-events: none;
+    }
+
+    /* ══════════════════════════════════════════
+       LOGO
+    ══════════════════════════════════════════ */
+    .logo {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 14px; margin-bottom: 24px;
+      position: relative;
+    }
+
+    .logo-ring {
+      position: relative;
+      width: 80px; height: 80px;
+    }
+
+    /* Spinning neon ring */
+    .logo-ring::before {
+      content: '';
+      position: absolute; inset: -4px;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg, #e040fb, #7c3aed, #0ea5e9, #06b6d4, #e040fb);
+      animation: ring-spin 3s linear infinite;
+      filter: blur(2px);
+    }
+    /* Second faster ring */
+    .logo-ring::after {
+      content: '';
+      position: absolute; inset: -2px;
+      border-radius: 50%;
+      background: conic-gradient(from 180deg, transparent 60%, rgba(14,165,233,.9) 80%, transparent 100%);
+      animation: ring-spin 2s linear infinite reverse;
+    }
+    @keyframes ring-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .logo-circle {
+      position: relative; z-index: 2;
+      width: 80px; height: 80px; border-radius: 50%;
+      background: linear-gradient(135deg, #1a0a40 0%, #0a1a3a 50%, #061228 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow:
+        0 0 20px rgba(14,165,233,.5),
+        0 0 40px rgba(124,58,237,.3),
+        inset 0 0 20px rgba(14,165,233,.1);
+    }
+
+    /* ⚡ SPINNING LIGHTNING BOLT */
+    .bolt {
+      font-size: 34px;
+      filter:
+        drop-shadow(0 0 8px #0ea5e9)
+        drop-shadow(0 0 16px #7c3aed)
+        drop-shadow(0 0 4px #e040fb);
+      animation: bolt-spin 4s ease-in-out infinite;
+    }
+    @keyframes bolt-spin {
+      0%   { transform: rotate(0deg)   scale(1);    filter: drop-shadow(0 0 8px #0ea5e9) drop-shadow(0 0 16px #7c3aed); }
+      25%  { transform: rotate(15deg)  scale(1.1);  filter: drop-shadow(0 0 14px #e040fb) drop-shadow(0 0 24px #7c3aed); }
+      50%  { transform: rotate(-10deg) scale(0.95); filter: drop-shadow(0 0 10px #06b6d4) drop-shadow(0 0 20px #0ea5e9); }
+      75%  { transform: rotate(8deg)   scale(1.05); filter: drop-shadow(0 0 12px #7c3aed) drop-shadow(0 0 22px #e040fb); }
+      100% { transform: rotate(0deg)   scale(1);    filter: drop-shadow(0 0 8px #0ea5e9) drop-shadow(0 0 16px #7c3aed); }
+    }
+
+    .logo-title {
+      font-size: 1.6rem; font-weight: 900; letter-spacing: 3px;
+      background: linear-gradient(90deg, #e040fb 0%, #9b59f5 40%, #0ea5e9 75%, #06b6d4 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      text-shadow: none;
+      position: relative;
+    }
+    .logo-title::after {
+      content: attr(data-text);
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, #e040fb 0%, #9b59f5 40%, #0ea5e9 75%, #06b6d4 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      filter: blur(8px); opacity: 0.5; z-index: -1;
+    }
+
+    .logo-sub {
+      font-size: .8rem; color: var(--muted); letter-spacing: .5px;
+      text-align: center; margin-top: -10px;
+    }
+
+    /* ══════════════════════════════════════════
+       SERVER SELECTOR
+    ══════════════════════════════════════════ */
+    .server-selector {
+      background: var(--row);
+      border: 1px solid rgba(14,165,233,.15);
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: border-color .2s, box-shadow .2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .server-selector::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(14,165,233,.03), rgba(124,58,237,.03));
+      pointer-events: none;
+    }
+    .server-selector:hover {
+      border-color: rgba(14,165,233,.4);
+      box-shadow: 0 0 20px rgba(14,165,233,.1);
+    }
+
+    .server-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .server-left { display: flex; align-items: center; gap: 12px; }
+
+    .server-icon-box {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(135deg, rgba(14,165,233,.2), rgba(124,58,237,.2));
+      border: 1px solid rgba(14,165,233,.2);
+      display: flex; align-items: center; justify-content: center; font-size: 15px;
+      box-shadow: 0 0 10px rgba(14,165,233,.15);
+    }
+
+    .server-name-text {
+      font-weight: 700; font-size: .92rem; color: var(--text);
+    }
+    .server-meta {
+      font-size: .7rem; color: var(--muted); margin-top: 3px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .dot-online {
+      width: 6px; height: 6px; border-radius: 50%; background: #4ade80; flex-shrink: 0;
+      box-shadow: 0 0 6px #4ade80;
+      animation: blink 2s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    .btn-select {
+      background: linear-gradient(135deg, rgba(14,165,233,.15), rgba(124,58,237,.15));
+      border: 1px solid rgba(14,165,233,.25);
+      color: #7dd3fc; font-size: .78rem; font-weight: 700;
+      padding: 7px 14px; border-radius: 10px; cursor: pointer;
+      transition: all .2s; white-space: nowrap; flex-shrink: 0;
+      box-shadow: 0 0 10px rgba(14,165,233,.1);
+    }
+    .btn-select:hover {
+      background: linear-gradient(135deg, rgba(14,165,233,.25), rgba(124,58,237,.25));
+      border-color: rgba(14,165,233,.5);
+      box-shadow: 0 0 16px rgba(14,165,233,.2);
+    }
+
+    /* ══════════════════════════════════════════
+       SERVER LIST PANEL
+    ══════════════════════════════════════════ */
+    .server-list-panel {
+      display: none;
+      background: rgba(4, 8, 28, 0.95);
+      border: 1px solid rgba(14,165,233,.2);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 12px;
+      box-shadow: 0 8px 40px rgba(14,165,233,.1);
+    }
+    .server-list-panel.open { display: block; }
+
+    .server-list-header {
+      padding: 14px 18px 11px;
+      font-weight: 800; font-size: .88rem;
+      background: linear-gradient(90deg, #e040fb, #0ea5e9);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      border-bottom: 1px solid rgba(14,165,233,.12);
+      letter-spacing: .5px;
+    }
+
+    .server-list-scroll {
+      max-height: 220px; overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(14,165,233,.2) transparent;
+    }
+    .server-list-scroll::-webkit-scrollbar { width: 4px; }
+    .server-list-scroll::-webkit-scrollbar-thumb {
+      background: rgba(14,165,233,.3); border-radius: 2px;
+    }
+
+    .server-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 18px;
+      border-bottom: 1px solid rgba(255,255,255,.03);
+      cursor: pointer; transition: background .15s;
+    }
+    .server-item:last-child { border-bottom: none; }
+    .server-item:hover { background: rgba(14,165,233,.06); }
+    .server-item.active { background: rgba(14,165,233,.1); }
+
+    .si-name { font-weight: 700; font-size: .87rem; }
+    .si-cta  { font-size: .73rem; color: var(--muted); transition: color .15s; }
+    .server-item:hover .si-cta { color: #7dd3fc; }
+    .server-item.active .si-cta { color: #4ade80; }
+
+    /* ══════════════════════════════════════════
+       INFO BOX
+    ══════════════════════════════════════════ */
+    .info-box {
+      background: rgba(6,182,212,.05);
+      border: 1px solid rgba(6,182,212,.2);
+      border-left: 3px solid #06b6d4;
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex; gap: 10px;
+      margin-bottom: 20px;
+      font-size: .78rem; color: #a5f3fc; line-height: 1.55;
+      box-shadow: 0 0 20px rgba(6,182,212,.05);
+    }
+    .info-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+    .info-title { font-weight: 800; font-size: .8rem; color: #67e8f9; margin-bottom: 3px; }
+
+    /* ══════════════════════════════════════════
+       FORM
+    ══════════════════════════════════════════ */
+    .form-label {
+      font-size: .8rem; font-weight: 700;
+      color: rgba(232,238,255,.6);
+      display: block; margin-bottom: 8px; letter-spacing: .3px;
+    }
+
+    .input-wrap { position: relative; margin-bottom: 6px; }
+    .input-icon {
+      position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); font-size: 14px; pointer-events: none;
+    }
+    .input-wrap input {
+      width: 100%;
+      background: rgba(8, 14, 45, 0.8);
+      border: 1px solid rgba(14,165,233,.2);
+      border-radius: 13px;
+      padding: 14px 14px 14px 42px;
+      color: var(--text); font-size: .9rem; font-family: inherit;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+    }
+    .input-wrap input::placeholder { color: #3a4a6a; }
+    .input-wrap input:focus {
+      border-color: rgba(14,165,233,.5);
+      box-shadow: 0 0 0 3px rgba(14,165,233,.08), 0 0 20px rgba(14,165,233,.1);
+    }
+
+    .input-hint {
+      font-size: .7rem; color: var(--muted);
+      margin-bottom: 20px; padding-left: 4px;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .input-hint span { color: #06b6d4; }
+
+    /* ══════════════════════════════════════════
+       GENERATE BUTTON
+    ══════════════════════════════════════════ */
+    .btn-pair {
+      width: 100%; position: relative;
+      border: none; border-radius: 13px;
+      padding: 15px; cursor: pointer;
+      font-weight: 800; font-size: .96rem; font-family: inherit;
+      color: #fff; letter-spacing: .5px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      overflow: hidden;
+      transition: transform .15s, box-shadow .2s;
+      margin-bottom: 14px;
+      background: linear-gradient(90deg, #e040fb 0%, #7c3aed 40%, #0ea5e9 75%, #06b6d4 100%);
+      background-size: 200% 100%;
+      animation: btn-shimmer 4s linear infinite;
+      box-shadow: 0 0 30px rgba(14,165,233,.3), 0 4px 20px rgba(124,58,237,.3);
+    }
+    .btn-pair::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.15) 50%, transparent 100%);
+      transform: translateX(-100%);
+      animation: btn-shine 4s ease-in-out infinite;
+    }
+    @keyframes btn-shimmer {
+      0%   { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
+    }
+    @keyframes btn-shine {
+      0%   { transform: translateX(-100%); }
+      30%  { transform: translateX(100%); }
+      100% { transform: translateX(100%); }
+    }
+    .btn-pair:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 40px rgba(14,165,233,.45), 0 8px 30px rgba(124,58,237,.35);
+    }
+    .btn-pair:disabled {
+      opacity: .5; cursor: not-allowed; transform: none;
+      animation: none;
+    }
+
+    /* ══════════════════════════════════════════
+       CODE OUTPUT BOX
+    ══════════════════════════════════════════ */
+    .code-box {
+      background: rgba(2, 5, 18, 0.8);
+      border: 1px solid rgba(14,165,233,.15);
+      border-radius: 13px;
+      padding: 16px;
+      text-align: center;
+      font-size: .84rem; color: #3a4a6a;
+      min-height: 52px;
+      display: flex; align-items: center; justify-content: center;
+      letter-spacing: 1px; word-break: break-all; line-height: 1.5;
+      margin-bottom: 10px;
+      transition: all .3s;
+    }
+    .code-box.has-code {
+      font-size: 1.4rem; font-weight: 900; letter-spacing: 5px;
+      color: #67e8f9;
+      border-color: rgba(6,182,212,.4);
+      background: rgba(6,182,212,.05);
+      box-shadow: 0 0 30px rgba(6,182,212,.15), inset 0 0 20px rgba(6,182,212,.05);
+      text-shadow: 0 0 20px rgba(6,182,212,.8);
+    }
+    .code-box.err-code {
+      color: #f87171; border-color: rgba(248,113,113,.2);
+      background: rgba(248,113,113,.04); font-size: .83rem;
+    }
+
+    .status-msg {
+      font-size: .77rem; text-align: center; min-height: 20px;
+      color: var(--muted); padding: 2px 0;
+    }
+    .status-msg.ok  { color: #4ade80; text-shadow: 0 0 10px rgba(74,222,128,.4); }
+    .status-msg.err { color: #f87171; }
+
+    /* ══════════════════════════════════════════
+       FOOTER
+    ══════════════════════════════════════════ */
+    .footer {
+      text-align: center; font-size: .67rem;
+      color: rgba(255,255,255,.15); margin-top: 20px; letter-spacing: .8px;
+    }
+    .footer span {
+      background: linear-gradient(90deg, #e040fb, #06b6d4);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      font-weight: 700;
+    }
+
+    /* ══════════════════════════════════════════
+       SPINNER
+    ══════════════════════════════════════════ */
+    .spin {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: sp .65s linear infinite;
+    }
+    @keyframes sp { to { transform: rotate(360deg); } }
+
+    /* ══════════════════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════════════════ */
+    @media (max-width: 440px) {
+      .card { padding: 24px 18px 22px; }
+      .logo-title { font-size: 1.4rem; }
+    }
   </style>
 </head>
 <body>
-<div class="card-wrap">
-  <div class="card">
 
-    <!-- Logo -->
-    <div class="logo">
-      <div class="logo-circle">⚡</div>
-      <div style="text-align:center">
-        <div class="logo-title">VARNOX XD V2</div>
-        <div class="logo-sub">Generate Your Pairing Code</div>
-      </div>
-    </div>
+<!-- Background -->
+<div class="bg-scene"></div>
+<div class="bg-grid"></div>
+<div class="particles">
+  <div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div>
+</div>
 
-    <!-- Server selector (collapsed) -->
-    <div class="server-selector" id="serverSelector">
-      <div class="server-row">
-        <div class="server-left">
-          <div class="server-icon-box">⊞</div>
-          <div>
-            <div class="server-info-name" id="selectedServerName">Select Server</div>
-            <div class="server-info-meta">
-              <span class="dot-green"></span>
-              Active: <span id="activeCount">--</span>
-              &nbsp;🔒 Limit: <span id="limitCount">--</span>/50
-            </div>
+<!-- Card -->
+<div class="card-outer">
+  <div class="card-border">
+    <div class="card">
+
+      <!-- Logo -->
+      <div class="logo">
+        <div class="logo-ring">
+          <div class="logo-circle">
+            <span class="bolt">⚡</span>
           </div>
         </div>
-        <button class="btn-select" id="btnToggle" onclick="toggleServerList(event)">∨ Select</button>
+        <div style="text-align:center">
+          <div class="logo-title" data-text="VARNOX XD V2">VARNOX XD V2</div>
+          <div class="logo-sub">Generate Your Pairing Code</div>
+        </div>
       </div>
-    </div>
 
-    <!-- Server list (expanded) -->
-    <div class="server-list-panel" id="serverListPanel">
-      <div class="server-list-header">Select a Server (1-60)</div>
-      <div class="server-list-scroll" id="serverListEl"></div>
-    </div>
-
-    <!-- Quick Setup info -->
-    <div class="info-box">
-      <div class="info-box-icon">ℹ</div>
-      <div>
-        <div class="info-box-title">Quick Setup</div>
-        Select a server, enter your WhatsApp number to instantly generate a pairing code. No deployment needed!
+      <!-- Server selector (collapsed) -->
+      <div class="server-selector" id="serverSelector">
+        <div class="server-row">
+          <div class="server-left">
+            <div class="server-icon-box">⊞</div>
+            <div>
+              <div class="server-name-text" id="selectedServerName">Select Server</div>
+              <div class="server-meta">
+                <span class="dot-online"></span>
+                Active: <span id="activeCount">--</span>&nbsp;&nbsp;🔒 Limit: <span id="limitCount">--</span>/50
+              </div>
+            </div>
+          </div>
+          <button class="btn-select" id="btnToggle" onclick="toggleServerList(event)">∨ Select</button>
+        </div>
       </div>
+
+      <!-- Server list (expanded) -->
+      <div class="server-list-panel" id="serverListPanel">
+        <div class="server-list-header">Select a Server (1-60)</div>
+        <div class="server-list-scroll" id="serverListEl"></div>
+      </div>
+
+      <!-- Quick Setup -->
+      <div class="info-box">
+        <div class="info-icon">ℹ</div>
+        <div>
+          <div class="info-title">Quick Setup</div>
+          Select a server, enter your WhatsApp number to instantly generate a pairing code. No deployment needed!
+        </div>
+      </div>
+
+      <!-- Form -->
+      <label class="form-label">WhatsApp Number</label>
+      <div class="input-wrap">
+        <span class="input-icon">📞</span>
+        <input type="tel" id="phoneInput" placeholder="92342758xxxxx" autocomplete="off">
+      </div>
+      <div class="input-hint"><span>💡</span> Include country code (e.g., 92 for Pakistan)</div>
+
+      <!-- Button -->
+      <button class="btn-pair" id="btnPair" onclick="generateCode()">
+        🔑 Generate Pair Code
+      </button>
+
+      <!-- Code output -->
+      <div class="code-box" id="codeBox">Your pairing code will appear here</div>
+      <div class="status-msg" id="statusMsg"></div>
+
+      <div class="footer">© 2026 <span>VARNOX XD V2</span> | Powered By VARNOX</div>
     </div>
-
-    <!-- Phone input -->
-    <label class="form-label">WhatsApp Number</label>
-    <div class="input-wrap">
-      <span class="input-ph-icon">📞</span>
-      <input type="tel" id="phoneInput" placeholder="92342758xxxxx" autocomplete="off">
-    </div>
-    <div class="input-hint">
-      <span>💡</span> Include country code (e.g., 92 for Pakistan)
-    </div>
-
-    <!-- Generate button -->
-    <button class="btn-pair" id="btnPair" onclick="generateCode()">
-      🔑 Generate Pair Code
-    </button>
-
-    <!-- Code output -->
-    <div class="code-box" id="codeBox">Your pairing code will appear here</div>
-    <div class="status-msg" id="statusMsg"></div>
-
-    <div class="footer">© 2026 VARNOX XD V2 | Powered By VARNOX</div>
   </div>
 </div>
 
 <script>
 'use strict';
 
-/* ── State ─────────────────────────────────────── */
+/* ── State ──────────────────────────────────── */
 let selectedServer = null;
-let serversData = [];
-let listOpen = false;
+let serversData    = [];
+let listOpen       = false;
 
-/* ── Build 60 servers list ─────────────────────── */
-function buildDefaultServers() {
+/* ── Build default 60 servers ─────────────── */
+function defaultServers() {
   return Array.from({ length: 60 }, (_, i) => ({
-    id: i + 1,
-    name: 'Server ' + (i + 1),
-    active: 0,
-    limit: 50,
-    url: ''
+    id: i + 1, name: 'Server ' + (i + 1),
+    active: 0, limit: 50, url: ''
   }));
 }
 
 async function fetchServers() {
   try {
     const r = await fetch('/servers', { cache: 'no-store' });
-    if (!r.ok) throw new Error();
+    if (!r.ok) throw 0;
     const d = await r.json();
-    if (d.servers && d.servers.length) return d.servers;
+    if (d.servers && d.servers.length >= 1) return d.servers;
   } catch (_) {}
-  return buildDefaultServers();
+  return defaultServers();
 }
 
 function renderList() {
   const el = document.getElementById('serverListEl');
   el.innerHTML = serversData.map(s => {
-    const active = selectedServer && selectedServer.id === s.id;
-    return (
-      '<div class="server-item' + (active ? ' active' : '') + '" onclick="selectServer(' + s.id + ')">' +
-        '<div class="server-item-name">Server ' + s.id + '</div>' +
-        '<div class="server-item-cta">' + (active ? '✓ Selected' : 'Click to select') + '</div>' +
-      '</div>'
-    );
+    const a = selectedServer && selectedServer.id === s.id;
+    return '<div class="server-item' + (a ? ' active' : '') + '" onclick="selectServer(' + s.id + ')">' +
+      '<div class="si-name">Server ' + s.id + '</div>' +
+      '<div class="si-cta">' + (a ? '✓ Selected' : 'Click to select') + '</div>' +
+    '</div>';
   }).join('');
 }
 
@@ -391,9 +653,7 @@ async function openServerList() {
   listOpen = true;
   document.getElementById('serverListPanel').classList.add('open');
   document.getElementById('btnToggle').textContent = '∧ Close';
-  if (!serversData.length) {
-    serversData = await fetchServers();
-  }
+  if (!serversData.length) serversData = await fetchServers();
   renderList();
 }
 
@@ -405,35 +665,27 @@ function closeServerList() {
 
 function toggleServerList(e) {
   e.stopPropagation();
-  if (listOpen) { closeServerList(); } else { openServerList(); }
+  listOpen ? closeServerList() : openServerList();
 }
 
 function selectServer(id) {
-  const found = serversData.find(s => s.id === id);
-  selectedServer = found || { id, name: 'Server ' + id, active: 0, limit: 50, url: '' };
-
+  const f = serversData.find(s => s.id === id);
+  selectedServer = f || { id, name: 'Server ' + id, active: 0, limit: 50, url: '' };
   document.getElementById('selectedServerName').textContent = 'Server ' + id;
-  document.getElementById('activeCount').textContent = selectedServer.active != null ? selectedServer.active : '--';
-  document.getElementById('limitCount').textContent = selectedServer.limit || 50;
-
+  document.getElementById('activeCount').textContent = selectedServer.active ?? '--';
+  document.getElementById('limitCount').textContent  = selectedServer.limit || 50;
   closeServerList();
   renderList();
-
-  // Clear any previous error about server selection
   const sm = document.getElementById('statusMsg');
-  if (sm.classList.contains('err')) {
-    sm.textContent = '';
-    sm.className = 'status-msg';
-  }
+  if (sm.classList.contains('err')) { sm.textContent = ''; sm.className = 'status-msg'; }
 }
 
-/* ── Generate pairing code ──────────────────────── */
+/* ── Generate pairing code ──────────────────── */
 async function generateCode() {
   const codeBox = document.getElementById('codeBox');
   const statusMsg = document.getElementById('statusMsg');
   const btn = document.getElementById('btnPair');
 
-  // Validate server
   if (!selectedServer) {
     statusMsg.textContent = '⚠ Please select a server first!';
     statusMsg.className = 'status-msg err';
@@ -441,16 +693,13 @@ async function generateCode() {
     return;
   }
 
-  // Validate number
-  const raw = document.getElementById('phoneInput').value.trim();
-  const num = raw.replace(/\D/g, '');
+  const num = document.getElementById('phoneInput').value.trim().replace(/\D/g, '');
   if (!num || num.length < 7) {
     statusMsg.textContent = '⚠ Enter a valid WhatsApp number with country code.';
     statusMsg.className = 'status-msg err';
     return;
   }
 
-  // Loading state
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span> Generating…';
   codeBox.className = 'code-box';
@@ -460,12 +709,12 @@ async function generateCode() {
 
   try {
     const base = selectedServer.url || '';
-    const url = base + '/code?number=' + encodeURIComponent(num) + '&server=' + selectedServer.id;
-    const res = await fetch(url);
+    const url  = base + '/code?number=' + encodeURIComponent(num) + '&server=' + selectedServer.id;
+    const res  = await fetch(url);
     const data = await res.json();
 
     if (data.error) {
-      codeBox.className = 'code-box error-code';
+      codeBox.className = 'code-box err-code';
       codeBox.textContent = '❌ ' + (data.message || 'Failed to generate code');
       statusMsg.textContent = 'Try another server or check your number.';
       statusMsg.className = 'status-msg err';
@@ -477,9 +726,9 @@ async function generateCode() {
       statusMsg.className = 'status-msg ok';
     }
   } catch (_) {
-    codeBox.className = 'code-box error-code';
+    codeBox.className = 'code-box err-code';
     codeBox.textContent = '❌ Connection failed';
-    statusMsg.textContent = 'Cannot reach the server. Try another server.';
+    statusMsg.textContent = 'Cannot reach server. Try another one.';
     statusMsg.className = 'status-msg err';
   } finally {
     btn.disabled = false;
@@ -487,25 +736,21 @@ async function generateCode() {
   }
 }
 
-/* ── Close list on outside click ─────────────────── */
+/* ── Close list on outside click ───────────── */
 document.addEventListener('click', e => {
   if (!listOpen) return;
   const panel = document.getElementById('serverListPanel');
-  const sel = document.getElementById('serverSelector');
-  if (!panel.contains(e.target) && !sel.contains(e.target)) {
-    closeServerList();
-  }
+  const sel   = document.getElementById('serverSelector');
+  if (!panel.contains(e.target) && !sel.contains(e.target)) closeServerList();
 });
 
-/* ── Enter key support ──────────────────────────── */
+/* ── Enter key ──────────────────────────────── */
 document.getElementById('phoneInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') generateCode();
 });
 
-/* ── Init ───────────────────────────────────────── */
-(async () => {
-  serversData = await fetchServers();
-})();
+/* ── Init ───────────────────────────────────── */
+(async () => { serversData = await fetchServers(); })();
 </script>
 </body>
 </html>
