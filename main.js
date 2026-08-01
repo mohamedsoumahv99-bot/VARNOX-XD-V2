@@ -87,6 +87,7 @@ const blurCommand = require('./commands/img-blur');
 const { welcomeCommand, handleJoinEvent } = require('./commands/welcome');
 const { goodbyeCommand, handleLeaveEvent } = require('./commands/goodbye');
 const githubCommand = require('./commands/github');
+const repoCommand   = require('./commands/repo');
 const { handleAntiBadwordCommand, handleBadwordDetection } = require('./lib/antibadword');
 const antibadwordCommand = require('./commands/antibadword');
 const { handleChatbotCommand, handleChatbotResponse } = require('./commands/chatbot');
@@ -751,8 +752,10 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage === '.github':
             case userMessage === '.sc':
             case userMessage === '.script':
-            case userMessage === '.repo':
                 await githubCommand(sock, chatId, message);
+                break;
+            case userMessage === '.repo':
+                await repoCommand(sock, chatId, message);
                 break;
             case userMessage.startsWith('.antibot'): {
                 const antibotArgs = userMessage.split(' ').slice(1);
