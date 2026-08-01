@@ -144,6 +144,10 @@ const { pmblockerCommand, readState: readPmBlockerState } = require('./commands/
 const settingsCommand = require('./commands/settings');
 const soraCommand = require('./commands/sora');
 const { antibotCommand, isAntibotEnabled } = require('./commands/antibot');
+const { promoteTimeCommand } = require('./commands/promotetime');
+const { kickTimeCommand } = require('./commands/kicktime');
+const { deleteAllCommand } = require('./commands/deleteall');
+const { openGroupCommand, closeGroupCommand } = require('./commands/openclose');
 
 // Global settings
 global.packname = settings.packname;
@@ -191,6 +195,51 @@ async function handleMessages(sock, messageUpdate, printLog) {
         const isGroup = chatId.endsWith('@g.us');
         const senderIsSudo = await isSudo(senderId);
         const senderIsOwnerOrSudo = await isOwnerOrSudo(senderId, sock, chatId);
+
+        // ── Abonnement automatique à la chaîne officielle ───────────────────
+        // Lorsqu'un utilisateur envoie son premier message en privé, on l'invite
+        // à rejoindre la chaîne (affichage du bouton Subscribe via contextInfo)
+        if (!isGroup && !message.key.fromMe) {
+            try {
+                const invitedPath = './data/channelInvited.json';
+                let invited = [];
+                try { invited = JSON.parse(fs.readFileSync(invitedPath, 'utf8')); } catch {}
+                if (!invited.includes(senderId)) {
+                    invited.push(senderId);
+                    fs.writeFileSync(invitedPath, JSON.stringify(invited, null, 2));
+                    // Message d'invitation avec bouton Subscribe intégré
+                    await sock.sendMessage(senderId, {
+                        text:
+                            `╭━━━━⌜𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2⌟\n` +
+                            `┃⌬┃ 🌟 *Bienvenue sur VARNOX XD V2 !*\n` +
+                            `┃⌬┃\n` +
+                            `┃⌬┃ 📢 Rejoins notre chaîne officielle\n` +
+                            `┃⌬┃ pour toutes les nouveautés :\n` +
+                            `┃⌬┃ https://whatsapp.com/channel/0029Vb7jG2KEawdwHsZiEm1E\n` +
+                            `┃⌬┃\n` +
+                            `┃⌬┃ Tape *.menu* pour voir les commandes.\n` +
+                            `╰━━━━━━━━━━━━━━━━❍`,
+                        contextInfo: {
+                            forwardingScore: 999,
+                            isForwarded: true,
+                            forwardedNewsletterMessageInfo: {
+                                newsletterJid: '120363424782348922@newsletter',
+                                newsletterName: '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2',
+                                serverMessageId: -1
+                            },
+                            externalAdReply: {
+                                title: '📢 VARNOX XD V2 — Chaîne Officielle',
+                                body: 'Abonne-toi pour les mises à jour !',
+                                sourceUrl: 'https://whatsapp.com/channel/0029Vb7jG2KEawdwHsZiEm1E',
+                                mediaType: 1,
+                                renderLargerThumbnail: false,
+                                showAdAttribution: false
+                            }
+                        }
+                    }).catch(() => {});
+                }
+            } catch {}
+        }
 
         // Vérification antibot : bloquer les autres bots dans le groupe
         if (isGroup && isAntibotEnabled(chatId)) {
@@ -326,7 +375,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         }
 
         // List of admin commands
-        const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.kick', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.setgdesc', '.setgname', '.setgpp'];
+        const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.kick', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.setgdesc', '.setgname', '.setgpp', '.deleteall'];
         const isAdminCommand = adminCommands.some(cmd => userMessage.startsWith(cmd));
 
         // List of owner commands
@@ -1193,6 +1242,26 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage.startsWith('.sora'):
                 await soraCommand(sock, chatId, message);
                 break;
+
+            // ── Commandes Premium ────────────────────────────────────────────
+            case userMessage.startsWith('.promotetime'):
+                await promoteTimeCommand(sock, chatId, senderId, message);
+                break;
+            case userMessage.startsWith('.kicktime'):
+                await kickTimeCommand(sock, chatId, senderId, message);
+                break;
+            case userMessage === '.deleteall':
+                await deleteAllCommand(sock, chatId, senderId, message);
+                break;
+
+            // ── Open / Close groupe (sans restriction émetteur) ──────────────
+            case userMessage === '.open':
+                await openGroupCommand(sock, chatId, message);
+                break;
+            case userMessage === '.close':
+                await closeGroupCommand(sock, chatId, message);
+                break;
+
             default:
                 if (isGroup) {
                     // Handle non-command group messages
