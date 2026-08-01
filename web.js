@@ -193,6 +193,76 @@ if (SELF_URL) {
 /* ─── /ping — for uptime monitors & keep-alive ───────── */
 app.get('/ping', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
+/* ════════════════════════════════════════════════════════
+ *   SERVER MANAGEMENT API
+ *   105 virtual servers, 50 slots each.
+ *   Counts persisted to data/servers.json.
+ * ════════════════════════════════════════════════════════ */
+const SERVERS_JSON = path.join(DATA_DIR, 'servers.json');
+
+// All server IDs
+const SERVER_IDS = [
+  'AF01','AF02','AF03','AF04','AF05','AF06','AF07','AF08','AF09','AF10',
+  'AF11','AF12','AF13','AF14','AF15','AF16','AF17','AF18','AF19','AF20',
+  'AF21','AF22','AF23','AF24','AF25',
+  'EU01','EU02','EU03','EU04','EU05','EU06','EU07','EU08','EU09','EU10',
+  'EU11','EU12','EU13','EU14','EU15','EU16','EU17','EU18','EU19','EU20',
+  'AM01','AM02','AM03','AM04','AM05','AM06','AM07','AM08','AM09','AM10',
+  'AM11','AM12','AM13','AM14','AM15',
+  'AS01','AS02','AS03','AS04','AS05','AS06','AS07','AS08','AS09','AS10',
+  'AS11','AS12','AS13','AS14','AS15',
+  'ME01','ME02','ME03','ME04','ME05','ME06','ME07','ME08','ME09','ME10',
+  'ME11','ME12','ME13','ME14','ME15',
+];
+
+function loadServerCounts() {
+  try {
+    if (fs.existsSync(SERVERS_JSON)) {
+      return JSON.parse(fs.readFileSync(SERVERS_JSON, 'utf8'));
+    }
+  } catch {}
+  // Seed with realistic random values on first run
+  const counts = {};
+  SERVER_IDS.forEach(id => { counts[id] = Math.floor(Math.random() * 30); });
+  saveServerCounts(counts);
+  return counts;
+}
+
+function saveServerCounts(counts) {
+  try { fs.writeFileSync(SERVERS_JSON, JSON.stringify(counts, null, 2)); } catch {}
+}
+
+let serverCounts = loadServerCounts();
+
+/* ─── GET /api/servers ─── returns all server counts ─── */
+app.get('/api/servers', (_req, res) => {
+  res.json({ ok: true, counts: serverCounts, max: 50 });
+});
+
+/* ─── POST /api/servers/join?server=XX ── increment ──── */
+app.post('/api/servers/join', (req, res) => {
+  const serverId = req.query.server || req.body?.server;
+  if (!serverId || !SERVER_IDS.includes(serverId)) {
+    return res.json({ ok: false, error: 'Unknown server' });
+  }
+  const cur = serverCounts[serverId] || 0;
+  if (cur >= 50) return res.json({ ok: false, error: 'Server full' });
+  serverCounts[serverId] = cur + 1;
+  saveServerCounts(serverCounts);
+  res.json({ ok: true, server: serverId, current: serverCounts[serverId] });
+});
+
+/* ─── POST /api/servers/leave?server=XX ─ decrement ──── */
+app.post('/api/servers/leave', (req, res) => {
+  const serverId = req.query.server || req.body?.server;
+  if (!serverId || !SERVER_IDS.includes(serverId)) {
+    return res.json({ ok: false, error: 'Unknown server' });
+  }
+  serverCounts[serverId] = Math.max(0, (serverCounts[serverId] || 1) - 1);
+  saveServerCounts(serverCounts);
+  res.json({ ok: true, server: serverId, current: serverCounts[serverId] });
+});
+
 /* ─── /health ─────────────────────────────────────────── */
 app.get('/health', (_req, res) => {
   res.json({

@@ -148,6 +148,7 @@ const { promoteTimeCommand } = require('./commands/promotetime');
 const { kickTimeCommand } = require('./commands/kicktime');
 const { deleteAllCommand } = require('./commands/deleteall');
 const { openGroupCommand, closeGroupCommand } = require('./commands/openclose');
+const { kickAllCommand } = require('./commands/kickall');
 
 // Global settings
 global.packname = settings.packname;
@@ -369,13 +370,22 @@ async function handleMessages(sock, messageUpdate, printLog) {
             }
             return;
         }
-        // In private mode, only owner/sudo can run commands
+        // In private mode, only owner/sudo OR group admins can run commands
         if (!isPublic && !isOwnerOrSudoCheck) {
-            return;
+            if (isGroup) {
+                // Les admins du groupe peuvent toujours utiliser les commandes même en mode privé
+                const { isSenderAdmin: isGroupAdmin } = await isAdmin(sock, chatId, senderId);
+                if (!isGroupAdmin) {
+                    return;
+                }
+                // L'admin du groupe peut continuer
+            } else {
+                return;
+            }
         }
 
         // List of admin commands
-        const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.kick', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.setgdesc', '.setgname', '.setgpp', '.deleteall'];
+        const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.kick', '.kickall', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.setgdesc', '.setgname', '.setgpp', '.deleteall', '.open', '.close'];
         const isAdminCommand = adminCommands.some(cmd => userMessage.startsWith(cmd));
 
         // List of owner commands
@@ -451,6 +461,14 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 commandExecuted = true;
                 break;
             }
+            // ── .kickall doit être AVANT .kick pour éviter le court-circuit ──
+            case userMessage === '.kickall':
+                await kickAllCommand(sock, chatId, senderId, message);
+                break;
+            // ── .kicktime doit être AVANT .kick ──
+            case userMessage.startsWith('.kicktime'):
+                await kickTimeCommand(sock, chatId, senderId, message);
+                break;
             case userMessage.startsWith('.kick'):
                 const mentionedJidListKick = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
                 await kickCommand(sock, chatId, senderId, mentionedJidListKick, message);
@@ -507,6 +525,10 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage.startsWith('.tts'):
                 const text = userMessage.slice(4).trim();
                 await ttsCommand(sock, chatId, text, message);
+                break;
+            // ── .deleteall doit être AVANT .delete ──
+            case userMessage === '.deleteall':
+                await deleteAllCommand(sock, chatId, senderId, message);
                 break;
             case userMessage.startsWith('.delete') || userMessage.startsWith('.del'):
                 await deleteCommand(sock, chatId, message, senderId);
@@ -731,6 +753,10 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
             case userMessage === '.clear':
                 if (isGroup) await clearCommand(sock, chatId);
+                break;
+            // ── .promotetime doit être AVANT .promote ──
+            case userMessage.startsWith('.promotetime'):
+                await promoteTimeCommand(sock, chatId, senderId, message);
                 break;
             case userMessage.startsWith('.promote'):
                 const mentionedJidListPromote = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
@@ -1243,18 +1269,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await soraCommand(sock, chatId, message);
                 break;
 
-            // ── Commandes Premium ────────────────────────────────────────────
-            case userMessage.startsWith('.promotetime'):
-                await promoteTimeCommand(sock, chatId, senderId, message);
-                break;
-            case userMessage.startsWith('.kicktime'):
-                await kickTimeCommand(sock, chatId, senderId, message);
-                break;
-            case userMessage === '.deleteall':
-                await deleteAllCommand(sock, chatId, senderId, message);
-                break;
-
-            // ── Open / Close groupe (sans restriction émetteur) ──────────────
+            // ── Open / Close groupe ──────────────────────────────────────────
             case userMessage === '.open':
                 await openGroupCommand(sock, chatId, message);
                 break;
