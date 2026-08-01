@@ -4,16 +4,13 @@ const { handleGoodbye } = require('../lib/welcome');
 const { isGoodByeOn, getGoodbye } = require('../lib/index');
 const fetch = require('node-fetch');
 
-const NEWSLETTER_JID  = '120363424782348922@newsletter';
-const NEWSLETTER_NAME = '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2';
-
-const newsletterForward = {
+const channelInfo = {
     contextInfo: {
         forwardingScore: 1,
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
-            newsletterJid: NEWSLETTER_JID,
-            newsletterName: NEWSLETTER_NAME,
+            newsletterJid:   '120363424782348922@newsletter',
+            newsletterName:  '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2',
             serverMessageId: -1
         }
     }
@@ -22,21 +19,16 @@ const newsletterForward = {
 // ─── Commande .goodbye ───────────────────────────────────────────────────────
 async function goodbyeCommand(sock, chatId, message, match) {
     if (!chatId.endsWith('@g.us')) {
-        await sock.sendMessage(chatId, {
-            text: '❌ Cette commande ne fonctionne que dans les groupes.',
-            ...newsletterForward
-        }, { quoted: message });
+        await sock.sendMessage(chatId, { text: 'Cette commande ne fonctionne que dans les groupes.' });
         return;
     }
-
-    const text = message.message?.conversation ||
-        message.message?.extendedTextMessage?.text || '';
+    const text      = message.message?.conversation ||
+                      message.message?.extendedTextMessage?.text || '';
     const matchText = text.split(' ').slice(1).join(' ');
-
     await handleGoodbye(sock, chatId, message, matchText);
 }
 
-// ─── Événement de départ d'un membre ─────────────────────────────────────────
+// ─── Événement départ d'un membre ────────────────────────────────────────────
 async function handleLeaveEvent(sock, id, participants) {
     const isGoodbyeEnabled = await isGoodByeOn(id);
     if (!isGoodbyeEnabled) return;
@@ -57,38 +49,38 @@ async function handleLeaveEvent(sock, id, participants) {
                 ? participant
                 : (participant.id || String(participant));
 
+            // Vrai numéro WhatsApp du membre qui part
             const senderNum = participantJid.split('@')[0];
 
-            // Message configuré par l'admin ou message par défaut
-            let finalMessage;
-            if (customMessage) {
-                finalMessage = customMessage
+            let adminMsg = customMessage
+                ? customMessage
                     .replace(/{user}/gi,  `@${senderNum}`)
-                    .replace(/{group}/gi, groupName);
-            } else {
-                const now = new Date();
-                const timeStr = now.toLocaleString('fr-FR', {
-                    day: '2-digit', month: '2-digit', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit'
-                });
+                    .replace(/{group}/gi, groupName)
+                : null;
 
-                finalMessage =
-                    `╭━━━━━━⌜ 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2 ⌟━━━━━━╮\n` +
-                    `┃\n` +
-                    `┃  👋 *𝗔𝗨 𝗥𝗘𝗩𝗢𝗜𝗥*\n` +
-                    `┃  ─────────────────────────\n` +
-                    `┃  👤 @${senderNum}\n` +
-                    `┃  🏷️ Groupe   : *${groupName}*\n` +
-                    `┃  👥 Membres  : *${memberCount}*\n` +
-                    `┃  ⏰ Heure    : *${timeStr}*\n` +
-                    `┃\n` +
-                    `┃  😢 Il/Elle a quitté le groupe...\n` +
-                    `┃\n` +
-                    `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
-                    `> ©2026 ᴠᴀʀɴᴏx xᴅ ᴠ2 ᴅᴇᴠ ʙʏ ᴠᴀʀɴᴏx ᴛᴇᴄʜ`;
-            }
+            const now     = new Date();
+            const timeStr = now.toLocaleString('fr-FR', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
 
-            // Tentative avec image de profil
+            const goodbyeMsg =
+                `╭━━━━⌜𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2⌟\n` +
+                `┃⌬╭━━━━━━━━━━━━━≽\n` +
+                `┃⌬┃ 👋 *AU REVOIR*\n` +
+                `╰━━━━━━━━━━━━❍\n` +
+                `┃⌬┃ 👤 @${senderNum}\n` +
+                `┃⌬┃ 🏷️ *${groupName}*\n` +
+                `┃⌬┃ 👥 Membres : *${memberCount}*\n` +
+                `┃⌬┃ ⏰ *${timeStr}*\n` +
+                (adminMsg ? `┃⌬┃\n┃⌬┃ 💬 ${adminMsg}\n` : '') +
+                `┃⌬┃\n` +
+                `┃⌬┃ 😢 ɪʟ/ᴇʟʟᴇ ᴀ ǫᴜɪᴛᴛé ʟᴇ ɢʀᴏᴜᴘᴇ...\n` +
+                `╰━━━━━━━━━━━━❍\n` +
+                `\n` +
+                `> ©2026 ʋαɾɳσx xᴅ ʋ2 ᴅҽʋҽʅσρҽԃ Ⴆყ ʋαɾɳσx ᴛᴇᴄʜ`;
+
+            // Tentative image de profil
             try {
                 let profilePicUrl = 'https://img.pyrocdn.com/dbKUgahg.png';
                 try {
@@ -109,33 +101,32 @@ async function handleLeaveEvent(sock, id, participants) {
                     const imgBuf = await imgRes.buffer();
                     await sock.sendMessage(id, {
                         image:    imgBuf,
-                        caption:  finalMessage,
+                        caption:  goodbyeMsg,
                         mentions: [participantJid],
-                        ...newsletterForward
+                        ...channelInfo
                     });
                     continue;
                 }
             } catch { /* fallback texte */ }
 
             await sock.sendMessage(id, {
-                text:     finalMessage,
+                text:     goodbyeMsg,
                 mentions: [participantJid],
-                ...newsletterForward
+                ...channelInfo
             });
 
         } catch (err) {
-            console.error('[goodbye] Erreur pour', participant, ':', err.message);
+            console.error('[goodbye] Erreur :', err.message);
             try {
                 const jid = typeof participant === 'string'
-                    ? participant
-                    : (participant.id || String(participant));
+                    ? participant : (participant.id || String(participant));
                 const num = jid.split('@')[0];
                 await sock.sendMessage(id, {
                     text:     `👋 Au revoir @${num} ! Tu vas nous manquer...`,
                     mentions: [jid],
-                    ...newsletterForward
+                    ...channelInfo
                 });
-            } catch { /* rien à faire */ }
+            } catch { /* rien */ }
         }
     }
 }
