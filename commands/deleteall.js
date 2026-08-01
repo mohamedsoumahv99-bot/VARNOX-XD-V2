@@ -1,13 +1,12 @@
 'use strict';
 
-const isAdmin = require('../lib/isAdmin');
 const isOwnerOrSudo = require('../lib/isOwner');
 const { channelInfo } = require('../lib/messageConfig');
 const store = require('../lib/lightweight_store');
 
 /**
  * .deleteall
- * Supprime tous les messages récents du groupe (accessibles par le bot admin).
+ * Supprime tous les messages récents du groupe (accessibles par le bot).
  */
 async function deleteAllCommand(sock, chatId, senderId, message) {
     // Groupe uniquement
@@ -18,26 +17,8 @@ async function deleteAllCommand(sock, chatId, senderId, message) {
         }, { quoted: message });
     }
 
-    // Le bot doit être admin
-    const { isBotAdmin, isSenderAdmin } = await isAdmin(sock, chatId, senderId);
-    const isPremium = message.key.fromMe || await isOwnerOrSudo(senderId, sock, chatId);
-
-    if (!isBotAdmin) {
-        return sock.sendMessage(chatId, {
-            text: '❌ Le bot doit être admin pour utiliser cette commande.',
-            ...channelInfo
-        }, { quoted: message });
-    }
-
-    if (!isSenderAdmin && !isPremium) {
-        return sock.sendMessage(chatId, {
-            text: '❌ Seuls les admins du groupe ou les utilisateurs premium peuvent utiliser cette commande.',
-            ...channelInfo
-        }, { quoted: message });
-    }
-
     // Confirmation et lancement
-    const confirmMsg = await sock.sendMessage(chatId, {
+    await sock.sendMessage(chatId, {
         text:
             `╭━━━━⌜𝗗𝗘𝗟𝗘𝗧𝗘𝗔𝗟𝗟⌟\n` +
             `┃⌬┃ 🗑️ *Suppression en cours...*\n` +
@@ -51,7 +32,6 @@ async function deleteAllCommand(sock, chatId, senderId, message) {
     let failedCount = 0;
 
     try {
-        // Récupérer les messages du store
         const chatMessages = store.messages?.[chatId] || [];
 
         if (chatMessages.length === 0) {
@@ -73,7 +53,6 @@ async function deleteAllCommand(sock, chatId, senderId, message) {
                 if (!msg || !msg.key) continue;
                 await sock.sendMessage(chatId, { delete: msg.key });
                 deletedCount++;
-                // Petit délai pour éviter le rate-limit
                 await new Promise(r => setTimeout(r, 300));
             } catch {
                 failedCount++;

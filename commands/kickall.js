@@ -1,44 +1,16 @@
 'use strict';
 
-const isAdmin      = require('../lib/isAdmin');
 const isOwnerOrSudo = require('../lib/isOwner');
 const { channelInfo } = require('../lib/messageConfig');
 
 /**
  * .kickall
  * Expulse tous les membres non-admins du groupe d'un seul coup.
- * Requiert : bot admin + (sender admin OU premium).
  */
 async function kickAllCommand(sock, chatId, senderId, message) {
     if (!chatId.endsWith('@g.us')) {
         return sock.sendMessage(chatId, {
             text: '❌ Cette commande ne fonctionne que dans les groupes.',
-            ...channelInfo
-        }, { quoted: message });
-    }
-
-    const { isBotAdmin, isSenderAdmin } = await isAdmin(sock, chatId, senderId);
-    const isPremium = message.key.fromMe || await isOwnerOrSudo(senderId, sock, chatId);
-
-    if (!isBotAdmin) {
-        return sock.sendMessage(chatId, {
-            text:
-                `╭━━━━⌜𝗞𝗜𝗖𝗞𝗔𝗟𝗟⌟\n` +
-                `┃⌬┃ ❌ Le bot doit être *admin*\n` +
-                `┃⌬┃    pour utiliser cette commande.\n` +
-                `╰━━━━━━━━━━━━━━━━❍`,
-            ...channelInfo
-        }, { quoted: message });
-    }
-
-    if (!isSenderAdmin && !isPremium) {
-        return sock.sendMessage(chatId, {
-            text:
-                `╭━━━━⌜𝗞𝗜𝗖𝗞𝗔𝗟𝗟⌟\n` +
-                `┃⌬┃ ❌ Seuls les *admins* ou les\n` +
-                `┃⌬┃    utilisateurs *premium* peuvent\n` +
-                `┃⌬┃    utiliser cette commande.\n` +
-                `╰━━━━━━━━━━━━━━━━❍`,
             ...channelInfo
         }, { quoted: message });
     }
@@ -86,7 +58,6 @@ async function kickAllCommand(sock, chatId, senderId, message) {
             try {
                 await sock.groupParticipantsUpdate(chatId, [p.id], 'remove');
                 kicked++;
-                // Délai pour éviter le rate-limit WhatsApp
                 await new Promise(r => setTimeout(r, 600));
             } catch {
                 failed++;

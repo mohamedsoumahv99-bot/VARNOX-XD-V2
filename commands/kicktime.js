@@ -31,15 +31,6 @@ async function kickTimeCommand(sock, chatId, senderId, message) {
         }, { quoted: message });
     }
 
-    // Le bot doit être admin
-    const { isBotAdmin } = await isAdmin(sock, chatId, senderId);
-    if (!isBotAdmin) {
-        return sock.sendMessage(chatId, {
-            text: '❌ Le bot doit être admin pour utiliser cette commande.',
-            ...channelInfo
-        }, { quoted: message });
-    }
-
     // Extraire le JID cible et la durée
     const rawText = message.message?.conversation || message.message?.extendedTextMessage?.text || '';
     const parts = rawText.trim().split(/\s+/);

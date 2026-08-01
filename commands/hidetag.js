@@ -1,10 +1,10 @@
 const isAdmin = require('../lib/isAdmin');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
-async function downloadMediaMessage(message, mediaType) {
-    const stream = await downloadContentFromMessage(message, mediaType);
+async function downloadMediaMessage(mediaMessage, mediaType) {
+    const stream = await downloadContentFromMessage(mediaMessage, mediaType);
     let buffer = Buffer.from([]);
     for await (const chunk of stream) {
         buffer = Buffer.concat([buffer, chunk]);
@@ -15,18 +15,6 @@ async function downloadMediaMessage(message, mediaType) {
 }
 
 async function hideTagCommand(sock, chatId, senderId, messageText, replyMessage, message) {
-    const { isSenderAdmin, isBotAdmin } = await isAdmin(sock, chatId, senderId);
-
-    if (!isBotAdmin) {
-        await sock.sendMessage(chatId, { text: `Le bot doit etre admin pour cette commande.`}, { quoted: message });
-        return;
-    }
-
-    if (!isSenderAdmin) {
-        await sock.sendMessage(chatId, { text: 'Only admins can use the .hidetag command.' }, { quoted: message });
-        return;
-    }
-
     const groupMetadata = await sock.groupMetadata(chatId);
     const participants = groupMetadata.participants || [];
     const nonAdmins = participants.filter(p => !p.admin).map(p => p.id);
@@ -55,5 +43,3 @@ async function hideTagCommand(sock, chatId, senderId, messageText, replyMessage,
 }
 
 module.exports = hideTagCommand;
-
-

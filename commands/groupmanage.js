@@ -2,28 +2,17 @@ const fs = require('fs');
 const path = require('path');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
-async function ensureGroupAndAdmin(sock, chatId, senderId) {
+async function ensureGroup(sock, chatId) {
     const isGroup = chatId.endsWith('@g.us');
     if (!isGroup) {
         await sock.sendMessage(chatId, { text: 'Cette commande ne fonctionne que dans les groupes.' });
-        return { ok: false };
-    }
-    // Check admin status of sender and bot
-    const isAdmin = require('../lib/isAdmin');
-    const adminStatus = await isAdmin(sock, chatId, senderId);
-    if (!adminStatus.isBotAdmin) {
-        await sock.sendMessage(chatId, { text: `Le bot doit etre admin pour cette commande.`});
-        return { ok: false };
-    }
-    if (!adminStatus.isSenderAdmin) {
-        await sock.sendMessage(chatId, { text: 'Seuls les admins du groupe peuvent utiliser cette commande.' });
         return { ok: false };
     }
     return { ok: true };
 }
 
 async function setGroupDescription(sock, chatId, senderId, text, message) {
-    const check = await ensureGroupAndAdmin(sock, chatId, senderId);
+    const check = await ensureGroup(sock, chatId);
     if (!check.ok) return;
     const desc = (text || '').trim();
     if (!desc) {
@@ -39,7 +28,7 @@ async function setGroupDescription(sock, chatId, senderId, text, message) {
 }
 
 async function setGroupName(sock, chatId, senderId, text, message) {
-    const check = await ensureGroupAndAdmin(sock, chatId, senderId);
+    const check = await ensureGroup(sock, chatId);
     if (!check.ok) return;
     const name = (text || '').trim();
     if (!name) {
@@ -55,7 +44,7 @@ async function setGroupName(sock, chatId, senderId, text, message) {
 }
 
 async function setGroupPhoto(sock, chatId, senderId, message) {
-    const check = await ensureGroupAndAdmin(sock, chatId, senderId);
+    const check = await ensureGroup(sock, chatId);
     if (!check.ok) return;
 
     const quoted = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
@@ -88,5 +77,3 @@ module.exports = {
     setGroupName,
     setGroupPhoto
 };
-
-

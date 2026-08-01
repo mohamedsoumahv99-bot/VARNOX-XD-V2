@@ -1,920 +1,511 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VARNOX XD V2 — Panel</title>
-<meta name="description" content="Bot WhatsApp premium VARNOX XD V2 — 100+ commandes, actif 24/7.">
-<style>
-:root {
-  --g1: #00e676;
-  --g2: #00b0ff;
-  --bg: #08090f;
-  --card: rgba(255,255,255,0.04);
-  --card-h: rgba(255,255,255,0.07);
-  --border: rgba(255,255,255,0.08);
-  --border-h: rgba(0,230,118,0.35);
-  --text: #f0f2f5;
-  --muted: #6b7280;
-  --green: #00e676;
-  --blue: #00b0ff;
-  --red: #ff4757;
-  --yellow: #ffd32a;
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
-body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
-}
-a { text-decoration: none; color: inherit; }
-::selection { background: rgba(0,230,118,.25); }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VARNOX XD V2 — Pairing Code</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --bg:#08090f;
+      --card:#10111a;
+      --border:rgba(255,255,255,.07);
+      --text:#fff;
+      --muted:#7878a0;
+      --row:#14151f;
+      --g1:#e879f9;
+      --g2:#8b5cf6;
+      --g3:#06b6d4;
+    }
+    body{
+      min-height:100vh;
+      background:var(--bg);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+      color:var(--text);
+      padding:20px;
+    }
+    body::before{
+      content:'';
+      position:fixed;inset:0;
+      background:
+        radial-gradient(ellipse 70% 50% at 50% -10%,rgba(232,121,249,.15),transparent),
+        radial-gradient(ellipse 50% 40% at 0% 60%,rgba(139,92,246,.09),transparent),
+        radial-gradient(ellipse 50% 40% at 100% 60%,rgba(6,182,212,.09),transparent);
+      pointer-events:none;z-index:0;
+    }
+    .card-wrap{
+      position:relative;
+      width:100%;max-width:390px;
+      z-index:1;
+    }
+    /* Glowing gradient border */
+    .card-wrap::before{
+      content:'';
+      position:absolute;inset:-1.5px;
+      border-radius:22px;
+      background:linear-gradient(150deg,#e879f9 0%,#8b5cf6 45%,#06b6d4 100%);
+      z-index:0;
+    }
+    /* Outer glow */
+    .card-wrap::after{
+      content:'';
+      position:absolute;inset:-6px;
+      border-radius:26px;
+      background:linear-gradient(150deg,rgba(232,121,249,.25) 0%,rgba(139,92,246,.15) 50%,rgba(6,182,212,.25) 100%);
+      filter:blur(8px);
+      z-index:-1;
+    }
+    .card{
+      position:relative;
+      background:var(--card);
+      border-radius:21px;
+      padding:30px 22px 26px;
+      z-index:1;
+    }
+    .card::before{
+      content:'';
+      position:absolute;top:0;left:0;right:0;height:120px;
+      background:linear-gradient(180deg,rgba(232,121,249,.05),transparent);
+      border-radius:21px 21px 0 0;
+      pointer-events:none;
+    }
 
-/* ─── ANIMATED BG ─── */
-#bg-canvas {
-  position: fixed; inset: 0; z-index: 0;
-  pointer-events: none; opacity: .35;
-}
+    /* ── Logo ─────────────────── */
+    .logo{
+      display:flex;flex-direction:column;align-items:center;
+      gap:12px;margin-bottom:22px;
+    }
+    .logo-circle{
+      width:72px;height:72px;border-radius:50%;
+      background:linear-gradient(135deg,#7c3aed,#0891b2);
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 0 32px rgba(139,92,246,.5),0 0 64px rgba(139,92,246,.15);
+      font-size:30px;line-height:1;
+    }
+    .logo-title{
+      font-size:1.5rem;font-weight:900;letter-spacing:2.5px;
+      background:linear-gradient(90deg,var(--g1) 0%,var(--g2) 50%,var(--g3) 100%);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+      text-align:center;
+    }
+    .logo-sub{
+      font-size:.8rem;color:var(--muted);margin-top:-8px;letter-spacing:.3px;
+    }
 
-/* ─── GRID OVERLAY ─── */
-body::before {
-  content: '';
-  position: fixed; inset: 0; z-index: 0;
-  background-image:
-    linear-gradient(rgba(0,230,118,.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,230,118,.04) 1px, transparent 1px);
-  background-size: 60px 60px;
-  pointer-events: none;
-}
+    /* ── Server selector (collapsed) ─── */
+    .server-selector{
+      background:var(--row);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:13px 15px;
+      margin-bottom:12px;
+      transition:border-color .2s;
+    }
+    .server-selector:hover{border-color:rgba(139,92,246,.35);}
+    .server-row{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+    }
+    .server-left{display:flex;align-items:center;gap:11px;}
+    .server-icon-box{
+      width:34px;height:34px;border-radius:9px;flex-shrink:0;
+      background:linear-gradient(135deg,rgba(139,92,246,.25),rgba(6,182,212,.25));
+      display:flex;align-items:center;justify-content:center;
+      font-size:14px;
+    }
+    .server-info-name{font-weight:700;font-size:.9rem;margin-bottom:3px;}
+    .server-info-meta{
+      font-size:.7rem;color:var(--muted);
+      display:flex;align-items:center;gap:6px;
+    }
+    .dot-green{
+      display:inline-block;width:6px;height:6px;border-radius:50%;
+      background:#4ade80;box-shadow:0 0 5px #4ade80;flex-shrink:0;
+    }
+    .btn-select{
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.1);
+      color:var(--text);font-size:.78rem;font-weight:700;
+      padding:7px 13px;border-radius:9px;cursor:pointer;
+      transition:background .2s,border-color .2s;white-space:nowrap;flex-shrink:0;
+    }
+    .btn-select:hover{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.18);}
 
-/* ─── NAV ─── */
-nav {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 6vw; height: 64px;
-  background: rgba(8,9,15,.8);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border);
-  transition: border-color .3s;
-}
-nav.glow { border-bottom-color: rgba(0,230,118,.2); }
-.brand {
-  display: flex; align-items: center; gap: 10px;
-  font-weight: 800; font-size: 1.05rem; letter-spacing: .5px;
-  position: relative; z-index: 1;
-}
-.brand img { width: 34px; height: 34px; border-radius: 10px; object-fit: cover; }
-.brand .v2 { background: linear-gradient(135deg, var(--g1), var(--g2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.nav-links { display: flex; align-items: center; gap: 28px; }
-.nav-links a { font-size: .85rem; font-weight: 600; color: var(--muted); transition: color .2s; }
-.nav-links a:hover { color: var(--text); }
-.btn-nav {
-  background: linear-gradient(135deg, var(--g1), var(--g2));
-  color: #08090f; font-weight: 800; font-size: .82rem;
-  padding: 9px 18px; border-radius: 10px;
-  transition: opacity .2s, transform .15s;
-  white-space: nowrap;
-}
-.btn-nav:hover { opacity: .88; transform: translateY(-1px); }
-.hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 4px; }
-.hamburger span { width: 22px; height: 2px; background: var(--text); border-radius: 2px; transition: .3s; }
+    /* ── Server list (expanded) ─── */
+    .server-list-panel{
+      display:none;
+      background:var(--row);
+      border:1px solid var(--border);
+      border-radius:14px;
+      overflow:hidden;
+      margin-bottom:12px;
+    }
+    .server-list-panel.open{display:block;}
+    .server-list-header{
+      padding:13px 16px 10px;
+      font-weight:800;font-size:.88rem;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      letter-spacing:.3px;
+    }
+    .server-list-scroll{
+      max-height:210px;overflow-y:auto;
+      scrollbar-width:thin;
+      scrollbar-color:rgba(255,255,255,.1) transparent;
+    }
+    .server-list-scroll::-webkit-scrollbar{width:4px;}
+    .server-list-scroll::-webkit-scrollbar-thumb{
+      background:rgba(255,255,255,.1);border-radius:2px;
+    }
+    .server-item{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:11px 16px;
+      border-bottom:1px solid rgba(255,255,255,.035);
+      cursor:pointer;transition:background .15s;
+    }
+    .server-item:last-child{border-bottom:none;}
+    .server-item:hover{background:rgba(255,255,255,.045);}
+    .server-item.active{background:rgba(139,92,246,.14);}
+    .server-item-name{font-weight:700;font-size:.87rem;}
+    .server-item-cta{font-size:.73rem;color:var(--muted);transition:color .15s;}
+    .server-item:hover .server-item-cta{color:var(--g1);}
+    .server-item.active .server-item-cta{color:#a78bfa;}
 
-/* ─── WRAPPER ─── */
-.wrapper { position: relative; z-index: 1; padding-top: 64px; }
+    /* ── Quick Setup ─── */
+    .info-box{
+      background:rgba(6,182,212,.06);
+      border:1px solid rgba(6,182,212,.18);
+      border-radius:12px;
+      padding:12px 14px;
+      display:flex;gap:10px;
+      margin-bottom:18px;
+      font-size:.78rem;color:#a5f3fc;line-height:1.55;
+    }
+    .info-box-icon{font-size:14px;flex-shrink:0;margin-top:1px;}
+    .info-box-title{font-weight:800;font-size:.8rem;color:#67e8f9;margin-bottom:3px;}
 
-/* ─── HERO ─── */
-.hero {
-  min-height: 88vh;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center; padding: 80px 6vw 60px;
-  position: relative;
-}
-.hero-badge {
-  display: inline-flex; align-items: center; gap: 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px; padding: 7px 16px;
-  font-size: .72rem; font-weight: 700; letter-spacing: 1.5px;
-  color: var(--muted); margin-bottom: 28px;
-  background: rgba(255,255,255,.03);
-}
-.live-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 0 0 rgba(0,230,118,.5);
-  animation: liveping 1.8s ease-in-out infinite;
-}
-@keyframes liveping {
-  0% { box-shadow: 0 0 0 0 rgba(0,230,118,.5); }
-  70% { box-shadow: 0 0 0 8px rgba(0,230,118,0); }
-  100% { box-shadow: 0 0 0 0 rgba(0,230,118,0); }
-}
-.hero h1 {
-  font-size: clamp(2.4rem, 6vw, 5rem);
-  font-weight: 900; line-height: 1.05;
-  letter-spacing: -1.5px; margin-bottom: 20px;
-}
-.hero h1 .grad {
-  background: linear-gradient(135deg, var(--g1) 0%, var(--g2) 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.hero p {
-  font-size: clamp(1rem, 2vw, 1.2rem);
-  color: var(--muted); max-width: 520px; line-height: 1.6;
-  margin: 0 auto 40px;
-}
-.hero-cta { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
-.btn-primary {
-  background: linear-gradient(135deg, var(--g1), var(--g2));
-  color: #08090f; font-weight: 800; font-size: .95rem;
-  padding: 14px 28px; border-radius: 12px; border: none; cursor: pointer;
-  transition: transform .15s, opacity .2s;
-  display: inline-flex; align-items: center; gap: 8px;
-}
-.btn-primary:hover { transform: translateY(-2px); opacity: .9; }
-.btn-outline {
-  background: transparent; color: var(--text); font-weight: 700; font-size: .95rem;
-  padding: 14px 28px; border-radius: 12px;
-  border: 1px solid var(--border); cursor: pointer;
-  transition: border-color .2s, background .2s;
-  display: inline-flex; align-items: center; gap: 8px;
-}
-.btn-outline:hover { border-color: var(--green); background: rgba(0,230,118,.06); }
-.hero-stats {
-  display: flex; gap: 40px; margin-top: 64px; flex-wrap: wrap; justify-content: center;
-}
-.stat { text-align: center; }
-.stat .num {
-  font-size: 1.9rem; font-weight: 900; letter-spacing: -1px;
-  background: linear-gradient(135deg, var(--g1), var(--g2));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.stat .lbl { font-size: .78rem; color: var(--muted); font-weight: 600; letter-spacing: 1px; margin-top: 2px; }
+    /* ── Form ─── */
+    .form-label{
+      font-size:.8rem;font-weight:700;color:#ccc;
+      display:block;margin-bottom:8px;
+    }
+    .input-wrap{position:relative;margin-bottom:6px;}
+    .input-ph-icon{
+      position:absolute;left:14px;top:50%;transform:translateY(-50%);
+      color:var(--muted);font-size:14px;pointer-events:none;
+    }
+    .input-wrap input{
+      width:100%;
+      background:var(--row);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:13px 14px 13px 40px;
+      color:var(--text);font-size:.9rem;font-family:inherit;
+      outline:none;transition:border-color .2s;
+    }
+    .input-wrap input::placeholder{color:var(--muted);}
+    .input-wrap input:focus{border-color:rgba(139,92,246,.5);}
+    .input-hint{
+      font-size:.7rem;color:var(--muted);
+      margin-bottom:18px;padding-left:3px;display:flex;align-items:center;gap:4px;
+    }
 
-/* ─── SECTION BASE ─── */
-section { padding: 80px 6vw; position: relative; z-index: 1; }
-.section-label {
-  font-size: .7rem; font-weight: 800; letter-spacing: 2.5px;
-  color: var(--green); text-transform: uppercase; margin-bottom: 14px;
-}
-.section-title {
-  font-size: clamp(1.7rem, 3.5vw, 2.8rem); font-weight: 900;
-  letter-spacing: -1px; margin-bottom: 12px; line-height: 1.1;
-}
-.section-sub { font-size: 1rem; color: var(--muted); max-width: 500px; }
+    /* ── Generate button ─── */
+    .btn-pair{
+      width:100%;
+      background:linear-gradient(90deg,var(--g1) 0%,var(--g2) 50%,var(--g3) 100%);
+      border:none;border-radius:12px;
+      color:#fff;font-weight:800;font-size:.95rem;font-family:inherit;
+      padding:14px;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;gap:8px;
+      transition:opacity .2s,transform .15s;
+      margin-bottom:12px;
+      letter-spacing:.3px;
+    }
+    .btn-pair:hover{opacity:.88;transform:translateY(-1px);}
+    .btn-pair:disabled{opacity:.45;cursor:not-allowed;transform:none;}
 
-/* ─── SERVERS ─── */
-#servers { background: rgba(0,230,118,.015); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    /* ── Code output ─── */
+    .code-box{
+      background:rgba(0,0,0,.5);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:14px 16px;
+      text-align:center;
+      font-size:.85rem;color:var(--muted);
+      min-height:50px;
+      display:flex;align-items:center;justify-content:center;
+      word-break:break-all;line-height:1.5;
+      margin-bottom:10px;
+    }
+    .code-box.has-code{
+      font-size:1.3rem;font-weight:900;letter-spacing:4px;
+      color:#67e8f9;
+      border-color:rgba(6,182,212,.3);
+      background:rgba(6,182,212,.06);
+    }
+    .code-box.error-code{
+      color:#f87171;border-color:rgba(248,113,113,.2);
+      background:rgba(248,113,113,.04);font-size:.83rem;
+    }
 
-.server-filter {
-  display: flex; gap: 8px; flex-wrap: wrap; margin: 32px 0 24px;
-}
-.filter-btn {
-  padding: 7px 16px; border-radius: 999px;
-  border: 1px solid var(--border);
-  background: transparent; color: var(--muted);
-  font-size: .8rem; font-weight: 700; cursor: pointer;
-  transition: all .2s;
-}
-.filter-btn:hover { border-color: var(--green); color: var(--text); }
-.filter-btn.active { background: rgba(0,230,118,.1); border-color: var(--green); color: var(--green); }
+    /* ── Status ─── */
+    .status-msg{
+      font-size:.78rem;text-align:center;
+      min-height:20px;color:var(--muted);padding:2px 0;
+    }
+    .status-msg.ok{color:#4ade80;}
+    .status-msg.err{color:#f87171;}
 
-.server-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
-  max-height: 540px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-.server-grid::-webkit-scrollbar { width: 4px; }
-.server-grid::-webkit-scrollbar-track { background: transparent; }
-.server-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    /* ── Footer ─── */
+    .footer{
+      text-align:center;font-size:.67rem;
+      color:rgba(255,255,255,.18);margin-top:18px;letter-spacing:.5px;
+    }
 
-.srv-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 14px 16px;
-  cursor: pointer;
-  transition: all .2s;
-  position: relative;
-  overflow: hidden;
-}
-.srv-card::before {
-  content: ''; position: absolute; inset: 0;
-  opacity: 0; transition: opacity .2s;
-  background: linear-gradient(135deg, rgba(0,230,118,.06), rgba(0,176,255,.06));
-}
-.srv-card:hover { border-color: var(--border-h); transform: translateY(-2px); }
-.srv-card:hover::before { opacity: 1; }
-.srv-card.selected { border-color: var(--green); background: rgba(0,230,118,.08); }
-.srv-card.selected::before { opacity: 1; }
-.srv-card.full { opacity: .5; cursor: not-allowed; pointer-events: none; }
-
-.srv-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.srv-flag { font-size: 1.4rem; }
-.srv-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.srv-status.green { background: var(--green); box-shadow: 0 0 6px rgba(0,230,118,.6); }
-.srv-status.yellow { background: var(--yellow); box-shadow: 0 0 6px rgba(255,211,42,.6); }
-.srv-status.red { background: var(--red); box-shadow: 0 0 6px rgba(255,71,87,.6); }
-
-.srv-name { font-size: .82rem; font-weight: 700; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.srv-region { font-size: .7rem; color: var(--muted); font-weight: 600; letter-spacing: .5px; margin-bottom: 10px; }
-
-.srv-bar-wrap { height: 4px; background: rgba(255,255,255,.08); border-radius: 4px; overflow: hidden; margin-bottom: 5px; }
-.srv-bar { height: 100%; border-radius: 4px; transition: width .5s; }
-.srv-bar.green { background: var(--green); }
-.srv-bar.yellow { background: var(--yellow); }
-.srv-bar.red { background: var(--red); }
-.srv-count { font-size: .7rem; color: var(--muted); font-weight: 600; }
-
-.server-selected-info {
-  margin-top: 24px; padding: 16px 20px;
-  background: rgba(0,230,118,.07);
-  border: 1px solid rgba(0,230,118,.25);
-  border-radius: 14px;
-  display: none; align-items: center; gap: 14px;
-}
-.server-selected-info.show { display: flex; }
-.server-selected-info .flag { font-size: 1.6rem; }
-.server-selected-info .info { flex: 1; }
-.server-selected-info .name { font-weight: 700; font-size: .95rem; }
-.server-selected-info .slot { font-size: .78rem; color: var(--muted); }
-.server-selected-info .check { font-size: 1.4rem; }
-
-/* ─── PANEL ─── */
-#panel { border-top: 1px solid var(--border); }
-.panel-wrap {
-  max-width: 480px; margin: 40px auto 0;
-}
-.gen-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 32px 28px;
-  backdrop-filter: blur(10px);
-}
-.tabs {
-  display: flex; position: relative;
-  background: rgba(255,255,255,.04);
-  border-radius: 12px; padding: 4px;
-  margin-bottom: 28px; gap: 0;
-}
-.tab-ind {
-  position: absolute; top: 4px; bottom: 4px;
-  width: calc(50% - 4px);
-  background: linear-gradient(135deg, var(--g1), var(--g2));
-  border-radius: 9px;
-  transition: transform .25s cubic-bezier(.4,0,.2,1);
-}
-.tab-ind.right { transform: translateX(calc(100% + 0px)); }
-.tab {
-  flex: 1; text-align: center; padding: 10px;
-  font-size: .85rem; font-weight: 700;
-  cursor: pointer; position: relative; z-index: 1;
-  transition: color .25s;
-  color: var(--muted); user-select: none;
-}
-.tab.active { color: #08090f; }
-.panel-notice {
-  background: rgba(255,71,87,.08); border: 1px solid rgba(255,71,87,.2);
-  border-radius: 10px; padding: 10px 14px;
-  font-size: .78rem; color: #ff6b6b;
-  margin-bottom: 20px; display: none;
-}
-.panel-notice.show { display: block; }
-.input-group { margin-bottom: 16px; }
-.input-group label { font-size: .75rem; font-weight: 700; color: var(--muted); display: block; margin-bottom: 7px; letter-spacing: .5px; }
-.input-group input {
-  width: 100%; background: rgba(255,255,255,.05);
-  border: 1px solid var(--border); border-radius: 12px;
-  padding: 13px 16px; font-size: .95rem; color: var(--text);
-  outline: none; transition: border-color .2s, background .2s;
-}
-.input-group input:focus { border-color: var(--green); background: rgba(0,230,118,.04); }
-.input-group input::placeholder { color: var(--muted); }
-.btn-action {
-  width: 100%; padding: 14px;
-  background: linear-gradient(135deg, var(--g1), var(--g2));
-  color: #08090f; font-weight: 800; font-size: 1rem;
-  border: none; border-radius: 12px; cursor: pointer;
-  transition: opacity .2s, transform .15s;
-  margin-top: 4px;
-}
-.btn-action:hover { opacity: .88; transform: translateY(-1px); }
-.btn-action:disabled { opacity: .4; cursor: not-allowed; transform: none; }
-.result-area { margin-top: 24px; min-height: 0; }
-.code-display {
-  font-size: 2.2rem; font-weight: 900; letter-spacing: 4px;
-  text-align: center; padding: 22px;
-  background: rgba(0,230,118,.07);
-  border: 1.5px dashed rgba(0,230,118,.4);
-  border-radius: 14px;
-  background-clip: padding-box;
-  cursor: pointer; user-select: all;
-  color: var(--green); transition: background .2s;
-  font-family: 'Courier New', monospace;
-}
-.code-display:hover { background: rgba(0,230,118,.12); }
-.code-hint { font-size: .75rem; color: var(--muted); text-align: center; margin-top: 8px; }
-.status-msg {
-  text-align: center; padding: 14px;
-  font-size: .88rem; color: var(--muted);
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  margin-top: 14px;
-}
-.status-msg.success { color: var(--green); }
-.status-msg.error { color: var(--red); }
-.spinner-ring {
-  width: 20px; height: 20px; border-radius: 50%;
-  border: 2.5px solid rgba(0,230,118,.2);
-  border-top-color: var(--green);
-  animation: spin .7s linear infinite; flex-shrink: 0;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.qr-img { display: block; max-width: 230px; margin: 0 auto; border-radius: 14px; border: 1px solid var(--border); }
-.qr-wrap { text-align: center; padding: 10px 0; }
-
-/* ─── FEATURES ─── */
-#features { border-top: 1px solid var(--border); }
-.feat-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px; margin-top: 40px;
-}
-.feat-card {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 16px; padding: 24px 20px;
-  transition: border-color .2s, transform .2s;
-}
-.feat-card:hover { border-color: var(--border-h); transform: translateY(-3px); }
-.feat-icon { font-size: 1.7rem; margin-bottom: 14px; }
-.feat-card h3 { font-size: .95rem; font-weight: 800; margin-bottom: 8px; }
-.feat-card p { font-size: .82rem; color: var(--muted); line-height: 1.55; }
-
-/* ─── FOOTER ─── */
-footer {
-  border-top: 1px solid var(--border);
-  padding: 32px 6vw;
-  display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 16px;
-  font-size: .8rem; color: var(--muted);
-  position: relative; z-index: 1;
-}
-.foot-brand { font-weight: 800; color: var(--text); font-size: .88rem; }
-.foot-brand span { background: linear-gradient(135deg, var(--g1), var(--g2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.foot-links { display: flex; gap: 20px; flex-wrap: wrap; }
-.foot-links a { transition: color .2s; }
-.foot-links a:hover { color: var(--text); }
-
-/* ─── DIVIDER ─── */
-.divider { border: none; border-top: 1px solid var(--border); margin: 0; }
-
-/* ─── REVEAL ─── */
-.rev { opacity: 0; transform: translateY(22px); transition: opacity .7s, transform .7s; }
-.rev.in { opacity: 1; transform: translateY(0); }
-
-/* ─── MOBILE ─── */
-@media (max-width: 700px) {
-  .nav-links { display: none; }
-  .hamburger { display: flex; }
-  nav.open .nav-links {
-    display: flex; flex-direction: column;
-    position: fixed; top: 64px; left: 0; right: 0;
-    background: var(--bg); border-bottom: 1px solid var(--border);
-    padding: 20px 6vw; gap: 18px; z-index: 200;
-  }
-  .hero { min-height: 70vh; padding: 60px 5vw 40px; }
-  .hero h1 { font-size: clamp(1.9rem, 8vw, 3rem); }
-  .server-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
-  .gen-card { padding: 22px 18px; }
-  .hero-stats { gap: 24px; }
-}
-</style>
+    /* ── Spinner ─── */
+    .spin{
+      display:inline-block;
+      width:15px;height:15px;
+      border:2px solid rgba(255,255,255,.25);
+      border-top-color:#fff;
+      border-radius:50%;
+      animation:rot .65s linear infinite;
+    }
+    @keyframes rot{to{transform:rotate(360deg)}}
+  </style>
 </head>
 <body>
+<div class="card-wrap">
+  <div class="card">
 
-<!-- ANIMATED PARTICLES CANVAS -->
-<canvas id="bg-canvas"></canvas>
-
-<!-- NAV -->
-<nav id="navbar">
-  <a href="#" class="brand">
-    <img src="/varnox-logo.jpg" alt="VARNOX" onerror="this.style.display='none'">
-    <span>VARNOX <span class="v2">XD V2</span></span>
-  </a>
-  <div class="nav-links" id="navLinks">
-    <a href="#servers">Serveurs</a>
-    <a href="#panel">Connexion</a>
-    <a href="#features">Fonctionnalités</a>
-    <a href="#panel" class="btn-nav">🔑 Connecter</a>
-  </div>
-  <div class="hamburger" id="burger">
-    <span></span><span></span><span></span>
-  </div>
-</nav>
-
-<div class="wrapper">
-
-<!-- HERO -->
-<section class="hero">
-  <div class="hero-badge rev">
-    <span class="live-dot"></span>
-    BOT ACTIF 24/7
-  </div>
-  <h1 class="rev">Le bot WhatsApp<br>le plus <span class="grad">puissant</span></h1>
-  <p class="rev">100+ commandes premium — modération, IA, médias, jeux et bien plus. Connecte-toi en moins d'une minute.</p>
-  <div class="hero-cta rev">
-    <a href="#panel" class="btn-primary">🚀 Commencer maintenant</a>
-    <a href="#features" class="btn-outline">✨ Voir les fonctionnalités</a>
-  </div>
-  <div class="hero-stats rev">
-    <div class="stat"><div class="num">100+</div><div class="lbl">COMMANDES</div></div>
-    <div class="stat"><div class="num" id="statServers">105</div><div class="lbl">SERVEURS</div></div>
-    <div class="stat"><div class="num" id="statConnected">—</div><div class="lbl">CONNECTÉS</div></div>
-    <div class="stat"><div class="num">24/7</div><div class="lbl">EN LIGNE</div></div>
-  </div>
-</section>
-
-<!-- SERVERS -->
-<section id="servers">
-  <div class="section-label rev">// INFRASTRUCTURE</div>
-  <div class="section-title rev">Choisir un serveur</div>
-  <div class="section-sub rev">Sélectionne le serveur le plus proche de toi avant de te connecter. Chaque serveur peut accueillir jusqu'à <strong>50</strong> utilisateurs.</div>
-
-  <div class="server-filter rev" id="filterBar">
-    <button class="filter-btn active" data-region="all">🌐 Tous</button>
-    <button class="filter-btn" data-region="africa">🌍 Afrique</button>
-    <button class="filter-btn" data-region="europe">🇪🇺 Europe</button>
-    <button class="filter-btn" data-region="americas">🌎 Amériques</button>
-    <button class="filter-btn" data-region="asia">🌏 Asie</button>
-    <button class="filter-btn" data-region="mena">🌙 Moyen-Orient</button>
-  </div>
-
-  <div class="server-grid" id="serverGrid">
-    <!-- injected by JS -->
-  </div>
-
-  <div class="server-selected-info rev" id="selectedInfo">
-    <div class="flag" id="selectedFlag">🌍</div>
-    <div class="info">
-      <div class="name" id="selectedName">Serveur sélectionné</div>
-      <div class="slot" id="selectedSlot">—/50 slots utilisés</div>
+    <!-- Logo -->
+    <div class="logo">
+      <div class="logo-circle">⚡</div>
+      <div style="text-align:center">
+        <div class="logo-title">VARNOX XD V2</div>
+        <div class="logo-sub">Generate Your Pairing Code</div>
+      </div>
     </div>
-    <div class="check">✅</div>
-  </div>
-</section>
 
-<!-- PANEL -->
-<section id="panel">
-  <div class="section-label rev">// SESSION</div>
-  <div class="section-title rev">Connecter ton bot</div>
-  <div class="section-sub rev">Entre ton numéro WhatsApp pour obtenir ton code de pairing.</div>
-
-  <div class="panel-wrap">
-    <div class="gen-card rev">
-      <div class="panel-notice" id="noServerNotice">
-        ⚠️ Sélectionne d'abord un serveur ci-dessus.
-      </div>
-      <div class="tabs">
-        <div class="tab-ind" id="tabInd"></div>
-        <div class="tab active" id="tabCode">Code Pair</div>
-        <div class="tab" id="tabQr">QR Code</div>
-      </div>
-
-      <!-- CODE PANEL -->
-      <div id="panelCode">
-        <div class="input-group">
-          <label>NUMÉRO WHATSAPP</label>
-          <input type="text" id="numInput" placeholder="Ex : 224621963059" inputmode="numeric">
+    <!-- Server selector (collapsed) -->
+    <div class="server-selector" id="serverSelector">
+      <div class="server-row">
+        <div class="server-left">
+          <div class="server-icon-box">⊞</div>
+          <div>
+            <div class="server-info-name" id="selectedServerName">Select Server</div>
+            <div class="server-info-meta">
+              <span class="dot-green"></span>
+              Active: <span id="activeCount">--</span>
+              &nbsp;🔒 Limit: <span id="limitCount">--</span>/50
+            </div>
+          </div>
         </div>
-        <button class="btn-action" id="btnPair">✨ Obtenir mon code</button>
+        <button class="btn-select" id="btnToggle" onclick="toggleServerList(event)">∨ Select</button>
       </div>
-
-      <!-- QR PANEL -->
-      <div id="panelQr" style="display:none">
-        <button class="btn-action" id="btnQr">📷 Générer le QR Code</button>
-      </div>
-
-      <div class="result-area" id="resultArea"></div>
     </div>
-  </div>
-</section>
 
-<!-- FEATURES -->
-<section id="features">
-  <div class="section-label rev">// FONCTIONNALITÉS</div>
-  <div class="section-title rev">Tout ce dont tu as besoin</div>
-  <div class="feat-grid">
-    <div class="feat-card rev"><div class="feat-icon">🛡️</div><h3>Modération avancée</h3><p>Anti-lien, anti-ban, anti-suppression, kick, mute, ban et bien plus pour tes groupes.</p></div>
-    <div class="feat-card rev"><div class="feat-icon">⭐</div><h3>Commandes Premium</h3><p>promotetime, kicktime, kickall, deleteall — des outils exclusifs pour les admins.</p></div>
-    <div class="feat-card rev"><div class="feat-icon">🤖</div><h3>Intelligence Artificielle</h3><p>Chatbot intégré, génération d'images et réponses automatiques intelligentes.</p></div>
-    <div class="feat-card rev"><div class="feat-icon">🎨</div><h3>Stickers & médias</h3><p>Convertis images et vidéos en stickers, télécharge des médias en un seul message.</p></div>
-    <div class="feat-card rev"><div class="feat-icon">🎮</div><h3>Jeux interactifs</h3><p>Tic-Tac-Toe, Pendu, Trivia — anime tes groupes avec des mini-jeux multi-joueurs.</p></div>
-    <div class="feat-card rev"><div class="feat-icon">🌐</div><h3>100+ commandes</h3><p>Du fun aux outils pratiques — une bibliothèque complète prête à l'emploi.</p></div>
-  </div>
-</section>
+    <!-- Server list (expanded) -->
+    <div class="server-list-panel" id="serverListPanel">
+      <div class="server-list-header">Select a Server (1-60)</div>
+      <div class="server-list-scroll" id="serverListEl"></div>
+    </div>
 
-</div><!-- .wrapper -->
+    <!-- Quick Setup info -->
+    <div class="info-box">
+      <div class="info-box-icon">ℹ</div>
+      <div>
+        <div class="info-box-title">Quick Setup</div>
+        Select a server, enter your WhatsApp number to instantly generate a pairing code. No deployment needed!
+      </div>
+    </div>
 
-<!-- FOOTER -->
-<footer>
-  <div class="foot-brand">VARNOX <span>XD V2</span> · ©2026</div>
-  <div class="foot-links">
-    <a href="#servers">Serveurs</a>
-    <a href="#panel">Connexion</a>
-    <a href="#features">Fonctionnalités</a>
-    <a href="https://github.com/mohamedsoumahv99-bot/VARNOX-XD-V2" target="_blank">GitHub</a>
+    <!-- Phone input -->
+    <label class="form-label">WhatsApp Number</label>
+    <div class="input-wrap">
+      <span class="input-ph-icon">📞</span>
+      <input type="tel" id="phoneInput" placeholder="92342758xxxxx" autocomplete="off">
+    </div>
+    <div class="input-hint">
+      <span>💡</span> Include country code (e.g., 92 for Pakistan)
+    </div>
+
+    <!-- Generate button -->
+    <button class="btn-pair" id="btnPair" onclick="generateCode()">
+      🔑 Generate Pair Code
+    </button>
+
+    <!-- Code output -->
+    <div class="code-box" id="codeBox">Your pairing code will appear here</div>
+    <div class="status-msg" id="statusMsg"></div>
+
+    <div class="footer">© 2026 VARNOX XD V2 | Powered By VARNOX</div>
   </div>
-</footer>
+</div>
 
 <script>
-/* ════════════════════════════════════════════════
-   PARTICLES CANVAS
-════════════════════════════════════════════════ */
-(function(){
-  const c = document.getElementById('bg-canvas');
-  const ctx = c.getContext('2d');
-  let W, H, pts = [];
+'use strict';
 
-  function resize(){
-    W = c.width  = window.innerWidth;
-    H = c.height = window.innerHeight;
-  }
-  resize();
-  window.addEventListener('resize', () => { resize(); initPts(); });
-
-  function initPts(){
-    pts = [];
-    const n = Math.floor(W * H / 14000);
-    for(let i = 0; i < n; i++){
-      pts.push({
-        x: Math.random() * W,
-        y: Math.random() * H,
-        r: Math.random() * 1.4 + .4,
-        vx: (Math.random() - .5) * .3,
-        vy: (Math.random() - .5) * .3,
-        a: Math.random()
-      });
-    }
-  }
-  initPts();
-
-  function draw(){
-    ctx.clearRect(0, 0, W, H);
-    pts.forEach(p => {
-      p.x += p.vx; p.y += p.vy;
-      if(p.x < 0) p.x = W;
-      if(p.x > W) p.x = 0;
-      if(p.y < 0) p.y = H;
-      if(p.y > H) p.y = 0;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(0,230,118,${p.a * .6})`;
-      ctx.fill();
-    });
-    requestAnimationFrame(draw);
-  }
-  draw();
-})();
-
-/* ════════════════════════════════════════════════
-   NAV
-════════════════════════════════════════════════ */
-const navbar = document.getElementById('navbar');
-const burger  = document.getElementById('burger');
-window.addEventListener('scroll', () => navbar.classList.toggle('glow', scrollY > 10));
-burger.onclick = () => navbar.classList.toggle('open');
-
-/* ════════════════════════════════════════════════
-   SCROLL REVEAL
-════════════════════════════════════════════════ */
-const io = new IntersectionObserver(
-  entries => entries.forEach(e => { if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }}),
-  { threshold: .1 }
-);
-document.querySelectorAll('.rev').forEach(el => io.observe(el));
-
-/* ════════════════════════════════════════════════
-   SERVER DATA — 105 servers
-════════════════════════════════════════════════ */
-const SERVERS = [
-  // ── AFRICA ──
-  { id:'AF01', flag:'🇸🇳', name:'Dakar #1',       region:'africa',   country:'Sénégal' },
-  { id:'AF02', flag:'🇸🇳', name:'Dakar #2',       region:'africa',   country:'Sénégal' },
-  { id:'AF03', flag:'🇬🇳', name:'Conakry #1',     region:'africa',   country:'Guinée' },
-  { id:'AF04', flag:'🇬🇳', name:'Conakry #2',     region:'africa',   country:'Guinée' },
-  { id:'AF05', flag:'🇨🇮', name:'Abidjan #1',     region:'africa',   country:'Côte d\'Ivoire' },
-  { id:'AF06', flag:'🇨🇮', name:'Abidjan #2',     region:'africa',   country:'Côte d\'Ivoire' },
-  { id:'AF07', flag:'🇲🇱', name:'Bamako #1',      region:'africa',   country:'Mali' },
-  { id:'AF08', flag:'🇧🇫', name:'Ouagadougou #1', region:'africa',   country:'Burkina Faso' },
-  { id:'AF09', flag:'🇨🇲', name:'Douala #1',      region:'africa',   country:'Cameroun' },
-  { id:'AF10', flag:'🇨🇲', name:'Yaoundé #1',     region:'africa',   country:'Cameroun' },
-  { id:'AF11', flag:'🇨🇩', name:'Kinshasa #1',    region:'africa',   country:'Congo RDC' },
-  { id:'AF12', flag:'🇨🇬', name:'Brazzaville #1', region:'africa',   country:'Congo' },
-  { id:'AF13', flag:'🇹🇬', name:'Lomé #1',        region:'africa',   country:'Togo' },
-  { id:'AF14', flag:'🇧🇯', name:'Cotonou #1',     region:'africa',   country:'Bénin' },
-  { id:'AF15', flag:'🇳🇪', name:'Niamey #1',      region:'africa',   country:'Niger' },
-  { id:'AF16', flag:'🇬🇭', name:'Accra #1',       region:'africa',   country:'Ghana' },
-  { id:'AF17', flag:'🇳🇬', name:'Lagos #1',       region:'africa',   country:'Nigeria' },
-  { id:'AF18', flag:'🇳🇬', name:'Lagos #2',       region:'africa',   country:'Nigeria' },
-  { id:'AF19', flag:'🇿🇦', name:'Cape Town #1',   region:'africa',   country:'Afrique du Sud' },
-  { id:'AF20', flag:'🇰🇪', name:'Nairobi #1',     region:'africa',   country:'Kenya' },
-  { id:'AF21', flag:'🇹🇿', name:'Dar es Salaam',  region:'africa',   country:'Tanzanie' },
-  { id:'AF22', flag:'🇦🇴', name:'Luanda #1',      region:'africa',   country:'Angola' },
-  { id:'AF23', flag:'🇬🇦', name:'Libreville #1',  region:'africa',   country:'Gabon' },
-  { id:'AF24', flag:'🇲🇬', name:'Antananarivo',   region:'africa',   country:'Madagascar' },
-  { id:'AF25', flag:'🇲🇦', name:'Casablanca #1',  region:'africa',   country:'Maroc' },
-
-  // ── EUROPE ──
-  { id:'EU01', flag:'🇫🇷', name:'Paris #1',       region:'europe',   country:'France' },
-  { id:'EU02', flag:'🇫🇷', name:'Paris #2',       region:'europe',   country:'France' },
-  { id:'EU03', flag:'🇫🇷', name:'Lyon #1',        region:'europe',   country:'France' },
-  { id:'EU04', flag:'🇧🇪', name:'Bruxelles #1',   region:'europe',   country:'Belgique' },
-  { id:'EU05', flag:'🇨🇭', name:'Genève #1',      region:'europe',   country:'Suisse' },
-  { id:'EU06', flag:'🇵🇹', name:'Lisbonne #1',    region:'europe',   country:'Portugal' },
-  { id:'EU07', flag:'🇪🇸', name:'Madrid #1',      region:'europe',   country:'Espagne' },
-  { id:'EU08', flag:'🇮🇹', name:'Rome #1',        region:'europe',   country:'Italie' },
-  { id:'EU09', flag:'🇩🇪', name:'Berlin #1',      region:'europe',   country:'Allemagne' },
-  { id:'EU10', flag:'🇳🇱', name:'Amsterdam #1',   region:'europe',   country:'Pays-Bas' },
-  { id:'EU11', flag:'🇬🇧', name:'Londres #1',     region:'europe',   country:'Royaume-Uni' },
-  { id:'EU12', flag:'🇸🇪', name:'Stockholm #1',   region:'europe',   country:'Suède' },
-  { id:'EU13', flag:'🇳🇴', name:'Oslo #1',        region:'europe',   country:'Norvège' },
-  { id:'EU14', flag:'🇵🇱', name:'Varsovie #1',    region:'europe',   country:'Pologne' },
-  { id:'EU15', flag:'🇷🇴', name:'Bucarest #1',    region:'europe',   country:'Roumanie' },
-  { id:'EU16', flag:'🇬🇷', name:'Athènes #1',     region:'europe',   country:'Grèce' },
-  { id:'EU17', flag:'🇹🇷', name:'Istanbul #1',    region:'europe',   country:'Turquie' },
-  { id:'EU18', flag:'🇺🇦', name:'Kiev #1',        region:'europe',   country:'Ukraine' },
-  { id:'EU19', flag:'🇦🇹', name:'Vienne #1',      region:'europe',   country:'Autriche' },
-  { id:'EU20', flag:'🇩🇰', name:'Copenhague #1',  region:'europe',   country:'Danemark' },
-
-  // ── AMERICAS ──
-  { id:'AM01', flag:'🇺🇸', name:'New York #1',    region:'americas', country:'États-Unis' },
-  { id:'AM02', flag:'🇺🇸', name:'Los Angeles #1', region:'americas', country:'États-Unis' },
-  { id:'AM03', flag:'🇺🇸', name:'Miami #1',       region:'americas', country:'États-Unis' },
-  { id:'AM04', flag:'🇧🇷', name:'São Paulo #1',   region:'americas', country:'Brésil' },
-  { id:'AM05', flag:'🇧🇷', name:'Rio #1',         region:'americas', country:'Brésil' },
-  { id:'AM06', flag:'🇲🇽', name:'Mexico #1',      region:'americas', country:'Mexique' },
-  { id:'AM07', flag:'🇨🇦', name:'Toronto #1',     region:'americas', country:'Canada' },
-  { id:'AM08', flag:'🇦🇷', name:'Buenos Aires',   region:'americas', country:'Argentine' },
-  { id:'AM09', flag:'🇨🇱', name:'Santiago #1',    region:'americas', country:'Chili' },
-  { id:'AM10', flag:'🇨🇴', name:'Bogotá #1',      region:'americas', country:'Colombie' },
-  { id:'AM11', flag:'🇵🇪', name:'Lima #1',        region:'americas', country:'Pérou' },
-  { id:'AM12', flag:'🇻🇪', name:'Caracas #1',     region:'americas', country:'Venezuela' },
-  { id:'AM13', flag:'🇨🇺', name:'La Havane #1',   region:'americas', country:'Cuba' },
-  { id:'AM14', flag:'🇩🇴', name:'Saint-Domingue', region:'americas', country:'Rép. Dom.' },
-  { id:'AM15', flag:'🇭🇹', name:'Port-au-Prince', region:'americas', country:'Haïti' },
-
-  // ── ASIA / PACIFIC ──
-  { id:'AS01', flag:'🇯🇵', name:'Tokyo #1',       region:'asia',     country:'Japon' },
-  { id:'AS02', flag:'🇨🇳', name:'Shanghai #1',    region:'asia',     country:'Chine' },
-  { id:'AS03', flag:'🇮🇳', name:'Mumbai #1',      region:'asia',     country:'Inde' },
-  { id:'AS04', flag:'🇮🇳', name:'Delhi #1',       region:'asia',     country:'Inde' },
-  { id:'AS05', flag:'🇰🇷', name:'Séoul #1',       region:'asia',     country:'Corée du Sud' },
-  { id:'AS06', flag:'🇸🇬', name:'Singapour #1',   region:'asia',     country:'Singapour' },
-  { id:'AS07', flag:'🇹🇭', name:'Bangkok #1',     region:'asia',     country:'Thaïlande' },
-  { id:'AS08', flag:'🇮🇩', name:'Jakarta #1',     region:'asia',     country:'Indonésie' },
-  { id:'AS09', flag:'🇲🇾', name:'Kuala Lumpur',   region:'asia',     country:'Malaisie' },
-  { id:'AS10', flag:'🇵🇭', name:'Manille #1',     region:'asia',     country:'Philippines' },
-  { id:'AS11', flag:'🇻🇳', name:'Ho Chi Minh',    region:'asia',     country:'Vietnam' },
-  { id:'AS12', flag:'🇦🇺', name:'Sydney #1',      region:'asia',     country:'Australie' },
-  { id:'AS13', flag:'🇳🇿', name:'Auckland #1',    region:'asia',     country:'Nouvelle-Zélande' },
-  { id:'AS14', flag:'🇵🇰', name:'Karachi #1',     region:'asia',     country:'Pakistan' },
-  { id:'AS15', flag:'🇧🇩', name:'Dhaka #1',       region:'asia',     country:'Bangladesh' },
-
-  // ── MIDDLE EAST & NORTH AFRICA ──
-  { id:'ME01', flag:'🇩🇿', name:'Alger #1',       region:'mena',     country:'Algérie' },
-  { id:'ME02', flag:'🇩🇿', name:'Alger #2',       region:'mena',     country:'Algérie' },
-  { id:'ME03', flag:'🇹🇳', name:'Tunis #1',       region:'mena',     country:'Tunisie' },
-  { id:'ME04', flag:'🇱🇾', name:'Tripoli #1',     region:'mena',     country:'Libye' },
-  { id:'ME05', flag:'🇪🇬', name:'Le Caire #1',    region:'mena',     country:'Égypte' },
-  { id:'ME06', flag:'🇸🇦', name:'Riyad #1',       region:'mena',     country:'Arabie Saoudite' },
-  { id:'ME07', flag:'🇦🇪', name:'Dubaï #1',       region:'mena',     country:'Émirats Arabes' },
-  { id:'ME08', flag:'🇶🇦', name:'Doha #1',        region:'mena',     country:'Qatar' },
-  { id:'ME09', flag:'🇰🇼', name:'Koweït #1',      region:'mena',     country:'Koweït' },
-  { id:'ME10', flag:'🇮🇶', name:'Bagdad #1',      region:'mena',     country:'Irak' },
-  { id:'ME11', flag:'🇮🇷', name:'Téhéran #1',     region:'mena',     country:'Iran' },
-  { id:'ME12', flag:'🇱🇧', name:'Beyrouth #1',    region:'mena',     country:'Liban' },
-  { id:'ME13', flag:'🇯🇴', name:'Amman #1',       region:'mena',     country:'Jordanie' },
-  { id:'ME14', flag:'🇲🇷', name:'Nouakchott #1',  region:'mena',     country:'Mauritanie' },
-  { id:'ME15', flag:'🇩🇯', name:'Djibouti #1',    region:'mena',     country:'Djibouti' },
-];
-
-/* ─── Seed realistic-looking occupancy from localStorage ─── */
-let serverData = {};
-try { serverData = JSON.parse(localStorage.getItem('vx_servers') || '{}'); } catch{}
-SERVERS.forEach(s => {
-  if (!serverData[s.id]) {
-    serverData[s.id] = Math.floor(Math.random() * 35);
-  }
-});
-// Sync with real count from API
-(async () => {
-  try {
-    const r = await fetch('/api/servers');
-    if (r.ok) {
-      const data = await r.json();
-      Object.assign(serverData, data.counts || {});
-    }
-  } catch {}
-  localStorage.setItem('vx_servers', JSON.stringify(serverData));
-  renderServers(currentRegion);
-  updateStats();
-})();
-
+/* ── State ─────────────────────────────────────── */
 let selectedServer = null;
-let currentRegion  = 'all';
+let serversData = [];
+let listOpen = false;
 
-function getColor(cur) {
-  const pct = cur / 50;
-  if (pct >= 1) return 'red';
-  if (pct >= .7) return 'yellow';
-  return 'green';
+/* ── Build 60 servers list ─────────────────────── */
+function buildDefaultServers() {
+  return Array.from({ length: 60 }, (_, i) => ({
+    id: i + 1,
+    name: 'Server ' + (i + 1),
+    active: 0,
+    limit: 50,
+    url: ''
+  }));
 }
 
-function renderServers(region) {
-  const grid = document.getElementById('serverGrid');
-  const list = region === 'all' ? SERVERS : SERVERS.filter(s => s.region === region);
-  grid.innerHTML = list.map(s => {
-    const cur   = serverData[s.id] || 0;
-    const pct   = Math.min(cur / 50 * 100, 100);
-    const color = getColor(cur);
-    const full  = cur >= 50;
-    const sel   = selectedServer?.id === s.id;
-    return `<div class="srv-card${full ? ' full' : ''}${sel ? ' selected' : ''}" data-id="${s.id}" onclick="selectServer('${s.id}')">
-      <div class="srv-top">
-        <span class="srv-flag">${s.flag}</span>
-        <span class="srv-status ${color}"></span>
-      </div>
-      <div class="srv-name">${s.name}</div>
-      <div class="srv-region">${s.country}</div>
-      <div class="srv-bar-wrap"><div class="srv-bar ${color}" style="width:${pct}%"></div></div>
-      <div class="srv-count">${cur}/50</div>
-    </div>`;
+async function fetchServers() {
+  try {
+    const r = await fetch('/servers', { cache: 'no-store' });
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    if (d.servers && d.servers.length) return d.servers;
+  } catch (_) {}
+  return buildDefaultServers();
+}
+
+function renderList() {
+  const el = document.getElementById('serverListEl');
+  el.innerHTML = serversData.map(s => {
+    const active = selectedServer && selectedServer.id === s.id;
+    return (
+      '<div class="server-item' + (active ? ' active' : '') + '" onclick="selectServer(' + s.id + ')">' +
+        '<div class="server-item-name">Server ' + s.id + '</div>' +
+        '<div class="server-item-cta">' + (active ? '✓ Selected' : 'Click to select') + '</div>' +
+      '</div>'
+    );
   }).join('');
 }
 
+async function openServerList() {
+  listOpen = true;
+  document.getElementById('serverListPanel').classList.add('open');
+  document.getElementById('btnToggle').textContent = '∧ Close';
+  if (!serversData.length) {
+    serversData = await fetchServers();
+  }
+  renderList();
+}
+
+function closeServerList() {
+  listOpen = false;
+  document.getElementById('serverListPanel').classList.remove('open');
+  document.getElementById('btnToggle').textContent = '∨ Select';
+}
+
+function toggleServerList(e) {
+  e.stopPropagation();
+  if (listOpen) { closeServerList(); } else { openServerList(); }
+}
+
 function selectServer(id) {
-  const s = SERVERS.find(x => x.id === id);
-  if (!s) return;
-  const cur = serverData[s.id] || 0;
-  if (cur >= 50) return;
-  selectedServer = s;
-  renderServers(currentRegion);
-  // Show info banner
-  document.getElementById('selectedFlag').textContent = s.flag;
-  document.getElementById('selectedName').textContent = `${s.name} — ${s.country}`;
-  document.getElementById('selectedSlot').textContent = `${cur}/50 slots utilisés`;
-  document.getElementById('selectedInfo').classList.add('show');
-  document.getElementById('noServerNotice').classList.remove('show');
-  // Scroll to panel smoothly
+  const found = serversData.find(s => s.id === id);
+  selectedServer = found || { id, name: 'Server ' + id, active: 0, limit: 50, url: '' };
+
+  document.getElementById('selectedServerName').textContent = 'Server ' + id;
+  document.getElementById('activeCount').textContent = selectedServer.active != null ? selectedServer.active : '--';
+  document.getElementById('limitCount').textContent = selectedServer.limit || 50;
+
+  closeServerList();
+  renderList();
+
+  // Clear any previous error about server selection
+  const sm = document.getElementById('statusMsg');
+  if (sm.classList.contains('err')) {
+    sm.textContent = '';
+    sm.className = 'status-msg';
+  }
 }
 
-function updateStats() {
-  const total = Object.values(serverData).reduce((a,b) => a + b, 0);
-  document.getElementById('statConnected').textContent = total;
-}
+/* ── Generate pairing code ──────────────────────── */
+async function generateCode() {
+  const codeBox = document.getElementById('codeBox');
+  const statusMsg = document.getElementById('statusMsg');
+  const btn = document.getElementById('btnPair');
 
-// Filter buttons
-document.querySelectorAll('.filter-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentRegion = btn.dataset.region;
-    renderServers(currentRegion);
-  });
-});
-
-renderServers('all');
-
-/* ════════════════════════════════════════════════
-   TABS
-════════════════════════════════════════════════ */
-const tabCode  = document.getElementById('tabCode');
-const tabQr    = document.getElementById('tabQr');
-const tabInd   = document.getElementById('tabInd');
-const panelCode = document.getElementById('panelCode');
-const panelQr   = document.getElementById('panelQr');
-const result    = document.getElementById('resultArea');
-
-function stopPoll(){ clearInterval(window._pollT); }
-
-tabCode.onclick = () => {
-  tabCode.classList.add('active'); tabQr.classList.remove('active');
-  tabInd.classList.remove('right');
-  panelCode.style.display = 'block'; panelQr.style.display = 'none';
-  result.innerHTML = ''; stopPoll();
-};
-tabQr.onclick = () => {
-  tabQr.classList.add('active'); tabCode.classList.remove('active');
-  tabInd.classList.add('right');
-  panelQr.style.display = 'block'; panelCode.style.display = 'none';
-  result.innerHTML = ''; stopPoll();
-};
-
-/* ════════════════════════════════════════════════
-   PAIR CODE
-════════════════════════════════════════════════ */
-function pollBotStatus(onUpdate) {
-  stopPoll();
-  window._pollT = setInterval(async () => {
-    try {
-      const r = await fetch('/botStatus');
-      const d = await r.json();
-      onUpdate(d);
-      if (d.connected) stopPoll();
-    } catch {}
-  }, 3000);
-}
-
-document.getElementById('btnPair').onclick = async () => {
+  // Validate server
   if (!selectedServer) {
-    document.getElementById('noServerNotice').classList.add('show');
-    document.getElementById('servers').scrollIntoView({ behavior: 'smooth' });
-    return;
-  }
-  const number = document.getElementById('numInput').value.trim().replace(/\D/g,'');
-  if (!number || number.length < 7) {
-    result.innerHTML = `<div class="status-msg error">⚠️ Entre un numéro valide avec l'indicatif pays.</div>`;
+    statusMsg.textContent = '⚠ Please select a server first!';
+    statusMsg.className = 'status-msg err';
+    openServerList();
     return;
   }
 
-  result.innerHTML = `<div class="status-msg"><div class="spinner-ring"></div> Connexion en cours...</div>`;
-  document.getElementById('btnPair').disabled = true;
+  // Validate number
+  const raw = document.getElementById('phoneInput').value.trim();
+  const num = raw.replace(/\D/g, '');
+  if (!num || num.length < 7) {
+    statusMsg.textContent = '⚠ Enter a valid WhatsApp number with country code.';
+    statusMsg.className = 'status-msg err';
+    return;
+  }
+
+  // Loading state
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Generating…';
+  codeBox.className = 'code-box';
+  codeBox.textContent = 'Generating your pairing code…';
+  statusMsg.textContent = '';
+  statusMsg.className = 'status-msg';
 
   try {
-    const r = await fetch(`/code?number=${encodeURIComponent(number)}&server=${encodeURIComponent(selectedServer.id)}`);
-    const d = await r.json();
-    document.getElementById('btnPair').disabled = false;
+    const base = selectedServer.url || '';
+    const url = base + '/code?number=' + encodeURIComponent(num) + '&server=' + selectedServer.id;
+    const res = await fetch(url);
+    const data = await res.json();
 
-    if (d.error) {
-      result.innerHTML = `<div class="status-msg error">❌ ${d.message}</div>`;
-      return;
+    if (data.error) {
+      codeBox.className = 'code-box error-code';
+      codeBox.textContent = '❌ ' + (data.message || 'Failed to generate code');
+      statusMsg.textContent = 'Try another server or check your number.';
+      statusMsg.className = 'status-msg err';
+    } else {
+      const code = data.code || data.pairingCode || '';
+      codeBox.className = 'code-box has-code';
+      codeBox.textContent = code;
+      statusMsg.textContent = '✅ Enter this code in WhatsApp › Settings › Linked Devices › Link a Device.';
+      statusMsg.className = 'status-msg ok';
     }
-
-    // Update server count locally + on server
-    serverData[selectedServer.id] = (serverData[selectedServer.id] || 0) + 1;
-    localStorage.setItem('vx_servers', JSON.stringify(serverData));
-    renderServers(currentRegion);
-    updateStats();
-    fetch(`/api/servers/join?server=${encodeURIComponent(selectedServer.id)}`, { method:'POST' }).catch(()=>{});
-
-    result.innerHTML = `
-      <div class="code-display" id="codeBox" title="Cliquer pour copier">${d.code}</div>
-      <div class="code-hint">📋 Clique sur le code pour le copier</div>
-      <div class="status-msg" id="pairStatus"><div class="spinner-ring"></div> En attente de connexion WhatsApp...</div>
-    `;
-    document.getElementById('codeBox').onclick = () => {
-      navigator.clipboard.writeText(d.code.replace(/-/g,'')).catch(()=>{});
-      document.getElementById('pairStatus').innerHTML = '✅ Code copié dans le presse-papiers !';
-      document.getElementById('pairStatus').className = 'status-msg success';
-    };
-    pollBotStatus(s => {
-      if (s.connected) {
-        document.getElementById('pairStatus').innerHTML = '✅ Bot connecté et opérationnel !';
-        document.getElementById('pairStatus').className = 'status-msg success';
-      }
-    });
-  } catch {
-    document.getElementById('btnPair').disabled = false;
-    result.innerHTML = `<div class="status-msg error">❌ Erreur de connexion au serveur. Réessaie.</div>`;
+  } catch (_) {
+    codeBox.className = 'code-box error-code';
+    codeBox.textContent = '❌ Connection failed';
+    statusMsg.textContent = 'Cannot reach the server. Try another server.';
+    statusMsg.className = 'status-msg err';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🔑 Generate Pair Code';
   }
-};
+}
 
-/* ════════════════════════════════════════════════
-   QR CODE
-════════════════════════════════════════════════ */
-document.getElementById('btnQr').onclick = async () => {
-  if (!selectedServer) {
-    document.getElementById('noServerNotice').classList.add('show');
-    document.getElementById('servers').scrollIntoView({ behavior: 'smooth' });
-    return;
+/* ── Close list on outside click ─────────────────── */
+document.addEventListener('click', e => {
+  if (!listOpen) return;
+  const panel = document.getElementById('serverListPanel');
+  const sel = document.getElementById('serverSelector');
+  if (!panel.contains(e.target) && !sel.contains(e.target)) {
+    closeServerList();
   }
-  result.innerHTML = `<div class="status-msg"><div class="spinner-ring"></div> Génération du QR...</div>`;
-  let tries = 0; stopPoll();
-  window._pollT = setInterval(async () => {
-    tries++;
-    try {
-      const r  = await fetch('/qr');
-      const d  = await r.json();
-      if (d.qr) {
-        const url = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(d.qr);
-        result.innerHTML = `<div class="qr-wrap"><img class="qr-img" src="${url}"><div class="status-msg" id="qrStatus"><div class="spinner-ring"></div> Scanne le code avec WhatsApp</div></div>`;
-        stopPoll();
-        pollBotStatus(s => {
-          if (s.connected) {
-            document.getElementById('qrStatus').innerHTML = '✅ Bot connecté !';
-            document.getElementById('qrStatus').className = 'status-msg success';
-          }
-        });
-        return;
-      }
-      if (tries > 15) { stopPoll(); result.innerHTML = `<div class="status-msg error">❌ QR indisponible. Utilise "Code Pair" à la place.</div>`; }
-    } catch { stopPoll(); result.innerHTML = `<div class="status-msg error">❌ Erreur réseau.</div>`; }
-  }, 2000);
-};
+});
+
+/* ── Enter key support ──────────────────────────── */
+document.getElementById('phoneInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') generateCode();
+});
+
+/* ── Init ───────────────────────────────────────── */
+(async () => {
+  serversData = await fetchServers();
+})();
 </script>
 </body>
 </html>

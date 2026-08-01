@@ -239,6 +239,22 @@ app.get('/api/servers', (_req, res) => {
   res.json({ ok: true, counts: serverCounts, max: 50 });
 });
 
+/* ─── GET /servers ─── frontend-facing: 60 numbered servers ─── */
+app.get('/servers', (_req, res) => {
+  const servers = Array.from({ length: 60 }, (_, i) => {
+    const n = i + 1;
+    const key = SERVER_IDS[i] || `SRV${String(n).padStart(2, '0')}`;
+    return {
+      id: n,
+      name: `Server ${n}`,
+      active: serverCounts[key] || 0,
+      limit: 50,
+      url: ''
+    };
+  });
+  res.json({ ok: true, servers });
+});
+
 /* ─── POST /api/servers/join?server=XX ── increment ──── */
 app.post('/api/servers/join', (req, res) => {
   const serverId = req.query.server || req.body?.server;
