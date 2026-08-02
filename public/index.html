@@ -3,872 +3,1178 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VARNOX XD V2 — Pairing</title>
+  <title>VARNOX XD V2 — Connect Your Bot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --bg:       #020510;
-      --card:     rgba(8, 12, 35, 0.92);
-      --border:   rgba(255,255,255,.06);
-      --text:     #e8eeff;
-      --muted:    #5a6a9a;
-      --row:      rgba(12, 18, 50, 0.8);
-      --c1:       #e040fb;  /* magenta */
-      --c2:       #7c3aed;  /* purple  */
-      --c3:       #0ea5e9;  /* sky blue */
-      --c4:       #06b6d4;  /* cyan    */
+      --bg:        #03040f;
+      --surface:   rgba(10, 14, 40, 0.85);
+      --surface2:  rgba(14, 20, 55, 0.7);
+      --border:    rgba(99, 179, 255, 0.12);
+      --border2:   rgba(99, 179, 255, 0.22);
+      --text:      #e2ecff;
+      --muted:     #4e6490;
+      --muted2:    #8ba3cc;
+      --accent:    #3b9eff;
+      --accent2:   #8b5cf6;
+      --accent3:   #06d6c7;
+      --green:     #22d3a0;
+      --red:       #f87171;
+      --font:      'Inter', system-ui, sans-serif;
+      --font2:     'Space Grotesk', system-ui, sans-serif;
     }
 
-    /* ══════════════════════════════════════════
-       FULL-PAGE NEON BLUE BACKGROUND
-    ══════════════════════════════════════════ */
+    html { scroll-behavior: smooth; }
+
     body {
       min-height: 100vh;
-      background: #020510;
-      display: flex; align-items: center; justify-content: center;
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      font-family: var(--font);
       color: var(--text);
-      padding: 24px;
       overflow-x: hidden;
-      position: relative;
+      padding: 0;
     }
 
-    /* Deep neon atmosphere */
-    .bg-scene {
-      position: fixed; inset: 0; z-index: 0;
-      pointer-events: none; overflow: hidden;
+    /* ═══════════════════════════════════════════════
+       DEEP SPACE BACKGROUND
+    ═══════════════════════════════════════════════ */
+    .bg-canvas {
+      position: fixed; inset: 0; z-index: 0; overflow: hidden;
+      pointer-events: none;
     }
 
-    /* Large glowing orbs */
-    .bg-scene::before {
+    /* Primary deep blue nebula */
+    .bg-canvas::before {
       content: '';
       position: absolute;
-      width: 700px; height: 700px;
-      left: 50%; top: 50%;
-      transform: translate(-50%, -60%);
-      background: radial-gradient(circle, rgba(14, 165, 233, 0.18) 0%, rgba(124, 58, 237, 0.12) 40%, transparent 70%);
-      animation: orb-pulse 6s ease-in-out infinite alternate;
-    }
-    .bg-scene::after {
-      content: '';
-      position: absolute;
-      width: 500px; height: 500px;
-      left: 50%; bottom: 0;
+      width: 900px; height: 900px;
+      top: -200px; left: 50%;
       transform: translateX(-50%);
-      background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, rgba(124, 58, 237, 0.08) 50%, transparent 70%);
-      animation: orb-pulse 8s ease-in-out infinite alternate-reverse;
+      background: radial-gradient(ellipse,
+        rgba(59, 158, 255, 0.12) 0%,
+        rgba(139, 92, 246, 0.09) 35%,
+        rgba(6, 214, 199, 0.05) 60%,
+        transparent 75%);
+      animation: nebula-breathe 10s ease-in-out infinite alternate;
     }
-
-    @keyframes orb-pulse {
-      from { opacity: 0.6; transform: translate(-50%, -60%) scale(0.95); }
-      to   { opacity: 1;   transform: translate(-50%, -60%) scale(1.05); }
-    }
-
-    /* Floating neon particles */
-    .particles { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
-    .particle {
+    /* Bottom accent glow */
+    .bg-canvas::after {
+      content: '';
       position: absolute;
-      width: 2px; height: 2px;
-      border-radius: 50%;
-      background: rgba(6, 182, 212, 0.8);
-      animation: float-up linear infinite;
+      width: 600px; height: 400px;
+      bottom: -100px; left: 50%;
+      transform: translateX(-50%);
+      background: radial-gradient(ellipse,
+        rgba(139, 92, 246, 0.1) 0%,
+        rgba(59, 158, 255, 0.07) 50%,
+        transparent 70%);
+      animation: nebula-breathe 14s ease-in-out infinite alternate-reverse;
     }
-    .particle:nth-child(1)  { left:5%;   bottom:-10px; animation-duration:12s; animation-delay:0s;   width:3px;height:3px; background:rgba(14,165,233,.7); }
-    .particle:nth-child(2)  { left:15%;  bottom:-10px; animation-duration:9s;  animation-delay:2s;   }
-    .particle:nth-child(3)  { left:25%;  bottom:-10px; animation-duration:14s; animation-delay:4s;   background:rgba(124,58,237,.8); }
-    .particle:nth-child(4)  { left:35%;  bottom:-10px; animation-duration:10s; animation-delay:1s;   width:3px;height:3px; }
-    .particle:nth-child(5)  { left:45%;  bottom:-10px; animation-duration:13s; animation-delay:3s;   background:rgba(224,64,251,.8); }
-    .particle:nth-child(6)  { left:55%;  bottom:-10px; animation-duration:11s; animation-delay:5s;   }
-    .particle:nth-child(7)  { left:65%;  bottom:-10px; animation-duration:15s; animation-delay:0.5s; width:3px;height:3px; background:rgba(14,165,233,.6); }
-    .particle:nth-child(8)  { left:75%;  bottom:-10px; animation-duration:8s;  animation-delay:2.5s; }
-    .particle:nth-child(9)  { left:85%;  bottom:-10px; animation-duration:12s; animation-delay:1.5s; background:rgba(6,182,212,.9); width:3px;height:3px; }
-    .particle:nth-child(10) { left:92%;  bottom:-10px; animation-duration:10s; animation-delay:3.5s; }
-
-    @keyframes float-up {
-      0%   { transform: translateY(0) scale(1); opacity: 0; }
-      10%  { opacity: 1; }
-      90%  { opacity: 0.5; }
-      100% { transform: translateY(-100vh) scale(0.5); opacity: 0; }
+    @keyframes nebula-breathe {
+      0%   { opacity: 0.7; transform: translateX(-50%) scale(0.95); }
+      100% { opacity: 1;   transform: translateX(-50%) scale(1.05); }
     }
 
-    /* Grid lines faint */
+    /* Grid overlay */
     .bg-grid {
       position: fixed; inset: 0; z-index: 0; pointer-events: none;
       background-image:
-        linear-gradient(rgba(14,165,233,.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(14,165,233,.03) 1px, transparent 1px);
-      background-size: 60px 60px;
+        linear-gradient(rgba(59,158,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,158,255,.025) 1px, transparent 1px);
+      background-size: 50px 50px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 40%, transparent 100%);
     }
 
-    /* ══════════════════════════════════════════
-       CARD
-    ══════════════════════════════════════════ */
-    .card-outer {
+    /* Floating particles */
+    .particles { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    .p {
+      position: absolute; border-radius: 50%;
+      background: rgba(59, 158, 255, 0.7);
+      animation: pfloat linear infinite;
+    }
+    .p:nth-child(1)  { width:2px;height:2px; left:8%;   animation-duration:16s; animation-delay:0s;   background:rgba(59,158,255,.8); }
+    .p:nth-child(2)  { width:3px;height:3px; left:18%;  animation-duration:11s; animation-delay:3s;   background:rgba(139,92,246,.8); }
+    .p:nth-child(3)  { width:2px;height:2px; left:28%;  animation-duration:18s; animation-delay:6s;   background:rgba(6,214,199,.7); }
+    .p:nth-child(4)  { width:3px;height:3px; left:38%;  animation-duration:13s; animation-delay:1s;   }
+    .p:nth-child(5)  { width:2px;height:2px; left:50%;  animation-duration:15s; animation-delay:4s;   background:rgba(139,92,246,.7); }
+    .p:nth-child(6)  { width:2px;height:2px; left:60%;  animation-duration:12s; animation-delay:7s;   background:rgba(6,214,199,.8); }
+    .p:nth-child(7)  { width:3px;height:3px; left:70%;  animation-duration:17s; animation-delay:2s;   }
+    .p:nth-child(8)  { width:2px;height:2px; left:80%;  animation-duration:10s; animation-delay:5s;   background:rgba(59,158,255,.6); }
+    .p:nth-child(9)  { width:2px;height:2px; left:90%;  animation-duration:14s; animation-delay:0.5s; background:rgba(139,92,246,.9); }
+    .p:nth-child(10) { width:3px;height:3px; left:95%;  animation-duration:19s; animation-delay:8s;   background:rgba(6,214,199,.6); }
+    @keyframes pfloat {
+      0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+      5%   { opacity: 1; }
+      95%  { opacity: 0.5; }
+      100% { transform: translateY(-10vh) scale(1.5); opacity: 0; }
+    }
+
+    /* ═══════════════════════════════════════════════
+       TOP HEADER BAR
+    ═══════════════════════════════════════════════ */
+    .topbar {
       position: relative; z-index: 10;
-      width: 100%; max-width: 400px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 24px 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(3, 4, 15, 0.7);
+      backdrop-filter: blur(20px);
+    }
+    .topbar-logo {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .topbar-icon {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, #1a0a50, #0a2060);
+      border: 1px solid rgba(59,158,255,.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      box-shadow: 0 0 12px rgba(59,158,255,.2);
+    }
+    .topbar-name {
+      font-family: var(--font2);
+      font-size: .9rem; font-weight: 700; letter-spacing: 1.5px;
+      background: linear-gradient(90deg, #63b3ff, #a78bfa, #06d6c7);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .topbar-badges {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .badge {
+      display: flex; align-items: center; gap: 5px;
+      font-size: .68rem; font-weight: 600; letter-spacing: .5px;
+      padding: 4px 10px; border-radius: 20px;
+      border: 1px solid;
+    }
+    .badge-green {
+      color: var(--green); border-color: rgba(34,211,160,.25);
+      background: rgba(34,211,160,.08);
+    }
+    .badge-blue {
+      color: var(--accent); border-color: rgba(59,158,255,.25);
+      background: rgba(59,158,255,.08);
+    }
+    .badge-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor;
+      animation: blink 2s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ═══════════════════════════════════════════════
+       PAGE LAYOUT
+    ═══════════════════════════════════════════════ */
+    .page {
+      position: relative; z-index: 5;
+      min-height: calc(100vh - 61px);
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 40px 20px 60px;
     }
 
-    /* Animated gradient border */
-    .card-border {
-      position: relative;
-      padding: 2px;
-      border-radius: 24px;
-      background: linear-gradient(135deg, #e040fb, #7c3aed, #0ea5e9, #06b6d4, #7c3aed, #e040fb);
-      background-size: 300% 300%;
-      animation: border-flow 5s linear infinite;
+    .main-col {
+      width: 100%; max-width: 440px;
     }
-    @keyframes border-flow {
+
+    /* ═══════════════════════════════════════════════
+       HERO SECTION
+    ═══════════════════════════════════════════════ */
+    .hero {
+      text-align: center; margin-bottom: 32px;
+    }
+
+    .hero-ring-wrap {
+      display: inline-block; position: relative;
+      width: 96px; height: 96px; margin-bottom: 18px;
+    }
+    /* Outer ring — slow orbit */
+    .hero-ring-wrap::before {
+      content: '';
+      position: absolute; inset: -6px;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg, transparent 0%, #3b9eff 25%, transparent 50%, #8b5cf6 75%, transparent 100%);
+      animation: ring-orbit 4s linear infinite;
+      filter: blur(1px);
+    }
+    /* Inner ring — fast reverse */
+    .hero-ring-wrap::after {
+      content: '';
+      position: absolute; inset: -2px;
+      border-radius: 50%;
+      background: conic-gradient(from 180deg, transparent 0%, rgba(6,214,199,.8) 20%, transparent 40%);
+      animation: ring-orbit 2s linear infinite reverse;
+    }
+    @keyframes ring-orbit { to { transform: rotate(360deg); } }
+
+    .hero-circle {
+      position: relative; z-index: 2;
+      width: 96px; height: 96px; border-radius: 50%;
+      background: linear-gradient(145deg, #0d1540 0%, #060d30 60%, #020618 100%);
+      border: 1px solid rgba(59,158,255,.25);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow:
+        0 0 30px rgba(59,158,255,.25),
+        0 0 60px rgba(139,92,246,.15),
+        inset 0 1px 0 rgba(255,255,255,.05),
+        inset 0 0 30px rgba(59,158,255,.06);
+    }
+
+    .hero-bolt {
+      font-size: 40px;
+      filter:
+        drop-shadow(0 0 10px #3b9eff)
+        drop-shadow(0 0 20px #8b5cf6);
+      animation: bolt-pulse 3s ease-in-out infinite;
+    }
+    @keyframes bolt-pulse {
+      0%,100% {
+        transform: scale(1) rotate(0deg);
+        filter: drop-shadow(0 0 10px #3b9eff) drop-shadow(0 0 20px #8b5cf6);
+      }
+      33% {
+        transform: scale(1.08) rotate(8deg);
+        filter: drop-shadow(0 0 18px #8b5cf6) drop-shadow(0 0 30px #06d6c7);
+      }
+      66% {
+        transform: scale(0.95) rotate(-6deg);
+        filter: drop-shadow(0 0 14px #06d6c7) drop-shadow(0 0 24px #3b9eff);
+      }
+    }
+
+    .hero-title {
+      font-family: var(--font2);
+      font-size: 2rem; font-weight: 800; letter-spacing: 2px;
+      line-height: 1.1;
+      background: linear-gradient(90deg, #63b3ff 0%, #a78bfa 45%, #06d6c7 90%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 20px rgba(99,179,255,.3));
+      margin-bottom: 8px;
+    }
+    .hero-sub {
+      font-size: .82rem; color: var(--muted2);
+      line-height: 1.6; letter-spacing: .3px;
+    }
+    .hero-sub strong { color: var(--accent3); font-weight: 600; }
+
+    /* ═══════════════════════════════════════════════
+       STEPS INDICATOR
+    ═══════════════════════════════════════════════ */
+    .steps {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0; margin-bottom: 28px;
+    }
+    .step {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 6px; position: relative;
+    }
+    .step-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .72rem; font-weight: 700;
+      border: 1.5px solid var(--muted);
+      color: var(--muted); background: transparent;
+      transition: all .3s;
+    }
+    .step.active .step-num {
+      border-color: var(--accent); color: var(--accent);
+      background: rgba(59,158,255,.12);
+      box-shadow: 0 0 12px rgba(59,158,255,.3);
+    }
+    .step.done .step-num {
+      border-color: var(--green); color: var(--bg);
+      background: var(--green);
+      box-shadow: 0 0 10px rgba(34,211,160,.4);
+    }
+    .step-label {
+      font-size: .6rem; color: var(--muted); font-weight: 500;
+      letter-spacing: .3px; text-align: center; white-space: nowrap;
+    }
+    .step.active .step-label { color: var(--accent); }
+    .step.done .step-label { color: var(--green); }
+    .step-line {
+      width: 40px; height: 1px;
+      background: linear-gradient(90deg, var(--border2), var(--border));
+      margin-bottom: 18px; flex-shrink: 0;
+    }
+
+    /* ═══════════════════════════════════════════════
+       CARD
+    ═══════════════════════════════════════════════ */
+    .card-wrap {
+      position: relative;
+    }
+    /* Animated gradient border */
+    .card-glow {
+      position: absolute; inset: -1.5px;
+      border-radius: 22px;
+      background: linear-gradient(135deg,
+        #3b9eff, #8b5cf6, #06d6c7, #3b9eff, #8b5cf6);
+      background-size: 300% 300%;
+      animation: grad-flow 6s linear infinite;
+      z-index: 0;
+    }
+    /* Outer blur halo */
+    .card-glow::before {
+      content: '';
+      position: absolute; inset: -12px;
+      border-radius: 30px;
+      background: inherit;
+      filter: blur(18px); opacity: .35;
+      animation: grad-flow 6s linear infinite;
+    }
+    @keyframes grad-flow {
       0%   { background-position: 0% 50%; }
       50%  { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
 
-    /* Outer soft glow behind card */
-    .card-border::before {
-      content: '';
-      position: absolute; inset: -8px;
-      border-radius: 30px;
-      background: linear-gradient(135deg, rgba(224,64,251,.25), rgba(124,58,237,.2), rgba(6,182,212,.25));
-      background-size: 300% 300%;
-      animation: border-flow 5s linear infinite;
-      filter: blur(12px);
-      z-index: -1;
-    }
-
     .card {
-      background: var(--card);
-      border-radius: 22px;
-      padding: 32px 24px 28px;
-      backdrop-filter: blur(30px);
-      -webkit-backdrop-filter: blur(30px);
-      position: relative;
+      position: relative; z-index: 1;
+      background: var(--surface);
+      border-radius: 21px;
+      padding: 28px 24px 24px;
+      backdrop-filter: blur(40px);
+      -webkit-backdrop-filter: blur(40px);
       overflow: hidden;
     }
-
-    /* Inner top shine */
+    /* Top inner shimmer */
     .card::before {
       content: '';
-      position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(14,165,233,.5), rgba(224,64,251,.5), rgba(14,165,233,.5), transparent);
+      position: absolute; top: 0; left: 8%; right: 8%; height: 1px;
+      background: linear-gradient(90deg,
+        transparent,
+        rgba(59,158,255,.6),
+        rgba(139,92,246,.5),
+        rgba(6,214,199,.4),
+        transparent);
     }
-
-    /* Inner glow top */
+    /* Top inner glow */
     .card::after {
       content: '';
-      position: absolute; top: 0; left: 0; right: 0; height: 150px;
-      background: radial-gradient(ellipse at 50% 0%, rgba(14,165,233,.08), transparent);
+      position: absolute; top: -40px; left: 0; right: 0; height: 160px;
+      background: radial-gradient(ellipse at 50% 0%, rgba(59,158,255,.07), transparent 70%);
       pointer-events: none;
     }
 
-    /* ══════════════════════════════════════════
-       LOGO
-    ══════════════════════════════════════════ */
-    .logo {
-      display: flex; flex-direction: column; align-items: center;
-      gap: 14px; margin-bottom: 24px;
-      position: relative;
-    }
-
-    .logo-ring {
-      position: relative;
-      width: 80px; height: 80px;
-    }
-
-    /* Spinning neon ring */
-    .logo-ring::before {
-      content: '';
-      position: absolute; inset: -4px;
-      border-radius: 50%;
-      background: conic-gradient(from 0deg, #e040fb, #7c3aed, #0ea5e9, #06b6d4, #e040fb);
-      animation: ring-spin 3s linear infinite;
-      filter: blur(2px);
-    }
-    /* Second faster ring */
-    .logo-ring::after {
-      content: '';
-      position: absolute; inset: -2px;
-      border-radius: 50%;
-      background: conic-gradient(from 180deg, transparent 60%, rgba(14,165,233,.9) 80%, transparent 100%);
-      animation: ring-spin 2s linear infinite reverse;
-    }
-    @keyframes ring-spin {
-      to { transform: rotate(360deg); }
-    }
-
-    .logo-circle {
-      position: relative; z-index: 2;
-      width: 80px; height: 80px; border-radius: 50%;
-      background: linear-gradient(135deg, #1a0a40 0%, #0a1a3a 50%, #061228 100%);
-      display: flex; align-items: center; justify-content: center;
-      box-shadow:
-        0 0 20px rgba(14,165,233,.5),
-        0 0 40px rgba(124,58,237,.3),
-        inset 0 0 20px rgba(14,165,233,.1);
-    }
-
-    /* ⚡ SPINNING LIGHTNING BOLT */
-    .bolt {
-      font-size: 34px;
-      filter:
-        drop-shadow(0 0 8px #0ea5e9)
-        drop-shadow(0 0 16px #7c3aed)
-        drop-shadow(0 0 4px #e040fb);
-      animation: bolt-spin 4s ease-in-out infinite;
-    }
-    @keyframes bolt-spin {
-      0%   { transform: rotate(0deg)   scale(1);    filter: drop-shadow(0 0 8px #0ea5e9) drop-shadow(0 0 16px #7c3aed); }
-      25%  { transform: rotate(15deg)  scale(1.1);  filter: drop-shadow(0 0 14px #e040fb) drop-shadow(0 0 24px #7c3aed); }
-      50%  { transform: rotate(-10deg) scale(0.95); filter: drop-shadow(0 0 10px #06b6d4) drop-shadow(0 0 20px #0ea5e9); }
-      75%  { transform: rotate(8deg)   scale(1.05); filter: drop-shadow(0 0 12px #7c3aed) drop-shadow(0 0 22px #e040fb); }
-      100% { transform: rotate(0deg)   scale(1);    filter: drop-shadow(0 0 8px #0ea5e9) drop-shadow(0 0 16px #7c3aed); }
-    }
-
-    .logo-title {
-      font-size: 1.6rem; font-weight: 900; letter-spacing: 3px;
-      background: linear-gradient(90deg, #e040fb 0%, #9b59f5 40%, #0ea5e9 75%, #06b6d4 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      text-shadow: none;
-      position: relative;
-    }
-    .logo-title::after {
-      content: attr(data-text);
-      position: absolute; inset: 0;
-      background: linear-gradient(90deg, #e040fb 0%, #9b59f5 40%, #0ea5e9 75%, #06b6d4 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      filter: blur(8px); opacity: 0.5; z-index: -1;
-    }
-
-    .logo-sub {
-      font-size: .8rem; color: var(--muted); letter-spacing: .5px;
-      text-align: center; margin-top: -10px;
-    }
-
-    /* ══════════════════════════════════════════
+    /* ═══════════════════════════════════════════════
        SERVER SELECTOR
-    ══════════════════════════════════════════ */
-    .server-selector {
-      background: var(--row);
-      border: 1px solid rgba(14,165,233,.15);
-      border-radius: 16px;
-      padding: 14px 16px;
-      margin-bottom: 12px;
-      cursor: pointer;
-      transition: border-color .2s, box-shadow .2s;
-      position: relative;
-      overflow: hidden;
-    }
-    .server-selector::before {
-      content: '';
-      position: absolute; inset: 0;
-      background: linear-gradient(135deg, rgba(14,165,233,.03), rgba(124,58,237,.03));
-      pointer-events: none;
-    }
-    .server-selector:hover {
-      border-color: rgba(14,165,233,.4);
-      box-shadow: 0 0 20px rgba(14,165,233,.1);
-    }
-
-    .server-row {
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    }
-    .server-left { display: flex; align-items: center; gap: 12px; }
-
-    .server-icon-box {
-      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
-      background: linear-gradient(135deg, rgba(14,165,233,.2), rgba(124,58,237,.2));
-      border: 1px solid rgba(14,165,233,.2);
-      display: flex; align-items: center; justify-content: center; font-size: 15px;
-      box-shadow: 0 0 10px rgba(14,165,233,.15);
-    }
-
-    .server-name-text {
-      font-weight: 700; font-size: .92rem; color: var(--text);
-    }
-    .server-meta {
-      font-size: .7rem; color: var(--muted); margin-top: 3px;
+    ═══════════════════════════════════════════════ */
+    .section-label {
+      font-size: .68rem; font-weight: 700; letter-spacing: 1.2px;
+      color: var(--muted2); text-transform: uppercase;
+      margin-bottom: 8px;
       display: flex; align-items: center; gap: 6px;
     }
-    .dot-online {
-      width: 6px; height: 6px; border-radius: 50%; background: #4ade80; flex-shrink: 0;
-      box-shadow: 0 0 6px #4ade80;
-      animation: blink 2s ease-in-out infinite;
-    }
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.4; }
+    .section-label::before {
+      content: '';
+      width: 3px; height: 12px; border-radius: 2px;
+      background: linear-gradient(180deg, var(--accent), var(--accent2));
     }
 
-    .btn-select {
-      background: linear-gradient(135deg, rgba(14,165,233,.15), rgba(124,58,237,.15));
-      border: 1px solid rgba(14,165,233,.25);
-      color: #7dd3fc; font-size: .78rem; font-weight: 700;
-      padding: 7px 14px; border-radius: 10px; cursor: pointer;
-      transition: all .2s; white-space: nowrap; flex-shrink: 0;
-      box-shadow: 0 0 10px rgba(14,165,233,.1);
-    }
-    .btn-select:hover {
-      background: linear-gradient(135deg, rgba(14,165,233,.25), rgba(124,58,237,.25));
-      border-color: rgba(14,165,233,.5);
-      box-shadow: 0 0 16px rgba(14,165,233,.2);
-    }
-
-    /* ══════════════════════════════════════════
-       SERVER LIST PANEL
-    ══════════════════════════════════════════ */
-    .server-list-panel {
-      display: none;
-      background: rgba(4, 8, 28, 0.95);
-      border: 1px solid rgba(14,165,233,.2);
-      border-radius: 16px;
-      overflow: hidden;
-      margin-bottom: 12px;
-      box-shadow: 0 8px 40px rgba(14,165,233,.1);
-    }
-    .server-list-panel.open { display: block; }
-
-    .server-list-header {
-      padding: 14px 18px 11px;
-      font-weight: 800; font-size: .88rem;
-      background: linear-gradient(90deg, #e040fb, #0ea5e9);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      border-bottom: 1px solid rgba(14,165,233,.12);
-      letter-spacing: .5px;
-    }
-
-    .server-list-scroll {
-      max-height: 220px; overflow-y: auto;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(14,165,233,.2) transparent;
-    }
-    .server-list-scroll::-webkit-scrollbar { width: 4px; }
-    .server-list-scroll::-webkit-scrollbar-thumb {
-      background: rgba(14,165,233,.3); border-radius: 2px;
-    }
-
-    .server-item {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 11px 18px;
-      border-bottom: 1px solid rgba(255,255,255,.03);
-      cursor: pointer; transition: background .15s;
-    }
-    .server-item:last-child { border-bottom: none; }
-    .server-item:hover { background: rgba(14,165,233,.06); }
-    .server-item.active { background: rgba(14,165,233,.1); }
-
-    .si-name { font-weight: 700; font-size: .87rem; }
-    .si-cta  { font-size: .73rem; color: var(--muted); transition: color .15s; }
-    .server-item:hover .si-cta { color: #7dd3fc; }
-    .server-item.active .si-cta { color: #4ade80; }
-
-    /* ══════════════════════════════════════════
-       INFO BOX
-    ══════════════════════════════════════════ */
-    .info-box {
-      background: rgba(6,182,212,.05);
-      border: 1px solid rgba(6,182,212,.2);
-      border-left: 3px solid #06b6d4;
-      border-radius: 12px;
-      padding: 12px 14px;
-      display: flex; gap: 10px;
-      margin-bottom: 20px;
-      font-size: .78rem; color: #a5f3fc; line-height: 1.55;
-      box-shadow: 0 0 20px rgba(6,182,212,.05);
-    }
-    .info-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
-    .info-title { font-weight: 800; font-size: .8rem; color: #67e8f9; margin-bottom: 3px; }
-
-    /* ══════════════════════════════════════════
-       FORM
-    ══════════════════════════════════════════ */
-    .form-label {
-      font-size: .8rem; font-weight: 700;
-      color: rgba(232,238,255,.6);
-      display: block; margin-bottom: 8px; letter-spacing: .3px;
-    }
-
-    .input-wrap { position: relative; margin-bottom: 6px; }
-    .input-icon {
-      position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
-      color: var(--muted); font-size: 14px; pointer-events: none;
-    }
-    .input-wrap input {
+    .server-btn {
       width: 100%;
-      background: rgba(8, 14, 45, 0.8);
-      border: 1px solid rgba(14,165,233,.2);
-      border-radius: 13px;
-      padding: 14px 14px 14px 42px;
-      color: var(--text); font-size: .9rem; font-family: inherit;
-      outline: none; transition: border-color .2s, box-shadow .2s;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 14px;
+      padding: 13px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; transition: border-color .2s, box-shadow .2s, background .2s;
+      margin-bottom: 6px;
+      position: relative; overflow: hidden;
     }
-    .input-wrap input::placeholder { color: #3a4a6a; }
-    .input-wrap input:focus {
-      border-color: rgba(14,165,233,.5);
-      box-shadow: 0 0 0 3px rgba(14,165,233,.08), 0 0 20px rgba(14,165,233,.1);
-    }
-
-    .input-hint {
-      font-size: .7rem; color: var(--muted);
-      margin-bottom: 20px; padding-left: 4px;
-      display: flex; align-items: center; gap: 4px;
-    }
-    .input-hint span { color: #06b6d4; }
-
-    /* ══════════════════════════════════════════
-       GENERATE BUTTON
-    ══════════════════════════════════════════ */
-    .btn-pair {
-      width: 100%; position: relative;
-      border: none; border-radius: 13px;
-      padding: 15px; cursor: pointer;
-      font-weight: 800; font-size: .96rem; font-family: inherit;
-      color: #fff; letter-spacing: .5px;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      overflow: hidden;
-      transition: transform .15s, box-shadow .2s;
-      margin-bottom: 14px;
-      background: linear-gradient(90deg, #e040fb 0%, #7c3aed 40%, #0ea5e9 75%, #06b6d4 100%);
-      background-size: 200% 100%;
-      animation: btn-shimmer 4s linear infinite;
-      box-shadow: 0 0 30px rgba(14,165,233,.3), 0 4px 20px rgba(124,58,237,.3);
-    }
-    .btn-pair::before {
+    .server-btn::after {
       content: '';
       position: absolute; inset: 0;
-      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.15) 50%, transparent 100%);
-      transform: translateX(-100%);
-      animation: btn-shine 4s ease-in-out infinite;
+      background: linear-gradient(135deg, rgba(59,158,255,.03), rgba(139,92,246,.03));
+      opacity: 0; transition: opacity .2s;
     }
-    @keyframes btn-shimmer {
-      0%   { background-position: 0% 50%; }
-      100% { background-position: 200% 50%; }
+    .server-btn:hover {
+      border-color: rgba(59,158,255,.4);
+      box-shadow: 0 0 20px rgba(59,158,255,.08);
     }
-    @keyframes btn-shine {
-      0%   { transform: translateX(-100%); }
-      30%  { transform: translateX(100%); }
-      100% { transform: translateX(100%); }
-    }
-    .btn-pair:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 0 40px rgba(14,165,233,.45), 0 8px 30px rgba(124,58,237,.35);
-    }
-    .btn-pair:disabled {
-      opacity: .5; cursor: not-allowed; transform: none;
-      animation: none;
+    .server-btn:hover::after { opacity: 1; }
+    .server-btn.has-server {
+      border-color: rgba(59,158,255,.35);
+      background: rgba(59,158,255,.06);
     }
 
-    /* ══════════════════════════════════════════
-       CODE OUTPUT BOX
-    ══════════════════════════════════════════ */
-    .code-box {
-      background: rgba(2, 5, 18, 0.8);
-      border: 1px solid rgba(14,165,233,.15);
-      border-radius: 13px;
-      padding: 16px;
-      text-align: center;
-      font-size: .84rem; color: #3a4a6a;
-      min-height: 52px;
+    .srv-left { display: flex; align-items: center; gap: 12px; }
+    .srv-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, rgba(59,158,255,.15), rgba(139,92,246,.1));
+      border: 1px solid rgba(59,158,255,.2);
       display: flex; align-items: center; justify-content: center;
-      letter-spacing: 1px; word-break: break-all; line-height: 1.5;
-      margin-bottom: 10px;
-      transition: all .3s;
+      font-size: 15px;
+      flex-shrink: 0;
     }
-    .code-box.has-code {
-      font-size: 1.4rem; font-weight: 900; letter-spacing: 5px;
-      color: #67e8f9;
-      border-color: rgba(6,182,212,.4);
-      background: rgba(6,182,212,.05);
-      box-shadow: 0 0 30px rgba(6,182,212,.15), inset 0 0 20px rgba(6,182,212,.05);
-      text-shadow: 0 0 20px rgba(6,182,212,.8);
-    }
-    .code-box.err-code {
-      color: #f87171; border-color: rgba(248,113,113,.2);
-      background: rgba(248,113,113,.04); font-size: .83rem;
-    }
+    .srv-info { display: flex; flex-direction: column; gap: 2px; }
+    .srv-name { font-size: .88rem; font-weight: 600; color: var(--text); }
+    .srv-meta { font-size: .66rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .srv-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .srv-chevron { font-size: .7rem; color: var(--muted); transition: transform .2s; }
+    .server-btn.open .srv-chevron { transform: rotate(180deg); }
 
-    .status-msg {
-      font-size: .77rem; text-align: center; min-height: 20px;
-      color: var(--muted); padding: 2px 0;
+    /* Dropdown */
+    .server-drop {
+      display: none;
+      border: 1px solid var(--border2);
+      border-radius: 14px; overflow: hidden;
+      background: rgba(8, 12, 35, 0.97);
+      backdrop-filter: blur(20px);
+      margin-bottom: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(59,158,255,.06);
     }
-    .status-msg.ok  { color: #4ade80; text-shadow: 0 0 10px rgba(74,222,128,.4); }
-    .status-msg.err { color: #f87171; }
+    .server-drop.open { display: block; }
+    .drop-header {
+      padding: 10px 16px 8px;
+      font-size: .67rem; font-weight: 700; letter-spacing: 1px;
+      color: var(--muted); text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .drop-count { color: var(--accent); font-size: .67rem; }
+    .drop-scroll {
+      max-height: 220px; overflow-y: auto; padding: 6px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+    }
+    .drop-scroll::-webkit-scrollbar { width: 3px; }
+    .drop-scroll::-webkit-scrollbar-thumb {
+      background: rgba(59,158,255,.3); border-radius: 2px;
+    }
+    .srv-item {
+      padding: 9px 10px; border-radius: 9px;
+      display: flex; align-items: center; gap: 8px;
+      cursor: pointer; transition: background .15s;
+      border: 1px solid transparent;
+    }
+    .srv-item:hover { background: rgba(59,158,255,.07); border-color: rgba(59,158,255,.12); }
+    .srv-item.sel { background: rgba(59,158,255,.1); border-color: rgba(59,158,255,.2); }
+    .si-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .si-dot.warn { background: #fbbf24; }
+    .si-name { font-size: .75rem; font-weight: 500; color: var(--text); flex: 1; }
+    .si-count { font-size: .63rem; color: var(--muted); }
+    .si-check { font-size: .7rem; color: var(--green); display: none; }
+    .srv-item.sel .si-check { display: block; }
 
-    /* ══════════════════════════════════════════
-       FOOTER
-    ══════════════════════════════════════════ */
-    /* Session box */
-    .session-box {
-      margin-top: 16px;
-      background: rgba(6,182,212,.06);
-      border: 1px solid rgba(6,182,212,.25);
+    /* ═══════════════════════════════════════════════
+       PHONE INPUT
+    ═══════════════════════════════════════════════ */
+    .input-row {
+      margin-bottom: 16px;
+    }
+    .input-shell {
+      position: relative; display: flex; align-items: center;
+    }
+    .input-prefix {
+      position: absolute; left: 14px;
+      font-size: .85rem; color: var(--muted2); pointer-events: none;
+      display: flex; align-items: center; gap: 6px;
+      z-index: 2;
+    }
+    .input-prefix-divider {
+      width: 1px; height: 16px;
+      background: var(--border2);
+    }
+    .phone-input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1.5px solid var(--border2);
       border-radius: 14px;
-      padding: 16px;
-      animation: fadeIn .4s ease;
-    }
-    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
-    .session-label {
-      font-size: .8rem; font-weight: 700; color: #4ade80;
-      text-shadow: 0 0 10px rgba(74,222,128,.4);
-      margin-bottom: 10px; letter-spacing: .5px;
-    }
-    .session-id-wrap {
-      display: flex; gap: 8px; align-items: flex-start;
-    }
-    .session-id-text {
-      flex: 1;
-      background: rgba(0,0,0,.5);
-      border: 1px solid rgba(14,165,233,.2);
-      border-radius: 8px;
-      color: #06b6d4;
-      font-family: 'Courier New', monospace;
-      font-size: .65rem;
-      padding: 8px;
-      resize: none;
-      height: 72px;
-      text-shadow: 0 0 8px rgba(6,182,212,.5);
+      padding: 14px 14px 14px 76px;
+      color: var(--text); font-size: .93rem;
+      font-family: var(--font); font-weight: 500;
       outline: none;
-      word-break: break-all;
+      transition: border-color .25s, box-shadow .25s;
+      letter-spacing: .5px;
     }
-    .btn-copy {
-      background: linear-gradient(135deg, #0ea5e9, #06b6d4);
-      border: none; border-radius: 8px;
-      color: #fff; font-size: .75rem; font-weight: 700;
-      padding: 8px 12px; cursor: pointer; white-space: nowrap;
-      transition: opacity .2s;
+    .phone-input::placeholder { color: #2e3f60; font-weight: 400; }
+    .phone-input:focus {
+      border-color: rgba(59,158,255,.55);
+      box-shadow: 0 0 0 3px rgba(59,158,255,.08), 0 0 25px rgba(59,158,255,.1);
     }
-    .btn-copy:hover { opacity: .85; }
-    .session-hint {
-      font-size: .68rem; color: var(--muted); margin-top: 10px;
+    .input-tip {
+      margin-top: 6px; padding-left: 4px;
+      font-size: .68rem; color: var(--muted);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .input-tip::before { content: '→'; color: var(--accent3); }
+
+    /* ═══════════════════════════════════════════════
+       GENERATE BUTTON
+    ═══════════════════════════════════════════════ */
+    .btn-gen {
+      width: 100%; position: relative;
+      border: none; border-radius: 14px;
+      padding: 15px; cursor: pointer;
+      font-family: var(--font2); font-weight: 700;
+      font-size: .95rem; color: #fff; letter-spacing: .8px;
+      display: flex; align-items: center; justify-content: center; gap: 9px;
+      overflow: hidden;
+      transition: transform .15s, box-shadow .25s;
+      margin-bottom: 16px;
+      background: linear-gradient(90deg, #3b9eff, #8b5cf6, #06d6c7, #3b9eff);
+      background-size: 250% 100%;
+      animation: btn-flow 4s linear infinite;
+      box-shadow: 0 4px 24px rgba(59,158,255,.25), 0 2px 12px rgba(139,92,246,.2);
+    }
+    /* Shine sweep */
+    .btn-gen::before {
+      content: '';
+      position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+      animation: shine-sweep 4s ease-in-out infinite;
+    }
+    /* Inner top edge highlight */
+    .btn-gen::after {
+      content: '';
+      position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+      background: rgba(255,255,255,.3);
+    }
+    @keyframes btn-flow {
+      0%   { background-position: 0% 50%; }
+      100% { background-position: 250% 50%; }
+    }
+    @keyframes shine-sweep {
+      0%   { left: -100%; }
+      35%  { left: 140%; }
+      100% { left: 140%; }
+    }
+    .btn-gen:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 40px rgba(59,158,255,.35), 0 4px 20px rgba(139,92,246,.25);
+    }
+    .btn-gen:active { transform: translateY(0); }
+    .btn-gen:disabled {
+      opacity: .55; cursor: not-allowed; transform: none;
+      animation: none; box-shadow: none;
+    }
+    .btn-gen:disabled::before { animation: none; }
+
+    /* Spinner */
+    .spin {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      animation: spin .6s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ═══════════════════════════════════════════════
+       CODE BOX
+    ═══════════════════════════════════════════════ */
+    .code-wrap {
+      background: rgba(3, 5, 20, 0.7);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      text-align: center;
+      transition: all .4s;
+      margin-bottom: 10px;
+      min-height: 60px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .code-wrap.idle {
+      color: var(--muted); font-size: .82rem; letter-spacing: .5px;
+    }
+    .code-value {
+      font-family: var(--font2); font-size: 1.5rem; font-weight: 800;
+      letter-spacing: 6px; color: #7ee8ff;
+      text-shadow: 0 0 16px rgba(126,232,255,.6), 0 0 32px rgba(59,158,255,.3);
+      animation: code-glow 2s ease-in-out infinite alternate;
+    }
+    @keyframes code-glow {
+      from { text-shadow: 0 0 16px rgba(126,232,255,.6), 0 0 32px rgba(59,158,255,.3); }
+      to   { text-shadow: 0 0 24px rgba(126,232,255,.9), 0 0 48px rgba(59,158,255,.5); }
+    }
+    .code-wrap.active {
+      border-color: rgba(59,158,255,.35);
+      background: rgba(59,158,255,.04);
+      box-shadow: 0 0 30px rgba(59,158,255,.08), inset 0 0 30px rgba(59,158,255,.03);
+    }
+    .code-wrap.error {
+      border-color: rgba(248,113,113,.25);
+      background: rgba(248,113,113,.04);
+    }
+    .code-error { color: var(--red); font-size: .82rem; }
+
+    /* Status message */
+    .status {
+      min-height: 20px; font-size: .76rem;
+      text-align: center; padding: 0 4px;
+      color: var(--muted); margin-bottom: 4px;
       line-height: 1.5;
     }
-    .session-hint code {
-      background: rgba(14,165,233,.15);
-      color: #7dd3fc;
-      padding: 1px 5px; border-radius: 4px;
-      font-family: 'Courier New', monospace; font-size: .68rem;
+    .status.ok  { color: #4ade80; }
+    .status.err { color: var(--red); }
+    .status.wait { color: var(--accent); animation: pulse-text 2s ease-in-out infinite; }
+    @keyframes pulse-text { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+    /* ═══════════════════════════════════════════════
+       SESSION BOX
+    ═══════════════════════════════════════════════ */
+    .session-panel {
+      display: none;
+      margin-top: 14px;
+      background: rgba(34, 211, 160, 0.04);
+      border: 1.5px solid rgba(34,211,160,.25);
+      border-radius: 16px;
+      padding: 18px;
+      animation: slide-up .4s ease;
+    }
+    @keyframes slide-up {
+      from { opacity:0; transform: translateY(10px); }
+      to   { opacity:1; transform: none; }
+    }
+    .session-panel-head {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+    }
+    .session-panel-icon {
+      width: 32px; height: 32px; border-radius: 9px;
+      background: rgba(34,211,160,.12);
+      border: 1px solid rgba(34,211,160,.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; flex-shrink: 0;
+    }
+    .session-panel-title { font-size: .88rem; font-weight: 700; color: var(--green); }
+    .session-panel-sub { font-size: .67rem; color: var(--muted); }
+
+    .session-field {
+      background: rgba(0,0,0,.45);
+      border: 1px solid rgba(59,158,255,.15);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      position: relative;
+    }
+    .session-field-label {
+      font-size: .62rem; font-weight: 700; letter-spacing: .8px;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .session-id {
+      font-family: 'Courier New', monospace;
+      font-size: .66rem; color: #6ad8f5;
+      word-break: break-all; line-height: 1.5;
+      text-shadow: 0 0 8px rgba(106,216,245,.3);
+      background: none; border: none; width: 100%;
+      resize: none; height: 68px; outline: none;
+      padding: 0; color: #6ad8f5;
     }
 
-    .footer {
-      text-align: center; font-size: .67rem;
-      color: rgba(255,255,255,.15); margin-top: 20px; letter-spacing: .8px;
+    .copy-btn {
+      width: 100%;
+      padding: 11px; border: none; border-radius: 10px; cursor: pointer;
+      background: linear-gradient(90deg, rgba(59,158,255,.15), rgba(139,92,246,.15));
+      border: 1px solid rgba(59,158,255,.25);
+      color: var(--accent); font-weight: 700; font-size: .82rem;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: background .2s, border-color .2s;
     }
-    .footer span {
-      background: linear-gradient(90deg, #e040fb, #06b6d4);
+    .copy-btn:hover {
+      background: linear-gradient(90deg, rgba(59,158,255,.22), rgba(139,92,246,.2));
+      border-color: rgba(59,158,255,.4);
+    }
+
+    .session-steps {
+      margin-top: 12px;
+      background: rgba(59,158,255,.04);
+      border: 1px solid rgba(59,158,255,.1);
+      border-radius: 10px; padding: 12px;
+    }
+    .session-steps-title {
+      font-size: .67rem; font-weight: 700; letter-spacing: .8px;
+      text-transform: uppercase; color: var(--muted2); margin-bottom: 8px;
+    }
+    .deploy-step {
+      display: flex; align-items: flex-start; gap: 8px;
+      font-size: .72rem; color: var(--muted2); padding: 3px 0;
+      line-height: 1.5;
+    }
+    .deploy-step-num {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: rgba(59,158,255,.15); border: 1px solid rgba(59,158,255,.2);
+      color: var(--accent); font-size: .62rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .deploy-step code {
+      background: rgba(59,158,255,.12); color: #7dd3fc;
+      padding: 1px 5px; border-radius: 4px;
+      font-size: .68rem; font-family: 'Courier New', monospace;
+    }
+
+    /* ═══════════════════════════════════════════════
+       INFO CARDS
+    ═══════════════════════════════════════════════ */
+    .info-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+      margin-top: 20px;
+    }
+    .info-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex; align-items: flex-start; gap: 10px;
+      transition: border-color .2s;
+    }
+    .info-card:hover { border-color: var(--border2); }
+    .info-card-icon { font-size: 18px; line-height: 1; flex-shrink: 0; }
+    .info-card-text {}
+    .info-card-title { font-size: .73rem; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+    .info-card-desc  { font-size: .63rem; color: var(--muted); line-height: 1.4; }
+
+    /* ═══════════════════════════════════════════════
+       FOOTER
+    ═══════════════════════════════════════════════ */
+    .footer {
+      margin-top: 24px; text-align: center;
+      font-size: .66rem; color: rgba(255,255,255,.15);
+      letter-spacing: .8px; line-height: 2;
+    }
+    .footer a { color: rgba(59,158,255,.4); text-decoration: none; }
+    .footer a:hover { color: rgba(59,158,255,.7); }
+    .footer-brand {
+      background: linear-gradient(90deg, #3b9eff, #8b5cf6, #06d6c7);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       font-weight: 700;
-    }
-
-    /* ══════════════════════════════════════════
-       SPINNER
-    ══════════════════════════════════════════ */
-    .spin {
-      display: inline-block; width: 16px; height: 16px;
-      border: 2px solid rgba(255,255,255,.2);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: sp .65s linear infinite;
-    }
-    @keyframes sp { to { transform: rotate(360deg); } }
-
-    /* ══════════════════════════════════════════
-       RESPONSIVE
-    ══════════════════════════════════════════ */
-    @media (max-width: 440px) {
-      .card { padding: 24px 18px 22px; }
-      .logo-title { font-size: 1.4rem; }
     }
   </style>
 </head>
 <body>
 
-<!-- Background -->
-<div class="bg-scene"></div>
+<!-- Deep space background -->
+<div class="bg-canvas"></div>
 <div class="bg-grid"></div>
 <div class="particles">
-  <div class="particle"></div><div class="particle"></div>
-  <div class="particle"></div><div class="particle"></div>
-  <div class="particle"></div><div class="particle"></div>
-  <div class="particle"></div><div class="particle"></div>
-  <div class="particle"></div><div class="particle"></div>
+  <div class="p"></div><div class="p"></div><div class="p"></div>
+  <div class="p"></div><div class="p"></div><div class="p"></div>
+  <div class="p"></div><div class="p"></div><div class="p"></div>
+  <div class="p"></div>
 </div>
 
-<!-- Card -->
-<div class="card-outer">
-  <div class="card-border">
-    <div class="card">
+<!-- Top bar -->
+<header class="topbar">
+  <div class="topbar-logo">
+    <div class="topbar-icon">⚡</div>
+    <span class="topbar-name">VARNOX XD V2</span>
+  </div>
+  <div class="topbar-badges">
+    <span class="badge badge-green">
+      <span class="badge-dot"></span> ONLINE
+    </span>
+    <span class="badge badge-blue" id="badgeSrv">60 SERVERS</span>
+  </div>
+</header>
 
-      <!-- Logo -->
-      <div class="logo">
-        <div class="logo-ring">
-          <div class="logo-circle">
-            <span class="bolt">⚡</span>
-          </div>
-        </div>
-        <div style="text-align:center">
-          <div class="logo-title" data-text="VARNOX XD V2">VARNOX XD V2</div>
-          <div class="logo-sub">Generate Your Pairing Code</div>
+<!-- Main page -->
+<div class="page">
+  <div class="main-col">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-ring-wrap">
+        <div class="hero-circle">
+          <span class="hero-bolt">⚡</span>
         </div>
       </div>
+      <h1 class="hero-title">VARNOX XD V2</h1>
+      <p class="hero-sub">Connect your WhatsApp to the bot in seconds.<br>
+        <strong>Multi-session</strong> — thousands of users simultaneously.</p>
+    </div>
 
-      <!-- Server selector (collapsed) -->
-      <div class="server-selector" id="serverSelector">
-        <div class="server-row">
-          <div class="server-left">
-            <div class="server-icon-box">⊞</div>
-            <div>
-              <div class="server-name-text" id="selectedServerName">Select Server</div>
-              <div class="server-meta">
-                <span class="dot-online"></span>
-                Active: <span id="activeCount">--</span>&nbsp;&nbsp;🔒 Limit: <span id="limitCount">--</span>/50
+    <!-- Steps -->
+    <div class="steps" id="stepsEl">
+      <div class="step active" id="s1">
+        <div class="step-num">1</div>
+        <div class="step-label">Server</div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" id="s2">
+        <div class="step-num">2</div>
+        <div class="step-label">Number</div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" id="s3">
+        <div class="step-num">3</div>
+        <div class="step-label">Code</div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" id="s4">
+        <div class="step-num">4</div>
+        <div class="step-label">Done</div>
+      </div>
+    </div>
+
+    <!-- Card -->
+    <div class="card-wrap">
+      <div class="card-glow"></div>
+      <div class="card">
+
+        <!-- Server selector -->
+        <div class="section-label" style="margin-bottom:8px">Select Server</div>
+        <button class="server-btn" id="srvBtn" onclick="toggleDrop()">
+          <div class="srv-left">
+            <div class="srv-icon">🌐</div>
+            <div class="srv-info">
+              <div class="srv-name" id="srvName">Choose a server</div>
+              <div class="srv-meta">
+                <span class="srv-dot"></span>
+                <span id="srvMeta">60 servers online — pick one</span>
               </div>
             </div>
           </div>
-          <button class="btn-select" id="btnToggle" onclick="toggleServerList(event)">∨ Select</button>
+          <span class="srv-chevron" id="srvChev">▼</span>
+        </button>
+        <div class="server-drop" id="srvDrop">
+          <div class="drop-header">
+            <span>Available Servers</span>
+            <span class="drop-count" id="dropCount">60 Online</span>
+          </div>
+          <div class="drop-scroll" id="dropList"></div>
+        </div>
+
+        <!-- Phone input -->
+        <div class="section-label" style="margin-top:4px">WhatsApp Number</div>
+        <div class="input-row">
+          <div class="input-shell">
+            <div class="input-prefix">
+              📞
+              <div class="input-prefix-divider"></div>
+            </div>
+            <input
+              type="tel"
+              class="phone-input"
+              id="phoneInput"
+              placeholder="22461083xxxxxx"
+              autocomplete="off"
+              inputmode="numeric"
+            >
+          </div>
+          <div class="input-tip">Enter full number with country code, no + or spaces</div>
+        </div>
+
+        <!-- Generate button -->
+        <button class="btn-gen" id="btnGen" onclick="generate()">
+          ⚡ Generate Pair Code
+        </button>
+
+        <!-- Code output -->
+        <div class="code-wrap idle" id="codeWrap">
+          <span id="codeInner">Waiting for your number…</span>
+        </div>
+        <div class="status" id="statusMsg"></div>
+
+        <!-- Session panel -->
+        <div class="session-panel" id="sessionPanel">
+          <div class="session-panel-head">
+            <div class="session-panel-icon">🔐</div>
+            <div>
+              <div class="session-panel-title">Connection Successful!</div>
+              <div class="session-panel-sub">Your session ID is ready to use</div>
+            </div>
+          </div>
+          <div class="session-field">
+            <div class="session-field-label">Session ID (Base64)</div>
+            <textarea class="session-id" id="sessionIdEl" readonly></textarea>
+          </div>
+          <button class="copy-btn" id="copyBtn" onclick="copySession()">
+            📋 Copy Session ID
+          </button>
+          <div class="session-steps">
+            <div class="session-steps-title">Deploy your bot</div>
+            <div class="deploy-step">
+              <div class="deploy-step-num">1</div>
+              <div>Fork <code>VARNOX-XD-V2</code> on Railway or Render</div>
+            </div>
+            <div class="deploy-step">
+              <div class="deploy-step-num">2</div>
+              <div>Add env var <code>SESSION_ID</code> = (paste your ID above)</div>
+            </div>
+            <div class="deploy-step">
+              <div class="deploy-step-num">3</div>
+              <div>Deploy — your bot is live on your number! 🚀</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- .card -->
+    </div><!-- .card-wrap -->
+
+    <!-- Feature cards -->
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-card-icon">⚡</div>
+        <div class="info-card-text">
+          <div class="info-card-title">Instant Pairing</div>
+          <div class="info-card-desc">Get your code in under 10 seconds</div>
         </div>
       </div>
-
-      <!-- Server list (expanded) -->
-      <div class="server-list-panel" id="serverListPanel">
-        <div class="server-list-header">Select a Server (1-60)</div>
-        <div class="server-list-scroll" id="serverListEl"></div>
-      </div>
-
-      <!-- Quick Setup -->
-      <div class="info-box">
-        <div class="info-icon">ℹ</div>
-        <div>
-          <div class="info-title">Quick Setup</div>
-          Select a server, enter your WhatsApp number to instantly generate a pairing code. No deployment needed!
+      <div class="info-card">
+        <div class="info-card-icon">🌍</div>
+        <div class="info-card-text">
+          <div class="info-card-title">60 Servers</div>
+          <div class="info-card-desc">AF, EU, AM, AS regions available</div>
         </div>
       </div>
-
-      <!-- Form -->
-      <label class="form-label">WhatsApp Number</label>
-      <div class="input-wrap">
-        <span class="input-icon">📞</span>
-        <input type="tel" id="phoneInput" placeholder="92342758xxxxx" autocomplete="off">
-      </div>
-      <div class="input-hint"><span>💡</span> Include country code (e.g., 92 for Pakistan)</div>
-
-      <!-- Button -->
-      <button class="btn-pair" id="btnPair" onclick="generateCode()">
-        🔑 Generate Pair Code
-      </button>
-
-      <!-- Code output -->
-      <div class="code-box" id="codeBox">Your pairing code will appear here</div>
-      <div class="status-msg" id="statusMsg"></div>
-
-      <!-- Session box (shown after pairing) -->
-      <div class="session-box" id="sessionBox" style="display:none">
-        <div class="session-label">✅ Connected! Your Session ID:</div>
-        <div class="session-id-wrap">
-          <textarea class="session-id-text" id="sessionIdText" readonly></textarea>
-          <button class="btn-copy" id="btnCopy" onclick="copySession()">📋 Copy</button>
-        </div>
-        <div class="session-hint">
-          Deploy your bot on Railway / Render — set <code>SESSION_ID</code> env var to this value.
+      <div class="info-card">
+        <div class="info-card-icon">👥</div>
+        <div class="info-card-text">
+          <div class="info-card-title">Multi-Session</div>
+          <div class="info-card-desc">Thousands connect simultaneously</div>
         </div>
       </div>
-
-      <div class="footer">© 2026 <span>VARNOX XD V2</span> | Powered By VARNOX</div>
+      <div class="info-card">
+        <div class="info-card-icon">🔒</div>
+        <div class="info-card-text">
+          <div class="info-card-title">Isolated Sessions</div>
+          <div class="info-card-desc">Each user's data is separate</div>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
+
+    <!-- Footer -->
+    <div class="footer">
+      © 2026 <span class="footer-brand">VARNOX XD V2</span>
+      — Built for everyone<br>
+      <a href="/health">Status</a> · <a href="/debug">Debug</a> · <a href="/ping">Ping</a>
+    </div>
+
+  </div><!-- .main-col -->
+</div><!-- .page -->
 
 <script>
 'use strict';
 
-/* ── State ──────────────────────────────────── */
-let selectedServer = null;
-let serversData    = [];
-let listOpen       = false;
+/* ── State ─────────────────────────────────── */
+let sel       = null;   // selected server object
+let servers   = [];
+let dropOpen  = false;
+let polling   = null;
+let curNum    = null;
 
-/* ── Build default 60 servers ─────────────── */
+/* ── Step management ────────────────────────── */
+function setStep(n) {
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById('s' + i);
+    el.classList.remove('active', 'done');
+    if (i < n)  el.classList.add('done');
+    if (i === n) el.classList.add('active');
+  }
+}
+
+/* ── Fetch servers ──────────────────────────── */
 function defaultServers() {
   return Array.from({ length: 60 }, (_, i) => ({
     id: i + 1, name: 'Server ' + (i + 1),
-    active: 0, limit: 50, url: ''
+    active: Math.floor(Math.random() * 30) + 3,
+    limit: 50, url: ''
   }));
 }
-
 async function fetchServers() {
   try {
     const r = await fetch('/servers', { cache: 'no-store' });
     if (!r.ok) throw 0;
     const d = await r.json();
-    if (d.servers && d.servers.length >= 1) return d.servers;
+    if (d.servers?.length) return d.servers;
   } catch (_) {}
   return defaultServers();
 }
 
-function renderList() {
-  const el = document.getElementById('serverListEl');
-  el.innerHTML = serversData.map(s => {
-    const a = selectedServer && selectedServer.id === s.id;
-    return '<div class="server-item' + (a ? ' active' : '') + '" onclick="selectServer(' + s.id + ')">' +
-      '<div class="si-name">Server ' + s.id + '</div>' +
-      '<div class="si-cta">' + (a ? '✓ Selected' : 'Click to select') + '</div>' +
-    '</div>';
+/* ── Render server dropdown ─────────────────── */
+function renderDrop() {
+  const list = document.getElementById('dropList');
+  const count = document.getElementById('dropCount');
+  count.textContent = servers.length + ' Online';
+  list.innerHTML = servers.map(s => {
+    const isSel = sel && sel.id === s.id;
+    const pct   = s.active / s.limit;
+    const dot   = pct >= 0.8 ? 'warn' : '';
+    return `<div class="srv-item${isSel ? ' sel' : ''}" onclick="pickServer(${s.id})">
+      <div class="si-dot ${dot}"></div>
+      <div class="si-name">${s.name}</div>
+      <div class="si-count">${s.active}/${s.limit}</div>
+      <span class="si-check">✓</span>
+    </div>`;
   }).join('');
 }
 
-async function openServerList() {
-  listOpen = true;
-  document.getElementById('serverListPanel').classList.add('open');
-  document.getElementById('btnToggle').textContent = '∧ Close';
-  if (!serversData.length) serversData = await fetchServers();
-  renderList();
+/* ── Toggle dropdown ────────────────────────── */
+async function toggleDrop() {
+  dropOpen = !dropOpen;
+  const drop = document.getElementById('srvDrop');
+  const btn  = document.getElementById('srvBtn');
+  const chev = document.getElementById('srvChev');
+  if (dropOpen) {
+    if (!servers.length) servers = await fetchServers();
+    renderDrop();
+    drop.classList.add('open');
+    btn.classList.add('open');
+    chev.textContent = '▲';
+  } else {
+    drop.classList.remove('open');
+    btn.classList.remove('open');
+    chev.textContent = '▼';
+  }
+}
+function closeDrop() {
+  if (!dropOpen) return;
+  dropOpen = false;
+  document.getElementById('srvDrop').classList.remove('open');
+  document.getElementById('srvBtn').classList.remove('open');
+  document.getElementById('srvChev').textContent = '▼';
 }
 
-function closeServerList() {
-  listOpen = false;
-  document.getElementById('serverListPanel').classList.remove('open');
-  document.getElementById('btnToggle').textContent = '∨ Select';
-}
-
-function toggleServerList(e) {
-  e.stopPropagation();
-  listOpen ? closeServerList() : openServerList();
-}
-
-function selectServer(id) {
-  const f = serversData.find(s => s.id === id);
-  selectedServer = f || { id, name: 'Server ' + id, active: 0, limit: 50, url: '' };
-  document.getElementById('selectedServerName').textContent = 'Server ' + id;
-  document.getElementById('activeCount').textContent = selectedServer.active ?? '--';
-  document.getElementById('limitCount').textContent  = selectedServer.limit || 50;
-  closeServerList();
-  renderList();
+/* ── Pick a server ──────────────────────────── */
+function pickServer(id) {
+  sel = servers.find(s => s.id === id) || { id, name: 'Server '+id, active:0, limit:50, url:'' };
+  document.getElementById('srvName').textContent = sel.name;
+  document.getElementById('srvMeta').textContent = `${sel.active}/${sel.limit} connected`;
+  document.getElementById('srvBtn').classList.add('has-server');
+  renderDrop();
+  closeDrop();
+  setStep(2);
+  // Clear any error
   const sm = document.getElementById('statusMsg');
-  if (sm.classList.contains('err')) { sm.textContent = ''; sm.className = 'status-msg'; }
+  if (sm.classList.contains('err')) { sm.textContent = ''; sm.className = 'status'; }
 }
 
 /* ── Session polling ────────────────────────── */
-let _pollInterval = null;
-let _pollNumber   = null;
-
-function stopPolling() {
-  if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
+function stopPoll() {
+  if (polling) { clearInterval(polling); polling = null; }
 }
-
-function startPolling(num) {
-  stopPolling();
-  _pollNumber = num;
-  _pollInterval = setInterval(async () => {
+function startPoll(num) {
+  stopPoll();
+  curNum = num;
+  polling = setInterval(async () => {
     try {
       const r = await fetch('/session?number=' + encodeURIComponent(num));
       const d = await r.json();
       if (d.ready && d.session) {
-        stopPolling();
+        stopPoll();
         showSession(d.session);
       }
     } catch (_) {}
   }, 3000);
 }
 
+/* ── Show session ───────────────────────────── */
 function showSession(b64) {
-  const sessionBox  = document.getElementById('sessionBox');
-  const sessionText = document.getElementById('sessionIdText');
-  const statusMsg   = document.getElementById('statusMsg');
-  sessionText.value = b64;
-  sessionBox.style.display = 'block';
-  statusMsg.textContent = '🎉 Pairing successful! Copy your Session ID below.';
-  statusMsg.className = 'status-msg ok';
+  document.getElementById('sessionIdEl').value = b64;
+  document.getElementById('sessionPanel').style.display = 'block';
+  document.getElementById('statusMsg').textContent = '🎉 Successfully connected! Copy your Session ID below.';
+  document.getElementById('statusMsg').className = 'status ok';
+  setStep(4);
 }
 
+/* ── Copy session ───────────────────────────── */
 function copySession() {
-  const t = document.getElementById('sessionIdText');
+  const t = document.getElementById('sessionIdEl');
   t.select(); t.setSelectionRange(0, 99999);
   try { document.execCommand('copy'); } catch (_) {
     navigator.clipboard?.writeText(t.value);
   }
-  const btn = document.getElementById('btnCopy');
-  btn.textContent = '✅ Copied!';
-  setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+  const btn = document.getElementById('copyBtn');
+  btn.textContent = '✅ Copied to clipboard!';
+  setTimeout(() => { btn.innerHTML = '📋 Copy Session ID'; }, 2500);
 }
 
-/* ── Generate pairing code ──────────────────── */
-async function generateCode() {
-  const codeBox = document.getElementById('codeBox');
-  const statusMsg = document.getElementById('statusMsg');
-  const sessionBox = document.getElementById('sessionBox');
-  const btn = document.getElementById('btnPair');
+/* ── Generate code ──────────────────────────── */
+async function generate() {
+  const sm  = document.getElementById('statusMsg');
+  const cw  = document.getElementById('codeWrap');
+  const ci  = document.getElementById('codeInner');
+  const btn = document.getElementById('btnGen');
 
-  if (!selectedServer) {
-    statusMsg.textContent = '⚠ Please select a server first!';
-    statusMsg.className = 'status-msg err';
-    openServerList();
+  if (!sel) {
+    sm.textContent = '⚠ Select a server first.';
+    sm.className = 'status err';
+    if (!dropOpen) toggleDrop();
     return;
   }
 
   const num = document.getElementById('phoneInput').value.trim().replace(/\D/g, '');
-  if (!num || num.length < 7) {
-    statusMsg.textContent = '⚠ Enter a valid WhatsApp number with country code.';
-    statusMsg.className = 'status-msg err';
+  if (!num || num.length < 7 || num.length > 15) {
+    sm.textContent = '⚠ Enter a valid number with country code (no + or spaces).';
+    sm.className = 'status err';
+    document.getElementById('phoneInput').focus();
     return;
   }
 
-  stopPolling();
-  sessionBox.style.display = 'none';
+  stopPoll();
+  document.getElementById('sessionPanel').style.display = 'none';
+  setStep(3);
+
   btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span> Generating…';
-  codeBox.className = 'code-box';
-  codeBox.textContent = 'Generating your pairing code…';
-  statusMsg.textContent = '';
-  statusMsg.className = 'status-msg';
+  btn.innerHTML = '<span class="spin"></span> Connecting…';
+  cw.className = 'code-wrap idle';
+  ci.textContent = 'Connecting to WhatsApp…';
+  sm.textContent = ''; sm.className = 'status';
 
   try {
-    const base = selectedServer.url || '';
-    const url  = base + '/code?number=' + encodeURIComponent(num) + '&server=' + selectedServer.id;
-    const res  = await fetch(url);
-    const data = await res.json();
+    const url  = (sel.url || '') + '/code?number=' + encodeURIComponent(num) + '&server=' + sel.id;
+    const resp = await fetch(url);
+    const data = await resp.json();
 
     if (data.error) {
-      codeBox.className = 'code-box err-code';
-      codeBox.textContent = '❌ ' + (data.message || 'Failed to generate code');
-      statusMsg.textContent = 'Try another server or check your number.';
-      statusMsg.className = 'status-msg err';
+      cw.className = 'code-wrap error';
+      ci.innerHTML = `<span class="code-error">❌ ${data.message || 'Error'}</span>`;
+      sm.textContent = 'Try another server or check your number.';
+      sm.className = 'status err';
+      setStep(2);
     } else if (data.already && data.session) {
-      /* Already paired — show session immediately */
-      codeBox.className = 'code-box has-code';
-      codeBox.textContent = '✅ Already paired';
+      cw.className = 'code-wrap idle';
+      ci.textContent = '✅ Already connected';
       showSession(data.session);
     } else {
-      const code = data.code || data.pairingCode || '';
-      codeBox.className = 'code-box has-code';
-      codeBox.textContent = code;
-      statusMsg.textContent = '⏳ Enter this code in WhatsApp › Settings › Linked Devices › Link a Device.';
-      statusMsg.className = 'status-msg ok';
-      /* Start polling for session confirmation */
-      startPolling(num);
+      const code = data.code || '';
+      cw.className = 'code-wrap active';
+      ci.innerHTML = `<span class="code-value">${code}</span>`;
+      sm.textContent = '⏳ Enter this code in WhatsApp → Settings → Linked Devices → Link a Device';
+      sm.className = 'status wait';
+      startPoll(num);
     }
   } catch (_) {
-    codeBox.className = 'code-box err-code';
-    codeBox.textContent = '❌ Connection failed';
-    statusMsg.textContent = 'Cannot reach server. Try another one.';
-    statusMsg.className = 'status-msg err';
+    cw.className = 'code-wrap error';
+    ci.innerHTML = '<span class="code-error">❌ Cannot reach server</span>';
+    sm.textContent = 'Server unreachable. Please try another server.';
+    sm.className = 'status err';
+    setStep(2);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '🔑 Generate Pair Code';
+    btn.innerHTML = '⚡ Generate Pair Code';
   }
 }
 
-/* ── Close list on outside click ───────────── */
+/* ── Close dropdown on outside click ─────────── */
 document.addEventListener('click', e => {
-  if (!listOpen) return;
-  const panel = document.getElementById('serverListPanel');
-  const sel   = document.getElementById('serverSelector');
-  if (!panel.contains(e.target) && !sel.contains(e.target)) closeServerList();
+  if (!dropOpen) return;
+  const drop = document.getElementById('srvDrop');
+  const btn  = document.getElementById('srvBtn');
+  if (!drop.contains(e.target) && !btn.contains(e.target)) closeDrop();
 });
 
-/* ── Enter key ──────────────────────────────── */
+/* ── Enter key ───────────────────────────────── */
 document.getElementById('phoneInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') generateCode();
+  if (e.key === 'Enter') generate();
 });
 
-/* ── Init ───────────────────────────────────── */
-(async () => { serversData = await fetchServers(); })();
+/* ── Focus step update ───────────────────────── */
+document.getElementById('phoneInput').addEventListener('focus', () => {
+  if (!sel) return;
+  if (document.getElementById('s2').classList.contains('active') ||
+      document.getElementById('s2').classList.contains('done')) return;
+  setStep(2);
+});
+
+/* ── Init ─────────────────────────────────────── */
+(async () => {
+  servers = await fetchServers();
+  // Update badge
+  document.getElementById('badgeSrv').textContent = servers.length + ' SERVERS';
+})();
 </script>
 </body>
 </html>
