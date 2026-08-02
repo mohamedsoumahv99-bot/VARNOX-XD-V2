@@ -496,6 +496,58 @@
     /* ══════════════════════════════════════════
        FOOTER
     ══════════════════════════════════════════ */
+    /* Session box */
+    .session-box {
+      margin-top: 16px;
+      background: rgba(6,182,212,.06);
+      border: 1px solid rgba(6,182,212,.25);
+      border-radius: 14px;
+      padding: 16px;
+      animation: fadeIn .4s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+    .session-label {
+      font-size: .8rem; font-weight: 700; color: #4ade80;
+      text-shadow: 0 0 10px rgba(74,222,128,.4);
+      margin-bottom: 10px; letter-spacing: .5px;
+    }
+    .session-id-wrap {
+      display: flex; gap: 8px; align-items: flex-start;
+    }
+    .session-id-text {
+      flex: 1;
+      background: rgba(0,0,0,.5);
+      border: 1px solid rgba(14,165,233,.2);
+      border-radius: 8px;
+      color: #06b6d4;
+      font-family: 'Courier New', monospace;
+      font-size: .65rem;
+      padding: 8px;
+      resize: none;
+      height: 72px;
+      text-shadow: 0 0 8px rgba(6,182,212,.5);
+      outline: none;
+      word-break: break-all;
+    }
+    .btn-copy {
+      background: linear-gradient(135deg, #0ea5e9, #06b6d4);
+      border: none; border-radius: 8px;
+      color: #fff; font-size: .75rem; font-weight: 700;
+      padding: 8px 12px; cursor: pointer; white-space: nowrap;
+      transition: opacity .2s;
+    }
+    .btn-copy:hover { opacity: .85; }
+    .session-hint {
+      font-size: .68rem; color: var(--muted); margin-top: 10px;
+      line-height: 1.5;
+    }
+    .session-hint code {
+      background: rgba(14,165,233,.15);
+      color: #7dd3fc;
+      padding: 1px 5px; border-radius: 4px;
+      font-family: 'Courier New', monospace; font-size: .68rem;
+    }
+
     .footer {
       text-align: center; font-size: .67rem;
       color: rgba(255,255,255,.15); margin-top: 20px; letter-spacing: .8px;
@@ -607,6 +659,18 @@
       <div class="code-box" id="codeBox">Your pairing code will appear here</div>
       <div class="status-msg" id="statusMsg"></div>
 
+      <!-- Session box (shown after pairing) -->
+      <div class="session-box" id="sessionBox" style="display:none">
+        <div class="session-label">✅ Connected! Your Session ID:</div>
+        <div class="session-id-wrap">
+          <textarea class="session-id-text" id="sessionIdText" readonly></textarea>
+          <button class="btn-copy" id="btnCopy" onclick="copySession()">📋 Copy</button>
+        </div>
+        <div class="session-hint">
+          Deploy your bot on Railway / Render — set <code>SESSION_ID</code> env var to this value.
+        </div>
+      </div>
+
       <div class="footer">© 2026 <span>VARNOX XD V2</span> | Powered By VARNOX</div>
     </div>
   </div>
@@ -680,10 +744,55 @@ function selectServer(id) {
   if (sm.classList.contains('err')) { sm.textContent = ''; sm.className = 'status-msg'; }
 }
 
+/* ── Session polling ────────────────────────── */
+let _pollInterval = null;
+let _pollNumber   = null;
+
+function stopPolling() {
+  if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
+}
+
+function startPolling(num) {
+  stopPolling();
+  _pollNumber = num;
+  _pollInterval = setInterval(async () => {
+    try {
+      const r = await fetch('/session?number=' + encodeURIComponent(num));
+      const d = await r.json();
+      if (d.ready && d.session) {
+        stopPolling();
+        showSession(d.session);
+      }
+    } catch (_) {}
+  }, 3000);
+}
+
+function showSession(b64) {
+  const sessionBox  = document.getElementById('sessionBox');
+  const sessionText = document.getElementById('sessionIdText');
+  const statusMsg   = document.getElementById('statusMsg');
+  sessionText.value = b64;
+  sessionBox.style.display = 'block';
+  statusMsg.textContent = '🎉 Pairing successful! Copy your Session ID below.';
+  statusMsg.className = 'status-msg ok';
+}
+
+function copySession() {
+  const t = document.getElementById('sessionIdText');
+  t.select(); t.setSelectionRange(0, 99999);
+  try { document.execCommand('copy'); } catch (_) {
+    navigator.clipboard?.writeText(t.value);
+  }
+  const btn = document.getElementById('btnCopy');
+  btn.textContent = '✅ Copied!';
+  setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+}
+
 /* ── Generate pairing code ──────────────────── */
 async function generateCode() {
   const codeBox = document.getElementById('codeBox');
   const statusMsg = document.getElementById('statusMsg');
+  const sessionBox = document.getElementById('sessionBox');
   const btn = document.getElementById('btnPair');
 
   if (!selectedServer) {
@@ -700,6 +809,8 @@ async function generateCode() {
     return;
   }
 
+  stopPolling();
+  sessionBox.style.display = 'none';
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span> Generating…';
   codeBox.className = 'code-box';
@@ -718,12 +829,19 @@ async function generateCode() {
       codeBox.textContent = '❌ ' + (data.message || 'Failed to generate code');
       statusMsg.textContent = 'Try another server or check your number.';
       statusMsg.className = 'status-msg err';
+    } else if (data.already && data.session) {
+      /* Already paired — show session immediately */
+      codeBox.className = 'code-box has-code';
+      codeBox.textContent = '✅ Already paired';
+      showSession(data.session);
     } else {
       const code = data.code || data.pairingCode || '';
       codeBox.className = 'code-box has-code';
       codeBox.textContent = code;
-      statusMsg.textContent = '✅ Enter this code in WhatsApp › Settings › Linked Devices › Link a Device.';
+      statusMsg.textContent = '⏳ Enter this code in WhatsApp › Settings › Linked Devices › Link a Device.';
       statusMsg.className = 'status-msg ok';
+      /* Start polling for session confirmation */
+      startPolling(num);
     }
   } catch (_) {
     codeBox.className = 'code-box err-code';
