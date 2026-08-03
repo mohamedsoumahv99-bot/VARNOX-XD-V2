@@ -103,7 +103,13 @@ async function startXeonBotInc() {
         } catch (e) {
             console.warn('[VARNOX] fetchLatestBaileysVersion timeout → fallback version');
         }
-        const { state, saveCreds } = await useMultiFileAuthState(`./session`)
+        // Supporte --session-dir <dir> pour les instances multi-utilisateurs
+        const sessionDirArg = (() => {
+            const idx = process.argv.indexOf('--session-dir');
+            return idx !== -1 && process.argv[idx + 1] ? process.argv[idx + 1] : null;
+        })();
+        const SESSION_DIR = sessionDirArg || process.env.SESSION_DIR || './session';
+        const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
         const msgRetryCounterCache = new NodeCache()
 
         const XeonBotInc = makeWASocket({
@@ -268,23 +274,9 @@ async function startXeonBotInc() {
             console.log(chalk.magenta(` `))
             console.log(chalk.yellow(`🤩Connected to => ` + JSON.stringify(XeonBotInc.user, null, 2)))
 
-            try {
-                const botNumber = XeonBotInc.user.id.split(':')[0] + '@s.whatsapp.net';
-                await XeonBotInc.sendMessage(botNumber, {
-                    text: `🤖 Bot Connected Successfully!\n\n⏰ Time: ${new Date().toLocaleString()}\n✅ Status: Online and Ready!\n\n✅Make sure to join below channel`,
-                    contextInfo: {
-                        forwardingScore: 1,
-                        isForwarded: true,
-                        forwardedNewsletterMessageInfo: {
-                            newsletterJid: '120363424782348922@newsletter',
-                            newsletterName: '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2',
-                            serverMessageId: -1
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error('Error sending connection message:', error.message)
-            }
+            // NE PAS envoyer de message automatique au numéro connecté —
+            // cela enverrait le lien de la chaîne à n'importe quel utilisateur
+            // qui connecte son compte. Le message de bienvenue est supprimé.
 
             await delay(1999)
             console.log(chalk.yellow(`\n\n                  ${chalk.bold.blue(`[ ${global.botname || '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2'} ]`)}\n\n`))

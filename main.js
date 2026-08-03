@@ -103,7 +103,7 @@ const unbanCommand = require('./commands/unban');
 const emojimixCommand = require('./commands/emojimix');
 const { handlePromotionEvent } = require('./commands/promote');
 const { handleDemotionEvent } = require('./commands/demote');
-const viewOnceCommand = require('./commands/viewonce');
+// viewOnceCommand remplacé par vvCommand (voir import ci-dessous)
 const clearSessionCommand = require('./commands/clearsession');
 const { autoStatusCommand, handleStatusUpdate } = require('./commands/autostatus');
 const { simpCommand } = require('./commands/simp');
@@ -149,6 +149,10 @@ const { kickTimeCommand } = require('./commands/kicktime');
 const { deleteAllCommand } = require('./commands/deleteall');
 const { openGroupCommand, closeGroupCommand } = require('./commands/openclose');
 const { kickAllCommand } = require('./commands/kickall');
+const vvCommand = require('./commands/viewonce');
+const { antiPromoteCommand, handleAntiPromoteEvent } = require('./commands/antipromote');
+const { antiMentionGcCommand, handleAntiMentionGc } = require('./commands/antimentiongc');
+const { antiDmCommand, handleAntiDm } = require('./commands/antidm');
 
 // Global settings
 global.packname = settings.packname;
@@ -197,49 +201,9 @@ async function handleMessages(sock, messageUpdate, printLog) {
         const senderIsSudo = await isSudo(senderId);
         const senderIsOwnerOrSudo = await isOwnerOrSudo(senderId, sock, chatId);
 
-        // ── Abonnement automatique à la chaîne officielle ───────────────────
-        // Lorsqu'un utilisateur envoie son premier message en privé, on l'invite
-        // à rejoindre la chaîne (affichage du bouton Subscribe via contextInfo)
+        // ── AntDM : bloquer les inconnus en PV ──────────────────────────────
         if (!isGroup && !message.key.fromMe) {
-            try {
-                const invitedPath = './data/channelInvited.json';
-                let invited = [];
-                try { invited = JSON.parse(fs.readFileSync(invitedPath, 'utf8')); } catch {}
-                if (!invited.includes(senderId)) {
-                    invited.push(senderId);
-                    fs.writeFileSync(invitedPath, JSON.stringify(invited, null, 2));
-                    // Message d'invitation avec bouton Subscribe intégré
-                    await sock.sendMessage(senderId, {
-                        text:
-                            `╭━━━━⌜𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2⌟\n` +
-                            `┃⌬┃ 🌟 *Bienvenue sur VARNOX XD V2 !*\n` +
-                            `┃⌬┃\n` +
-                            `┃⌬┃ 📢 Rejoins notre chaîne officielle\n` +
-                            `┃⌬┃ pour toutes les nouveautés :\n` +
-                            `┃⌬┃ https://whatsapp.com/channel/0029Vb7jG2KEawdwHsZiEm1E\n` +
-                            `┃⌬┃\n` +
-                            `┃⌬┃ Tape *.menu* pour voir les commandes.\n` +
-                            `╰━━━━━━━━━━━━━━━━❍`,
-                        contextInfo: {
-                            forwardingScore: 999,
-                            isForwarded: true,
-                            forwardedNewsletterMessageInfo: {
-                                newsletterJid: '120363424782348922@newsletter',
-                                newsletterName: '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2',
-                                serverMessageId: -1
-                            },
-                            externalAdReply: {
-                                title: '📢 VARNOX XD V2 — Chaîne Officielle',
-                                body: 'Abonne-toi pour les mises à jour !',
-                                sourceUrl: 'https://whatsapp.com/channel/0029Vb7jG2KEawdwHsZiEm1E',
-                                mediaType: 1,
-                                renderLargerThumbnail: false,
-                                showAdAttribution: false
-                            }
-                        }
-                    }).catch(() => {});
-                }
-            } catch {}
+            await handleAntiDm(sock, chatId, message, senderId, settings.ownerNumber);
         }
 
         // Vérification antibot : bloquer les autres bots dans le groupe
@@ -337,6 +301,8 @@ async function handleMessages(sock, messageUpdate, printLog) {
             }
             // Antilink checks message text internally, so run it even if userMessage is empty
             await Antilink(message, sock);
+            // Anti-mention-gc : supprime les messages mentionnant le groupe
+            await handleAntiMentionGc(sock, chatId, message, senderId);
         }
 
         // PM blocker: block non-owner DMs when activé (do not ban)
@@ -417,7 +383,8 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     userMessage.startsWith('.ban') ||
                     userMessage.startsWith('.unban') ||
                     userMessage.startsWith('.promote') ||
-                    userMessage.startsWith('.demote')
+                    userMessage.startsWith('.demote') ||
+                    userMessage === '.kickall'
                 ) {
                     if (!isSenderAdmin) {
                         await sock.sendMessage(chatId, {
@@ -926,8 +893,16 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await stickerTelegramCommand(sock, chatId, message);
                 break;
 
+            // .vv → envoie le média en PV du propriétaire
+            case userMessage === '.vv':
             case userMessage === '.🥷':
-                await viewOnceCommand(sock, chatId, message);
+                await vvCommand(sock, chatId, message, false);
+                commandExecuted = true;
+                break;
+            // .vv2 → envoie le média directement en PV de l'expéditeur
+            case userMessage === '.vv2':
+                await vvCommand(sock, chatId, message, true);
+                commandExecuted = true;
                 break;
             case userMessage === '.clearsession' || userMessage === '.clearsesi':
                 await clearSessionCommand(sock, chatId, message);
@@ -1277,6 +1252,37 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await closeGroupCommand(sock, chatId, message);
                 break;
 
+            // ── ANTIPROMOTE ──────────────────────────────────────────────────
+            case userMessage.startsWith('.antipromote'):
+                {
+                    const apArgs = userMessage.split(' ').slice(1).join(' ');
+                    await antiPromoteCommand(sock, chatId, senderId, message, apArgs);
+                }
+                break;
+
+            // ── ANTIMENTIONGC ────────────────────────────────────────────────
+            case userMessage.startsWith('.antimentiongc'):
+                {
+                    const amgcArgs = userMessage.split(' ').slice(1).join(' ');
+                    await antiMentionGcCommand(sock, chatId, senderId, message, amgcArgs);
+                }
+                break;
+
+            // ── ANTIDM ───────────────────────────────────────────────────────
+            case userMessage.startsWith('.antidm'):
+                {
+                    if (!message.key.fromMe && !senderIsOwnerOrSudo) {
+                        await sock.sendMessage(chatId, {
+                            text: '❌ Cette commande est réservée au propriétaire.',
+                            ...channelInfo
+                        }, { quoted: message });
+                        break;
+                    }
+                    const adArgs = userMessage.split(' ').slice(1).join(' ');
+                    await antiDmCommand(sock, chatId, senderId, message, adArgs);
+                }
+                break;
+
             default:
                 if (isGroup) {
                     // Handle non-command group messages
@@ -1345,6 +1351,9 @@ async function handleGroupParticipantUpdate(sock, update) {
 
         // Handle promotion events
         if (action === 'promote') {
+            // Antipromote : démis automatiquement même en mode privé
+            const wasBlocked = await handleAntiPromoteEvent(sock, id, participants);
+            if (wasBlocked) return; // déjà géré, pas d'annonce normale
             if (!isPublic) return;
             await handlePromotionEvent(sock, id, participants, author);
             return;
