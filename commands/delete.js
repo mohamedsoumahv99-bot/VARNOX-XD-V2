@@ -1,7 +1,9 @@
 const isAdmin = require('../lib/isAdmin');
-const store = require('../lib/lightweight_store');
 
 async function deleteCommand(sock, chatId, message, senderId) {
+    // Utiliser le store de l'instance courante (défini par botInstance.js)
+    const store = sock.store || { messages: {} };
+
     try {
         // Determine target user and count
         const text = message.message?.conversation || message.message?.extendedTextMessage?.text || '';

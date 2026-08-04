@@ -2,13 +2,14 @@
 
 const isOwnerOrSudo = require('../lib/isOwner');
 const { channelInfo } = require('../lib/messageConfig');
-const store = require('../lib/lightweight_store');
 
 /**
  * .deleteall
  * Supprime tous les messages récents du groupe (accessibles par le bot).
  */
 async function deleteAllCommand(sock, chatId, senderId, message) {
+    // Utiliser le store de l'instance courante (défini par botInstance.js)
+    const store = sock.store || { messages: {} };
     // Groupe uniquement
     if (!chatId.endsWith('@g.us')) {
         return sock.sendMessage(chatId, {

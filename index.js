@@ -46,12 +46,9 @@ const { rmSync, existsSync } = require('fs')
 const { join } = require('path')
 
 // Import lightweight store
-const store = require('./lib/lightweight_store')
-
-// Initialize store
-store.readFromFile()
+const createStore = require('./lib/lightweight_store')
+const store = createStore()   // instance unique pour index.js (mode mono-utilisateur)
 const settings = require('./settings')
-setInterval(() => store.writeToFile(), settings.storeWriteInterval || 10000)
 
 // Memory optimization - Force garbage collection if available
 setInterval(() => {
