@@ -124,7 +124,7 @@ const aiCommand = require('./commands/ai');
 const urlCommand = require('./commands/url');
 const { handleTranslateCommand } = require('./commands/translate');
 const { handleSsCommand } = require('./commands/ss');
-const { addCommandReaction, handleAreactCommand } = require('./lib/reactions');
+const { addCommandReaction, addAllMessageReaction, handleAreactCommand } = require('./lib/reactions');
 const { goodnightCommand } = require('./commands/goodnight');
 const { shayariCommand } = require('./commands/shayari');
 const { rosedayCommand } = require('./commands/roseday');
@@ -323,6 +323,12 @@ async function handleMessages(sock, messageUpdate, printLog) {
         if (!userMessage.startsWith('.')) {
             // Show typing indicator if autotyping is activé
             await handleAutotypingForMessage(sock, chatId, userMessage);
+
+            // ── Autoreact sur TOUS les messages (groupes + PV) quand activé ──
+            // Indépendant des commandes — réagit à chaque message entrant
+            if (!message.key.fromMe) {
+                addAllMessageReaction(sock, message).catch(() => {});
+            }
 
             if (isGroup) {
                 // Always run moderation features (antitag) regardless of mode
