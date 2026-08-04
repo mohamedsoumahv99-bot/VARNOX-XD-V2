@@ -1,16 +1,26 @@
 /**
- * VARNOX XD V2 — web.js  v17  (SINGLE-PROCESS MULTI-USER — SANS DÉLAI)
+ * VARNOX XD V2 — web.js  v18  (SINGLE-PROCESS MULTI-USER — TWO-SOCKET FIX)
  *
- * Corrections v17 :
- *  1. saveCreds de tmpDir N'est plus transmis à attachBotHandlers.
- *     Après copie de session, on lit useMultiFileAuthState(userSessionDir)
- *     pour obtenir un saveCreds qui pointe vers le dossier permanent.
- *     → les mises à jour de creds (envoyées par WA immédiatement après
- *       connection:'open') sont persistées au bon endroit.
- *  2. Suppression du double handler creds.update (était enregistré deux fois).
- *  3. promotePairToBot ne quitte plus silencieusement sur erreur de copie.
- *  4. Nettoyage de tmpDir retardé à 15 s (laisse le temps aux creds initiaux
- *     d'être relus depuis userSessionDir avant destruction).
+ * Corrections v18 (fix root cause de l'échec de reconnexion) :
+ *
+ *  PROBLÈME v17 (aliasing de state.creds) :
+ *    - Le socket de couplage utilise state.creds (objet A, depuis tmpDir).
+ *    - Après copie, on faisait useMultiFileAuthState(userSessionDir) → fresh.state.creds
+ *      (objet B, copie statique lue depuis disque).
+ *    - saveCredsUser = fresh.saveCreds écrit l'objet B.
+ *    - Mais Baileys met à jour l'objet A (vrai état du socket) et émet creds.update.
+ *    - Résultat : saveCredsUser() sauvegarde des creds périmés (objet B figé)
+ *      → à la prochaine reconnexion, creds stale → échec d'authentification.
+ *    - Idem pour les signal keys (makeCacheableSignalKeyStore était initialisé
+ *      depuis tmpDir → les nouvelles pre-keys allaient dans tmpDir, supprimé après).
+ *
+ *  FIX v18 (approche deux sockets) :
+ *    1. session couplage (tmpDir) → flush + copie → userSessionDir  (inchangé)
+ *    2. socket de couplage fermé proprement (flag intentionallyClosed)
+ *    3. createBotInstance(userSessionDir, number) → NEW socket
+ *       → Baileys lit auth.creds ET auth.keys depuis userSessionDir dès le départ
+ *       → TOUTES les écritures futures (creds.update, pre-keys…) vont dans userSessionDir
+ *       → zéro aliasing, zéro creds perdus
  */
 'use strict';
 
@@ -316,8 +326,16 @@ async function handleCode(req, res) {
     }
 
     // ── Gestion de la session après couplage réussi ───────────────────────
+    // Flag : indique que le socket de couplage a été fermé VOLONTAIREMENT
+    // pour démarrer le nouveau socket bot depuis userSessionDir.
+    let intentionallyClosed = false;
+
     async function promotePairToBot() {
+      // Éviter un double-déclenchement si connection:'open' fire deux fois
+      if (intentionallyClosed) return;
+
       // 1. Flush les creds courants dans tmpDir (avant copie)
+      //    saveCreds() écrit state.creds (l'objet réel du socket) sur disque → tmpDir
       try { await saveCreds(); } catch (e) {
         console.error(`[VARNOX] saveCreds(tmp) error:`, e.message);
       }
@@ -333,45 +351,52 @@ async function handleCode(req, res) {
         copyOk = true;
         console.log(`[VARNOX] ✅ Session copied to ${userSessionDir}`);
       } catch (e) {
-        // Ne pas quitter — on tente quand même d'activer le bot
-        console.error(`[VARNOX] Session copy error (non-fatal):`, e.message);
+        console.error(`[VARNOX] Session copy error:`, e.message);
       }
 
-      // 3. Obtenir un saveCreds pointant vers userSessionDir
-      //    ★ C'est la correction principale : les mises à jour de creds
-      //      envoyées par WhatsApp juste après connection:'open' seront
-      //      persistées dans userSessionDir, pas dans tmpDir.
-      let saveCredsUser = saveCreds; // fallback si copie échouée
-      if (copyOk) {
-        try {
-          const fresh = await useMultiFileAuthState(userSessionDir);
-          saveCredsUser = fresh.saveCreds;
-        } catch (e) {
-          console.error(`[VARNOX] useMultiFileAuthState(userSessionDir) error:`, e.message);
-        }
+      if (!copyOk) {
+        console.error(`[VARNOX] ❌ Copy failed — bot non activé pour ${number}`);
+        return;
       }
 
-      // 4. Mettre à jour owner.json (premier utilisateur)
+      // 3. Mettre à jour owner.json (premier utilisateur)
       if (getAllInstances().length === 0) initOwnerJson(number);
       pairedNumbers.set(number, { ts: Date.now() });
 
-      // 5. Fermer la référence dans pairingSockets
+      // 4. Fermer la référence dans pairingSockets
       const p = pairingSockets.get(number);
       if (p) { clearTimeout(p.timer); pairingSockets.delete(number); }
 
-      // 6. ★ CLEF : attacher les handlers bot sur CE socket avec le bon saveCreds ★
-      //    attachBotHandlers enregistre sock.ev.on('creds.update', saveCredsUser)
-      //    → toutes les futures mises à jour partent vers userSessionDir.
-      attachBotHandlers(sock, copyOk ? userSessionDir : tmpDir, number, saveCredsUser);
-      markConnected(number);
+      // 5. ★ FIX v18 : fermer le socket de couplage et démarrer un NOUVEAU socket ★
+      //
+      //    POURQUOI l'approche "réutiliser le socket de couplage" était cassée (v17) :
+      //      - Le socket utilise state.creds (objet A, initialisé depuis tmpDir).
+      //      - useMultiFileAuthState(userSessionDir) crée fresh.state.creds (objet B).
+      //      - fresh.saveCreds() écrit l'objet B — figé au moment de la lecture.
+      //      - Baileys met à jour l'objet A et émet creds.update.
+      //      - → On sauvegarde des creds périmés (B) → reconnexion échoue.
+      //      - Idem pour makeCacheableSignalKeyStore : les pre-keys allaient dans tmpDir.
+      //
+      //    SOLUTION : nouveau socket depuis userSessionDir
+      //      - auth.creds ET auth.keys lus depuis userSessionDir dès le départ.
+      //      - Toutes les écritures futures vont dans userSessionDir.
+      //      - Zéro aliasing, zéro creds perdus.
+      //
+      intentionallyClosed = true;
+      try { sock.ws?.close(); } catch {}   // fermeture propre du socket de couplage
 
-      // 7. Nettoyer le dossier tmp après 15 s
-      //    (délai plus long pour s'assurer que le socket a bien basculé)
-      setTimeout(() => {
+      // Attendre 2 s (le socket doit être fermé côté WS avant reconnexion)
+      setTimeout(async () => {
+        try {
+          await createBotInstance(userSessionDir, number);
+          markConnected(number);
+          console.log(`[VARNOX] ✅ Bot live for ${number} (new socket ← userSessionDir)`);
+        } catch (e) {
+          console.error(`[VARNOX] createBotInstance failed for ${number}:`, e.message);
+        }
+        // Nettoyer tmpDir (copie déjà effectuée)
         try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-      }, 15000);
-
-      console.log(`[VARNOX] ✅ Bot live for ${number} (socket reused, creds → ${copyOk ? 'userSessionDir' : 'tmpDir'})`);
+      }, 2000);
     }
 
     // ── Listener de connexion ─────────────────────────────────────────────
@@ -388,6 +413,9 @@ async function handleCode(req, res) {
       }
 
       if (connection === 'close') {
+        // Socket fermé volontairement dans promotePairToBot → rien à faire
+        if (intentionallyClosed) return;
+
         const sc        = lastDisconnect?.error?.output?.statusCode;
         const loggedOut = sc === DisconnectReason.loggedOut || sc === 401;
 
@@ -404,7 +432,7 @@ async function handleCode(req, res) {
           if (p) { clearTimeout(p.timer); pairingSockets.delete(number); }
           try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
         }
-        // Sinon (reconnexion normale) → Baileys / botInstance gère
+        // Sinon → Baileys / botInstance gère la reconnexion
       }
     });
 
