@@ -1,37 +1,30 @@
 /**
- * VARNOX XD V2 — web.js  v15  (SINGLE-PROCESS MULTI-USERS)
+ * VARNOX XD V2 — web.js  v16  (SINGLE-PROCESS MULTI-USER — SANS DÉLAI)
  *
- * Architecture corrigée :
- * • Aucun processus enfant (spawn) — tout tourne dans ce même processus Node.js
- * • Chaque utilisateur qui se connecte obtient un bot Baileys en mémoire via
- *   lib/botInstance.js
- * • La session de chaque utilisateur est isolée dans ./sessions/user_<numéro>/
- * • Au démarrage, toutes les sessions existantes sont rechargées automatiquement
+ * Correction principale :
+ * Après que l'utilisateur entre le code de couplage et que connection:'open'
+ * se déclenche, on N'OUVRE PAS une deuxième connexion WhatsApp.
+ * On attache directement les handlers bot sur le socket de couplage existant
+ * via attachBotHandlers() → le socket de couplage DEVIENT le socket bot.
  *
- * Flow de connexion (couplage) :
- *  1. L'utilisateur saisit son numéro → GET/POST /code
- *  2. Web.js crée un socket Baileys temporaire et génère un code de couplage
- *  3. L'utilisateur entre le code dans WhatsApp → Appareils liés
- *  4. connection: 'open' → session sauvegardée dans ./sessions/user_<numéro>/
- *  5. createBotInstance() crée immédiatement le bot en mémoire
+ * Résultat : connexion instantanée, pas de délai, même comportement qu'avant
+ * mais avec support multi-utilisateurs.
  */
-
 'use strict';
 
 require('./settings');
 
-const express    = require('express');
-const cors       = require('cors');
-const path       = require('path');
-const fs         = require('fs');
-const https      = require('https');
-const http       = require('http');
+const express  = require('express');
+const cors     = require('cors');
+const path     = require('path');
+const fs       = require('fs');
+const https    = require('https');
+const http     = require('http');
 
 const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   Browsers,
 } = require('@whiskeysockets/baileys');
@@ -39,7 +32,15 @@ const {
 const pino      = require('pino');
 const NodeCache = require('node-cache');
 
-const { createBotInstance, stopBotInstance, getBotInstance, getAllInstances } = require('./lib/botInstance');
+const {
+  attachBotHandlers,
+  createBotInstance,
+  stopBotInstance,
+  getBotInstance,
+  getAllInstances,
+  markConnected,
+  getVersion,
+} = require('./lib/botInstance');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -56,33 +57,21 @@ const OWNER_JSON     = path.join(DATA_DIR, 'owner.json');
 });
 
 /* ─── owner.json ──────────────────────────────────────────── */
-function initOwnerJson(overrideNumber) {
-  let current = {};
-  try {
-    if (fs.existsSync(OWNER_JSON))
-      current = JSON.parse(fs.readFileSync(OWNER_JSON, 'utf8'));
-  } catch {}
-
-  const placeholder = !current.ownerNumber
-    || current.ownerNumber === 'TON_NUMERO_ICI'
-    || current.ownerNumber === '';
-
-  const realNumber = overrideNumber
-    || (!placeholder ? current.ownerNumber : null)
-    || process.env.OWNER_NUMBER
-    || '';
-
-  if (overrideNumber || placeholder) {
+function initOwnerJson(number) {
+  let cur = {};
+  try { if (fs.existsSync(OWNER_JSON)) cur = JSON.parse(fs.readFileSync(OWNER_JSON, 'utf8')); } catch {}
+  const empty = !cur.ownerNumber || cur.ownerNumber === 'TON_NUMERO_ICI';
+  if (number || empty) {
     try {
       fs.writeFileSync(OWNER_JSON, JSON.stringify({
-        ownerNumber : realNumber,
-        ownerName   : current.ownerName  || 'Owner',
-        botName     : current.botName    || 'VARNOX XD V2',
-        prefix      : current.prefix     || process.env.PREFIX || '.',
+        ownerNumber : number || cur.ownerNumber || process.env.OWNER_NUMBER || '',
+        ownerName   : cur.ownerName || 'Owner',
+        botName     : cur.botName   || 'VARNOX XD V2',
+        prefix      : cur.prefix    || process.env.PREFIX || '.',
         version     : '2.0.0',
-        mess        : current.mess       || 'Owner',
+        mess        : cur.mess      || 'Owner',
       }, null, 2));
-    } catch (e) { console.error('[VARNOX] owner.json error:', e.message); }
+    } catch {}
   }
 }
 initOwnerJson();
@@ -92,11 +81,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-/* ─── Keep-alive (Render free tier) ──────────────────────── */
+/* ─── Keep-alive Render free tier ────────────────────────── */
 const SELF_URL = process.env.RENDER_EXTERNAL_URL
-  || (process.env.RENDER_EXTERNAL_HOSTNAME
-      ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`
-      : null);
+  || (process.env.RENDER_EXTERNAL_HOSTNAME ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}` : null);
 
 if (SELF_URL) {
   setInterval(() => {
@@ -105,418 +92,321 @@ if (SELF_URL) {
   }, 14 * 60 * 1000);
 }
 
-/* ─── Cache version Baileys ───────────────────────────────── */
-let _baileysVersion = null;
-async function getBaileysVersion() {
-  if (_baileysVersion) return _baileysVersion;
-  try {
-    const r = await Promise.race([
-      fetchLatestBaileysVersion(),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
-    ]);
-    if (r?.version) { _baileysVersion = r.version; return r.version; }
-  } catch {}
-  return [2, 3000, 1023097280];
-}
+/* ─── Sockets de couplage en cours ───────────────────────── */
+// Map<string, { sock, saveCreds, tmpDir, timer }>
+const pairingSockets = new Map();
 
-/* ─── Store de couplage (15 min TTL) ─────────────────────── */
-// Map<string, { ts, ready, number }>
-const pairStore     = new Map();
-// Map<string, { sock, timer }>
-const activeSockets = new Map();
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [num, entry] of pairStore) {
-    if (now - entry.ts > 15 * 60 * 1000) {
-      pairStore.delete(num);
-      try { fs.rmSync(path.join(TMP_PAIR_DIR, `tmp_${num}`), { recursive: true, force: true }); } catch {}
-    }
-  }
-}, 5 * 60 * 1000);
+/* ─── Sessions marquées prêtes ───────────────────────────── */
+// Map<string, { ts }>
+const pairedNumbers = new Map();
 
 /* ═══════════════════════════════════════════════════════════
- *  DÉMARRAGE DES SESSIONS EXISTANTES
+ *  Démarrage des sessions existantes (au boot)
  * ═══════════════════════════════════════════════════════════ */
 async function startExistingSessions() {
-  // Sessions multi-user : ./sessions/user_<number>/
+  // Sessions multi-user ./sessions/user_<number>/
   try {
     const dirs = fs.readdirSync(SESSIONS_DIR);
     for (const dir of dirs) {
-      const match = dir.match(/^user_(\d+)$/);
-      if (!match) continue;
-      const number     = match[1];
-      const sessionDir = path.join(SESSIONS_DIR, dir);
-      if (fs.existsSync(path.join(sessionDir, 'creds.json'))) {
-        console.log(`[VARNOX] Restoring session for ${number}`);
-        try { await createBotInstance(sessionDir, number); } catch (e) {
-          console.error(`[VARNOX] Failed to restore ${number}:`, e.message);
-        }
-      }
+      const m = dir.match(/^user_(\d+)$/);
+      if (!m) continue;
+      const num = m[1];
+      const sd  = path.join(SESSIONS_DIR, dir);
+      if (!fs.existsSync(path.join(sd, 'creds.json'))) continue;
+      console.log(`[VARNOX] Restoring session: ${num}`);
+      createBotInstance(sd, num).catch(e => console.error(`[VARNOX] Restore ${num} failed:`, e.message));
     }
-  } catch (e) {
-    console.error('[VARNOX] Error scanning sessions:', e.message);
-  }
+  } catch (e) { console.error('[VARNOX] startExistingSessions:', e.message); }
 
-  // Rétrocompat : session unique ./session/ (premier déploiement)
+  // Rétrocompat session unique ./session/
   if (fs.existsSync(path.join(LEGACY_SESSION, 'creds.json'))) {
-    const ownerNum = (() => {
-      try { return JSON.parse(fs.readFileSync(OWNER_JSON, 'utf8')).ownerNumber || 'legacy'; } catch { return 'legacy'; }
-    })();
-    const already = getAllInstances().some(i => i.number === String(ownerNum));
-    if (!already) {
-      console.log(`[VARNOX] Legacy session found → restoring for ${ownerNum}`);
-      try { await createBotInstance(LEGACY_SESSION, ownerNum); } catch (e) {
-        console.error('[VARNOX] Failed to restore legacy session:', e.message);
-      }
+    let ownerNum = 'legacy';
+    try { ownerNum = JSON.parse(fs.readFileSync(OWNER_JSON, 'utf8')).ownerNumber || 'legacy'; } catch {}
+    if (!getBotInstance(ownerNum)) {
+      console.log(`[VARNOX] Legacy session → ${ownerNum}`);
+      createBotInstance(LEGACY_SESSION, ownerNum).catch(e => console.error('[VARNOX] Legacy restore:', e.message));
     }
   }
 }
 
-// Démarrer après 2s pour laisser le serveur démarrer
-setTimeout(startExistingSessions, 2000);
+setTimeout(startExistingSessions, 1500);
 
 /* ═══════════════════════════════════════════════════════════
  *  ROUTES
  * ═══════════════════════════════════════════════════════════ */
+app.get('/ping', (_q, r) => r.json({ pong: true, ts: Date.now() }));
 
-app.get('/ping', (_req, res) => res.json({ pong: true, ts: Date.now() }));
-
-app.get('/health', (_req, res) => {
-  const instances = getAllInstances();
-  res.json({
-    status    : 'online',
-    bot       : 'VARNOX XD V2',
-    version   : '15.0.0',
-    uptime    : Math.floor(process.uptime()),
-    instances,
-    totalBots : instances.length,
-  });
+app.get('/health', (_q, r) => {
+  const insts = getAllInstances();
+  r.json({ status: 'online', bot: 'VARNOX XD V2', v: '16.0.0', uptime: Math.floor(process.uptime()), instances: insts, total: insts.length });
 });
 
 app.get('/botStatus', (req, res) => {
-  const number = req.query.number ? String(req.query.number).replace(/\D/g, '') : null;
-  if (number) {
-    const inst = getBotInstance(number);
-    return res.json({
-      number,
-      running   : !!inst,
-      connected : !!inst?.connected,
-      session   : fs.existsSync(path.join(SESSIONS_DIR, `user_${number}`, 'creds.json'))
-                  || fs.existsSync(path.join(LEGACY_SESSION, 'creds.json')),
-    });
+  const num = req.query.number ? String(req.query.number).replace(/\D/g, '') : null;
+  if (num) {
+    const i = getBotInstance(num);
+    return res.json({ number: num, running: !!i, connected: !!i?.connected });
   }
-  res.json({ instances: getAllInstances(), totalBots: getAllInstances().length });
+  res.json({ instances: getAllInstances() });
 });
 
 app.get('/status', (req, res) => {
-  const number = req.query.number ? String(req.query.number).replace(/\D/g, '') : null;
-  if (!number) return res.json({ instances: getAllInstances() });
-
-  const inst  = getBotInstance(number);
-  const entry = pairStore.get(number);
-  res.json({
-    number,
-    ready     : !!(entry?.ready || inst?.connected),
-    connected : !!inst?.connected,
-    running   : !!inst,
-    active    : activeSockets.has(number),
-  });
+  const num = req.query.number ? String(req.query.number).replace(/\D/g, '') : null;
+  if (!num) return res.json({ instances: getAllInstances() });
+  const i = getBotInstance(num);
+  res.json({ number: num, connected: !!i?.connected, running: !!i, pairing: pairingSockets.has(num) });
 });
 
 app.get('/session', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   let { number } = req.query;
-  if (!number) return res.json({ ready: false, error: 'number required' });
-  number = number.replace(/[^0-9]/g, '');
-
-  // Vérifie si déjà connecté
-  const inst = getBotInstance(number);
-  if (inst?.connected) return res.json({ ready: true });
-
-  // Vérifie la session sur disque
-  const userSessionDir = path.join(SESSIONS_DIR, `user_${number}`);
-  if (fs.existsSync(path.join(userSessionDir, 'creds.json'))) {
-    return res.json({ ready: true });
-  }
-
+  if (!number) return res.json({ ready: false });
+  number = number.replace(/\D/g, '');
+  const i = getBotInstance(number);
+  if (i?.connected) return res.json({ ready: true });
+  if (fs.existsSync(path.join(SESSIONS_DIR, `user_${number}`, 'creds.json'))) return res.json({ ready: true });
   res.json({ ready: false });
 });
 
 app.get('/reset', (req, res) => {
-  const number = req.query.number ? String(req.query.number).replace(/\D/g, '') : null;
+  const num = req.query.number ? String(req.query.number).replace(/\D/g, '') : null;
   try {
-    if (number) {
-      stopBotInstance(number);
-      const userDir = path.join(SESSIONS_DIR, `user_${number}`);
-      try { fs.rmSync(userDir, { recursive: true, force: true }); } catch {}
-      fs.mkdirSync(userDir, { recursive: true });
-      pairStore.delete(number);
-      return res.json({ ok: true, message: `Session cleared for ${number}. Re-pair to reconnect.` });
+    if (num) {
+      stopBotInstance(num);
+      // Fermer le socket de couplage s'il est en cours
+      if (pairingSockets.has(num)) {
+        const p = pairingSockets.get(num);
+        clearTimeout(p.timer);
+        try { p.sock?.ws?.close(); } catch {}
+        try { fs.rmSync(p.tmpDir, { recursive: true, force: true }); } catch {}
+        pairingSockets.delete(num);
+      }
+      pairedNumbers.delete(num);
+      const ud = path.join(SESSIONS_DIR, `user_${num}`);
+      try { fs.rmSync(ud, { recursive: true, force: true }); } catch {}
+      fs.mkdirSync(ud, { recursive: true });
+      return res.json({ ok: true, message: `Session cleared for ${num}. Reconnect to re-pair.` });
     }
-    // Reset ALL
-    for (const inst of getAllInstances()) stopBotInstance(inst.number);
+    for (const i of getAllInstances()) stopBotInstance(i.number);
+    pairingSockets.forEach(p => {
+      clearTimeout(p.timer);
+      try { p.sock?.ws?.close(); } catch {}
+      try { fs.rmSync(p.tmpDir, { recursive: true, force: true }); } catch {}
+    });
+    pairingSockets.clear();
+    pairedNumbers.clear();
     try { fs.rmSync(SESSIONS_DIR, { recursive: true, force: true }); } catch {}
     fs.mkdirSync(SESSIONS_DIR, { recursive: true });
-    pairStore.clear();
     res.json({ ok: true, message: 'All sessions cleared.' });
-  } catch (e) {
-    res.json({ ok: false, error: e.message });
-  }
+  } catch (e) { res.json({ ok: false, error: e.message }); }
 });
 
-app.get('/debug', (_req, res) => {
-  res.json({
-    SESSIONS_DIR,
-    LEGACY_SESSION,
-    instances       : getAllInstances(),
-    pairStore       : [...pairStore.keys()],
-    activeSockets   : [...activeSockets.keys()],
-    memoryMB        : Math.round(process.memoryUsage().rss / 1024 / 1024),
-  });
-});
+app.get('/debug', (_q, r) => r.json({
+  SESSIONS_DIR,
+  instances    : getAllInstances(),
+  pairing      : [...pairingSockets.keys()],
+  paired       : [...pairedNumbers.keys()],
+  memMB        : Math.round(process.memoryUsage().rss / 1024 / 1024),
+}));
 
 /* ════════════════════════════════════════════════════════════
  *  /code  — Génération du code de couplage
  *
- *  Flux corrigé :
- *  1. Crée un socket Baileys temporaire (session dans tmp_pair/)
- *  2. Demande le code → le retourne à l'utilisateur
- *  3. Maintient le socket en vie dans activeSockets[]
- *  4. Quand connection: 'open' (code entré dans WhatsApp) :
- *     a. Sauvegarde la session dans ./sessions/user_<number>/
- *     b. Ferme le socket temporaire
- *     c. Appelle createBotInstance() → bot en mémoire
+ *  NOUVEAU FLUX (sans délai, sans 2ème connexion) :
+ *
+ *  1. Créer socket Baileys dans un dossier tmp
+ *  2. Dès connection:'connecting' → requestPairingCode (300ms de délai min)
+ *  3. Retourner le code au frontend
+ *  4. Quand connection:'open' (code entré dans WhatsApp) :
+ *       a. saveCreds() → flush session sur disque
+ *       b. Copier les fichiers de session dans ./sessions/user_<num>/
+ *       c. attachBotHandlers(sock, ...) → ce socket DEVIENT le bot
+ *          (aucune nouvelle connexion WhatsApp)
+ *       d. Nettoyage du dossier tmp
  * ════════════════════════════════════════════════════════════ */
 async function handleCode(req, res) {
   res.setHeader('Content-Type', 'application/json');
 
-  let number = (req.query.number || req.body?.number || '');
-  if (!number) return res.json({ error: true, message: 'Phone number required' });
-  number = number.replace(/[^0-9]/g, '');
+  let number = (req.query.number || req.body?.number || '').toString().replace(/\D/g, '');
+  if (!number) return res.json({ error: true, message: 'Numéro requis' });
   if (number.length < 7 || number.length > 15)
-    return res.json({ error: true, message: 'Invalid number (7–15 digits with country code, no +)' });
+    return res.json({ error: true, message: 'Numéro invalide (7–15 chiffres, sans +)' });
 
-  // Déjà actif ?
-  const existingInst = getBotInstance(number);
-  if (existingInst?.connected) {
-    return res.json({ error: false, already: true, message: 'Already connected.' });
-  }
+  // Déjà connecté ?
+  const existing = getBotInstance(number);
+  if (existing?.connected)
+    return res.json({ error: false, already: true, message: 'Déjà connecté.' });
 
   const userSessionDir = path.join(SESSIONS_DIR, `user_${number}`);
-  const tmpSessionDir  = path.join(TMP_PAIR_DIR,  `tmp_${number}`);
+  const tmpDir         = path.join(TMP_PAIR_DIR, `tmp_${number}`);
 
-  // Fermer tout socket de couplage actif pour ce numéro
-  if (activeSockets.has(number)) {
-    const old = activeSockets.get(number);
+  // Fermer le couplage précédent pour ce numéro s'il existe
+  if (pairingSockets.has(number)) {
+    const old = pairingSockets.get(number);
     clearTimeout(old.timer);
     try { old.sock?.ws?.close(); } catch {}
-    activeSockets.delete(number);
-    await new Promise(r => setTimeout(r, 500));
+    try { fs.rmSync(old.tmpDir, { recursive: true, force: true }); } catch {}
+    pairingSockets.delete(number);
+    await new Promise(r => setTimeout(r, 300));
   }
 
-  // Nettoyer la session temporaire précédente
-  try { fs.rmSync(tmpSessionDir, { recursive: true, force: true }); } catch {}
-  fs.mkdirSync(tmpSessionDir, { recursive: true });
+  try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  fs.mkdirSync(tmpDir, { recursive: true });
 
-  console.log(`[VARNOX] /code request for ${number}`);
+  console.log(`[VARNOX] /code for ${number}`);
 
   try {
-    const version = await getBaileysVersion();
-    const { state, saveCreds } = await useMultiFileAuthState(tmpSessionDir);
-    const logger  = pino({ level: 'silent' });
+    // ── Créer le socket de couplage ────────────────────────────────────────
+    const logger = pino({ level: 'silent' });
+    const { state, saveCreds } = await useMultiFileAuthState(tmpDir);
 
     const sock = makeWASocket({
-      version,
+      version              : getVersion(),    // version préchargée — pas d'attente réseau
       logger,
-      printQRInTerminal : false,
-      browser           : Browsers.ubuntu('Chrome'),
+      printQRInTerminal    : false,
+      browser              : Browsers.ubuntu('Chrome'),
       auth: {
         creds : state.creds,
         keys  : makeCacheableSignalKeyStore(state.keys, logger),
       },
-      msgRetryCounterCache : new NodeCache({ stdTTL: 120 }),
-      connectTimeoutMs     : 60000,
-      keepAliveIntervalMs  : 10000,
+      msgRetryCounterCache  : new NodeCache({ stdTTL: 120 }),
+      connectTimeoutMs      : 60000,
+      keepAliveIntervalMs   : 10000,
     });
 
     sock.ev.on('creds.update', saveCreds);
 
+    // ── Promesse du code de couplage ──────────────────────────────────────
     let codeResolve, codeReject;
     let codeDone    = false;
     let pairStarted = false;
     let attempts    = 0;
-    const MAX_TRIES = 5;
 
-    const codePromise = new Promise((res, rej) => {
-      codeResolve = res;
-      codeReject  = rej;
-    });
+    const codePromise = new Promise((res, rej) => { codeResolve = res; codeReject = rej; });
 
-    const hardTimeout = setTimeout(() => {
-      if (!codeDone) {
-        codeDone = true;
-        codeReject(new Error('Timeout 45s — WhatsApp ne répond pas. Réessaie.'));
-      }
-    }, 45000);
+    const hardTimer = setTimeout(() => {
+      if (!codeDone) { codeDone = true; codeReject(new Error('Timeout 40s — WhatsApp ne répond pas.')); }
+    }, 40000);
 
-    async function tryRequestCode() {
+    async function tryGetCode() {
       if (codeDone) return;
       attempts++;
-      console.log(`[VARNOX] requestPairingCode attempt ${attempts} for ${number}`);
       try {
         if (sock.authState?.creds?.registered) {
-          if (!codeDone) {
-            codeDone = true; clearTimeout(hardTimeout);
-            codeReject(new Error(
-              'Numéro déjà enregistré. Dans WhatsApp → Appareils liés → supprime le bot, puis réessaie.'
-            ));
-          }
+          codeDone = true; clearTimeout(hardTimer);
+          codeReject(new Error('Numéro déjà enregistré. Dans WhatsApp → Appareils liés → supprime le bot, puis réessaie.'));
           return;
         }
         const raw = await sock.requestPairingCode(number);
-        if (raw && !codeDone) {
-          codeDone = true; clearTimeout(hardTimeout);
-          codeResolve(raw);
-        } else if (!raw && !codeDone) {
-          if (attempts < MAX_TRIES) setTimeout(tryRequestCode, 3000);
-          else {
-            codeDone = true; clearTimeout(hardTimeout);
-            codeReject(new Error('Code nul après plusieurs tentatives. Réessaie.'));
-          }
+        if (!codeDone) {
+          if (raw) { codeDone = true; clearTimeout(hardTimer); codeResolve(raw); }
+          else if (attempts < 5) setTimeout(tryGetCode, 2000);
+          else { codeDone = true; clearTimeout(hardTimer); codeReject(new Error('Code null. Réessaie.')); }
         }
       } catch (e) {
         if (codeDone) return;
-        console.warn(`[VARNOX] requestPairingCode attempt ${attempts} failed:`, e.message);
-        if (attempts < MAX_TRIES) setTimeout(tryRequestCode, 3000);
-        else {
-          codeDone = true; clearTimeout(hardTimeout);
-          codeReject(new Error('Erreur couplage : ' + e.message));
-        }
+        if (attempts < 5) setTimeout(tryGetCode, 2000);
+        else { codeDone = true; clearTimeout(hardTimer); codeReject(new Error(e.message)); }
       }
     }
 
-    // ── Copier la session tmp → permanente et lancer le bot ─────────────────
-    async function activateSession() {
-      const credFile = path.join(tmpSessionDir, 'creds.json');
-      if (!fs.existsSync(credFile)) {
-        console.error(`[VARNOX] activateSession: no creds.json in ${tmpSessionDir}`);
-        return false;
-      }
+    // ── Gestion de la session après couplage réussi ───────────────────────
+    async function promotePairToBot() {
+      // 1. Sauvegarder les creds sur disque
+      try { await saveCreds(); } catch {}
+
+      // 2. Copier la session tmp → session permanente
       try {
         fs.mkdirSync(userSessionDir, { recursive: true });
-        const files = fs.readdirSync(tmpSessionDir);
-        for (const f of files) {
-          fs.copyFileSync(path.join(tmpSessionDir, f), path.join(userSessionDir, f));
-        }
-        console.log(`[VARNOX] ✅ Session saved for ${number} → ${userSessionDir}`);
+        fs.readdirSync(tmpDir).forEach(f => {
+          try { fs.copyFileSync(path.join(tmpDir, f), path.join(userSessionDir, f)); } catch {}
+        });
+        console.log(`[VARNOX] ✅ Session copied to ${userSessionDir}`);
       } catch (e) {
-        console.error(`[VARNOX] Session copy error for ${number}:`, e.message);
-        return false;
-      }
-
-      // Mettre à jour owner.json si c'est la première instance
-      if (getAllInstances().length === 0) initOwnerJson(number);
-      pairStore.set(number, { ts: Date.now(), ready: true, number });
-
-      // Supprimer le socket de couplage du registre
-      const entry = activeSockets.get(number);
-      if (entry) { clearTimeout(entry.timer); activeSockets.delete(number); }
-
-      // Démarrer le vrai bot en mémoire
-      try {
-        await createBotInstance(userSessionDir, number);
-        console.log(`[VARNOX] ✅ Bot instance created for ${number}`);
-      } catch (e) {
-        console.error(`[VARNOX] createBotInstance failed for ${number}:`, e.message);
-      }
-
-      // Nettoyer le dossier tmp
-      try { fs.rmSync(tmpSessionDir, { recursive: true, force: true }); } catch {}
-      return true;
-    }
-
-    // ── Événements de connexion ──────────────────────────────────────────────
-    sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
-      // Dès la connexion → demander le code
-      if (connection === 'connecting' && !pairStarted) {
-        pairStarted = true;
-        setTimeout(tryRequestCode, 1500);
-      }
-
-      if (connection === 'open') {
-        // Code entré avec succès — le socket est maintenant authentifié
-        console.log(`[VARNOX] ✅ Pairing successful for ${number}`);
-        try { await saveCreds(); } catch {}
-        // Attendre un peu pour que les creds soient bien flush sur le disque
-        await new Promise(r => setTimeout(r, 3000));
-        try { await saveCreds(); } catch {}
-        // Fermer le socket temporaire
-        try { sock.ws?.close(); } catch {}
-        // Activer la session et créer le bot
-        await activateSession();
+        console.error(`[VARNOX] Session copy error:`, e.message);
         return;
       }
 
-      if (connection === 'close') {
-        const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const loggedOut  = statusCode === DisconnectReason.loggedOut || statusCode === 401;
+      // 3. Mettre à jour owner.json (premier utilisateur)
+      if (getAllInstances().length === 0) initOwnerJson(number);
+      pairedNumbers.set(number, { ts: Date.now() });
 
-        // Si le code a déjà été envoyé et que la connexion se ferme (normal après auth)
-        if (codeDone) {
-          if (loggedOut && !pairStore.get(number)?.ready) {
-            // Échec définitif — nettoyage
-            const entry = activeSockets.get(number);
-            if (entry) { clearTimeout(entry.timer); activeSockets.delete(number); }
-            try { fs.rmSync(tmpSessionDir, { recursive: true, force: true }); } catch {}
-          }
-          // Si pas loggedOut, Baileys va auto-reconnecter → on laisse faire
+      // 4. Fermer la référence dans pairingSockets
+      const p = pairingSockets.get(number);
+      if (p) { clearTimeout(p.timer); pairingSockets.delete(number); }
+
+      // 5. ★ CLEF : attacher les handlers bot sur CE socket ★
+      //    Aucune nouvelle connexion WA — le socket de couplage devient le bot
+      attachBotHandlers(sock, userSessionDir, number, saveCreds);
+      markConnected(number);
+
+      // 6. Nettoyer le dossier tmp
+      setTimeout(() => { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} }, 3000);
+
+      console.log(`[VARNOX] ✅ Bot live for ${number} (socket reused)`);
+    }
+
+    // ── Listener de connexion ─────────────────────────────────────────────
+    sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
+      if (connection === 'connecting' && !pairStarted) {
+        pairStarted = true;
+        // Délai minimal (300ms) pour laisser le WS s'établir avant de demander le code
+        setTimeout(tryGetCode, 300);
+      }
+
+      if (connection === 'open') {
+        console.log(`[VARNOX] ✅ WA authenticated for ${number}`);
+        await promotePairToBot();
+      }
+
+      if (connection === 'close') {
+        const sc       = lastDisconnect?.error?.output?.statusCode;
+        const loggedOut = sc === DisconnectReason.loggedOut || sc === 401;
+
+        if (!codeDone) {
+          // Le code n'a pas encore été émis — signaler l'erreur
+          if (loggedOut) { codeDone = true; clearTimeout(hardTimer); codeReject(new Error('Connexion rejetée. Réessaie.')); }
+          // Sinon Baileys reconnecte automatiquement → on laisse faire
           return;
         }
 
-        // Code pas encore envoyé et connexion fermée
-        if (loggedOut) {
-          codeDone = true; clearTimeout(hardTimeout);
-          codeReject(new Error('Session expirée. Réessaie.'));
+        // Code déjà envoyé → si loggedOut AVANT activation du bot, nettoyer
+        if (loggedOut && !pairedNumbers.has(number)) {
+          const p = pairingSockets.get(number);
+          if (p) { clearTimeout(p.timer); pairingSockets.delete(number); }
+          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
         }
-        // Sinon, Baileys auto-reconnecte
+        // Sinon (reconnexion normale) → Baileys gère
       }
     });
 
-    // Fallback : si 'connecting' n'a pas été reçu après 8s
-    setTimeout(() => {
-      if (!codeDone && !pairStarted) {
-        pairStarted = true;
-        tryRequestCode();
-      }
-    }, 8000);
+    // Fallback : si 'connecting' tarde ou ne se déclenche pas
+    setTimeout(() => { if (!codeDone && !pairStarted) { pairStarted = true; tryGetCode(); } }, 7000);
 
-    // Attendre le code
+    // ── Attendre le code ──────────────────────────────────────────────────
     const raw       = await codePromise;
-    const formatted = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').match(/.{1,4}/g)?.join('-') ?? raw;
+    const formatted = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').match(/.{1,4}/g)?.join('-') || raw;
 
-    console.log(`[VARNOX] Code generated for ${number}: ${formatted}`);
+    console.log(`[VARNOX] Code for ${number}: ${formatted}`);
 
-    // Timer d'expiration du socket de couplage (15 min)
+    // Garder le socket vivant jusqu'à 15 min
     const timer = setTimeout(() => {
-      if (activeSockets.has(number)) {
-        try { activeSockets.get(number).sock?.ws?.close(); } catch {}
-        activeSockets.delete(number);
-        if (!pairStore.get(number)?.ready) {
-          try { fs.rmSync(tmpSessionDir, { recursive: true, force: true }); } catch {}
-        }
+      if (pairingSockets.has(number)) {
+        try { pairingSockets.get(number).sock?.ws?.close(); } catch {}
+        pairingSockets.delete(number);
+        if (!pairedNumbers.has(number))
+          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
       }
     }, 15 * 60 * 1000);
 
-    activeSockets.set(number, { sock, timer });
+    pairingSockets.set(number, { sock, saveCreds, tmpDir, timer });
 
     return res.json({ error: false, code: formatted });
 
   } catch (err) {
-    console.error(`[VARNOX] /code error for ${number}:`, err.message);
-    if (!pairStore.get(number)?.ready) {
-      try { fs.rmSync(tmpSessionDir, { recursive: true, force: true }); } catch {}
-    }
+    console.error(`[VARNOX] /code error ${number}:`, err.message);
+    if (!pairedNumbers.has(number))
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     return res.json({ error: true, message: err.message || 'Erreur génération du code' });
   }
 }
@@ -525,19 +415,19 @@ app.get('/code',  handleCode);
 app.post('/code', handleCode);
 
 /* ─── SPA fallback ─────────────────────────────────────────── */
-app.get('*', (_req, res) => {
-  const indexPath = path.join(__dirname, 'public', 'index.html');
-  if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
-  res.json({ status: 'VARNOX XD V2 API running', endpoints: ['/ping', '/health', '/code?number=', '/session?number=', '/reset?number=', '/debug'] });
+app.get('*', (_q, r) => {
+  const p = path.join(__dirname, 'public', 'index.html');
+  if (fs.existsSync(p)) return r.sendFile(p);
+  r.json({ status: 'VARNOX XD V2 — Multi-User', v: '16.0.0' });
 });
 
 /* ─── Démarrage ────────────────────────────────────────────── */
 app.listen(PORT, () => {
-  console.log(`\n╔══════════════════════════════════════════════╗`);
-  console.log(`║  VARNOX XD V2 v15 (SINGLE-PROCESS MULTI-USER) ║`);
-  console.log(`║  Port : ${PORT}                                  ║`);
-  console.log(`║  Chaque utilisateur = bot en mémoire           ║`);
-  console.log(`╚══════════════════════════════════════════════╝\n`);
+  console.log(`\n╔════════════════════════════════════════════════╗`);
+  console.log(`║  VARNOX XD V2 v16 — Multi-User sans délai      ║`);
+  console.log(`║  Port : ${PORT}                                    ║`);
+  console.log(`║  Socket couplage = socket bot (0 délai)         ║`);
+  console.log(`╚════════════════════════════════════════════════╝\n`);
 });
 
 module.exports = app;
