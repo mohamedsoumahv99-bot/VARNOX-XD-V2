@@ -286,10 +286,13 @@ async function handleCode(req, res) {
       keepAliveIntervalMs   : 10000,
     });
 
-    // NOTE : on N'enregistre PAS sock.ev.on('creds.update', saveCreds) ici.
-    // attachBotHandlers s'en charge avec le bon saveCreds (userSessionDir).
-    // Pendant la phase de couplage, les creds sont sauvegardés manuellement
-    // via saveCreds() dans promotePairToBot avant la copie.
+    // ★ CRITIQUE : enregistrer creds.update dès maintenant (vers tmpDir).
+    // WhatsApp envoie des mises à jour de clés en continu pendant et après
+    // le couplage. Sans ce handler, les clés de session (noise keys, signal
+    // pre-keys, etc.) ne sont pas écrites sur disque au fur et à mesure.
+    // Le saveCreds() manuel dans promotePairToBot ne suffit pas car certaines
+    // mises à jour arrivent APRÈS connection:'open' — race condition.
+    sock.ev.on('creds.update', saveCreds);
 
     // ── Promesse du code de couplage ──────────────────────────────────────
     let codeResolve, codeReject;
@@ -334,13 +337,21 @@ async function handleCode(req, res) {
       // Éviter un double-déclenchement si connection:'open' fire deux fois
       if (intentionallyClosed) return;
 
-      // 1. Flush les creds courants dans tmpDir (avant copie)
-      //    saveCreds() écrit state.creds (l'objet réel du socket) sur disque → tmpDir
+      // 1. ★ Attendre 4s après connection:'open' ★
+      //    WhatsApp envoie des paquets supplémentaires (clés de session, noise,
+      //    prékeys, infos de compte…) dans les secondes qui suivent l'ouverture.
+      //    Le handler creds.update ci-dessus les capte et les écrit dans tmpDir.
+      //    Sans cette attente, saveCreds() snapshote un état INCOMPLET.
+      //    (L'original qui marchait avait saveAndClose(4000) — délai identique.)
+      await new Promise(r => setTimeout(r, 4000));
+      if (intentionallyClosed) return; // vérification après le délai
+
+      // 2. Flush explicite (en plus du handler auto) pour être sûr
       try { await saveCreds(); } catch (e) {
         console.error(`[VARNOX] saveCreds(tmp) error:`, e.message);
       }
 
-      // 2. Copier la session tmp → session permanente
+      // 3. Copier la session tmp → session permanente
       let copyOk = false;
       try {
         fs.mkdirSync(userSessionDir, { recursive: true });
@@ -359,15 +370,15 @@ async function handleCode(req, res) {
         return;
       }
 
-      // 3. Mettre à jour owner.json (premier utilisateur)
+      // 4. Mettre à jour owner.json (premier utilisateur)
       if (getAllInstances().length === 0) initOwnerJson(number);
       pairedNumbers.set(number, { ts: Date.now() });
 
-      // 4. Fermer la référence dans pairingSockets
+      // 5. Fermer la référence dans pairingSockets
       const p = pairingSockets.get(number);
       if (p) { clearTimeout(p.timer); pairingSockets.delete(number); }
 
-      // 5. ★ FIX v18 : fermer le socket de couplage et démarrer un NOUVEAU socket ★
+      // 6. ★ FIX v18 : fermer le socket de couplage et démarrer un NOUVEAU socket ★
       //
       //    POURQUOI l'approche "réutiliser le socket de couplage" était cassée (v17) :
       //      - Le socket utilise state.creds (objet A, initialisé depuis tmpDir).
