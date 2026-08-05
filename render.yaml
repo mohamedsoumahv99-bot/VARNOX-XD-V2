@@ -18,7 +18,3 @@ services:
           type: web
           name: varnox-xd-v2
           property: host
-    disk:
-      name: varnox-session
-      mountPath: /opt/render/project/src/session
-      sizeGB: 1
