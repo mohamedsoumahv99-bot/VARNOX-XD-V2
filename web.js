@@ -221,10 +221,10 @@ app.get('/debug', (_q, r) => r.json({
 /* ════════════════════════════════════════════════════════════
  *  /code  — Génération du code de couplage
  *
- *  FLUX (sans délai, sans 2ème connexion) :
+ *  FLUX (socket de couplage stable, puis socket bot propre) :
  *
  *  1. Créer socket Baileys dans un dossier tmp
- *  2. Dès connection:'connecting' → requestPairingCode (300ms de délai min)
+ *  2. Après connection:'connecting' → requestPairingCode (3s de délai)
  *  3. Retourner le code au frontend
  *  4. Quand connection:'open' (code entré dans WhatsApp) :
  *       a. saveCreds() → flush session sur disque (tmpDir)
@@ -234,7 +234,7 @@ app.get('/debug', (_q, r) => r.json({
  *       e. attachBotHandlers(sock, userSessionDir, num, saveCredsUser) ← FIX v17
  *          → ce socket DEVIENT le bot, les creds sont persistés
  *            dans userSessionDir (pas dans tmpDir qui sera effacé)
- *       f. Nettoyage du dossier tmp après 15 s
+ *       f. Nettoyage du dossier tmp après validation du nouveau socket
  * ════════════════════════════════════════════════════════════ */
 async function handleCode(req, res) {
   res.setHeader('Content-Type', 'application/json');
@@ -248,6 +248,7 @@ async function handleCode(req, res) {
   const existing = getBotInstance(number);
   if (existing?.connected)
     return res.json({ error: false, already: true, message: 'Déjà connecté.' });
+  if (existing && !existing.connected) stopBotInstance(number);
 
   const userSessionDir = path.join(SESSIONS_DIR, `user_${number}`);
   const tmpDir         = path.join(TMP_PAIR_DIR, `tmp_${number}`);
@@ -273,7 +274,7 @@ async function handleCode(req, res) {
     const { state, saveCreds } = await useMultiFileAuthState(tmpDir);
 
     const sock = makeWASocket({
-      version              : getVersion(),    // version préchargée — pas d'attente réseau
+      version              : getVersion(),    // Baileys 7 latest préchargé au démarrage
       logger,
       printQRInTerminal    : false,
       browser              : Browsers.ubuntu('Chrome'),
@@ -284,6 +285,9 @@ async function handleCode(req, res) {
       msgRetryCounterCache  : new NodeCache({ stdTTL: 120 }),
       connectTimeoutMs      : 60000,
       keepAliveIntervalMs   : 10000,
+      defaultQueryTimeoutMs : 60000,
+      syncFullHistory       : false,
+      markOnlineOnConnect   : true,
     });
 
     // ★ CRITIQUE : enregistrer creds.update dès maintenant (vers tmpDir).
@@ -303,14 +307,17 @@ async function handleCode(req, res) {
     const codePromise = new Promise((res, rej) => { codeResolve = res; codeReject = rej; });
 
     const hardTimer = setTimeout(() => {
-      if (!codeDone) { codeDone = true; codeReject(new Error('Timeout 40s — WhatsApp ne répond pas.')); }
-    }, 40000);
+      if (!codeDone) {
+        codeDone = true;
+        codeReject(new Error('Timeout 60s — WhatsApp n’a pas préparé la connexion. Réessaie avec le numéro international sans +.'));
+      }
+    }, 60000);
 
     async function tryGetCode() {
       if (codeDone) return;
       attempts++;
       try {
-        if (sock.authState?.creds?.registered) {
+        if (state.creds.registered) {
           codeDone = true; clearTimeout(hardTimer);
           codeReject(new Error('Numéro déjà enregistré. Dans WhatsApp → Appareils liés → supprime le bot, puis réessaie.'));
           return;
@@ -323,7 +330,7 @@ async function handleCode(req, res) {
         }
       } catch (e) {
         if (codeDone) return;
-        if (attempts < 5) setTimeout(tryGetCode, 2000);
+        if (attempts < 5) setTimeout(tryGetCode, 2500);
         else { codeDone = true; clearTimeout(hardTimer); codeReject(new Error(e.message)); }
       }
     }
@@ -337,13 +344,14 @@ async function handleCode(req, res) {
       // Éviter un double-déclenchement si connection:'open' fire deux fois
       if (intentionallyClosed) return;
 
-      // 1. ★ Attendre 4s après connection:'open' ★
+      // 1. ★ Attendre 6s après connection:'open' ★
       //    WhatsApp envoie des paquets supplémentaires (clés de session, noise,
       //    prékeys, infos de compte…) dans les secondes qui suivent l'ouverture.
       //    Le handler creds.update ci-dessus les capte et les écrit dans tmpDir.
       //    Sans cette attente, saveCreds() snapshote un état INCOMPLET.
-      //    (L'original qui marchait avait saveAndClose(4000) — délai identique.)
-      await new Promise(r => setTimeout(r, 4000));
+      //    Ce délai laisse les dernières mises à jour de clés arriver avant
+      //    toute copie ou fermeture du socket.
+      await new Promise(r => setTimeout(r, 6000));
       if (intentionallyClosed) return; // vérification après le délai
 
       // 2. Flush explicite (en plus du handler auto) pour être sûr
@@ -354,11 +362,19 @@ async function handleCode(req, res) {
       // 3. Copier la session tmp → session permanente
       let copyOk = false;
       try {
-        fs.mkdirSync(userSessionDir, { recursive: true });
+        const stageDir = `${userSessionDir}.stage`;
+        fs.rmSync(stageDir, { recursive: true, force: true });
+        fs.mkdirSync(stageDir, { recursive: true });
         const files = fs.readdirSync(tmpDir);
+        if (!files.includes('creds.json')) throw new Error('creds.json absent après authentification');
         for (const f of files) {
-          try { fs.copyFileSync(path.join(tmpDir, f), path.join(userSessionDir, f)); } catch {}
+          const src = path.join(tmpDir, f);
+          const dst = path.join(stageDir, f);
+          const stat = fs.statSync(src);
+          if (stat.isFile()) fs.copyFileSync(src, dst);
         }
+        fs.rmSync(userSessionDir, { recursive: true, force: true });
+        fs.renameSync(stageDir, userSessionDir);
         copyOk = true;
         console.log(`[VARNOX] ✅ Session copied to ${userSessionDir}`);
       } catch (e) {
@@ -400,8 +416,7 @@ async function handleCode(req, res) {
       setTimeout(async () => {
         try {
           await createBotInstance(userSessionDir, number);
-          markConnected(number);
-          console.log(`[VARNOX] ✅ Bot live for ${number} (new socket ← userSessionDir)`);
+          console.log(`[VARNOX] ✅ Bot socket created for ${number}; waiting for WhatsApp open`);
         } catch (e) {
           console.error(`[VARNOX] createBotInstance failed for ${number}:`, e.message);
         }
@@ -414,8 +429,9 @@ async function handleCode(req, res) {
     sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
       if (connection === 'connecting' && !pairStarted) {
         pairStarted = true;
-        // Délai minimal (300ms) pour laisser le WS s'établir avant de demander le code
-        setTimeout(tryGetCode, 300);
+        // WhatsApp/Baileys doit finir son handshake avant requestPairingCode.
+        // Le flux officiel du même dépôt attend 3 secondes.
+        setTimeout(tryGetCode, 3000);
       }
 
       if (connection === 'open') {
@@ -429,6 +445,7 @@ async function handleCode(req, res) {
 
         const sc        = lastDisconnect?.error?.output?.statusCode;
         const loggedOut = sc === DisconnectReason.loggedOut || sc === 401;
+        console.error(`[VARNOX] Pairing socket closed for ${number}; code=${sc ?? 'unknown'}; reason=${lastDisconnect?.error?.message || 'unknown'}`);
 
         if (!codeDone) {
           // Le code n'a pas encore été émis — signaler l'erreur
