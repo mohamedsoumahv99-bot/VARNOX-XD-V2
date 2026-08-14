@@ -1,26 +1,18 @@
 /**
- * VARNOX XD V2 — web.js  v18  (SINGLE-PROCESS MULTI-USER — TWO-SOCKET FIX)
+ * VARNOX XD V2 — web.js  v19  (SINGLE-SOCKET PERSISTENT PAIRING)
  *
  * Corrections v18 (fix root cause de l'échec de reconnexion) :
  *
- *  PROBLÈME v17 (aliasing de state.creds) :
- *    - Le socket de couplage utilise state.creds (objet A, depuis tmpDir).
- *    - Après copie, on faisait useMultiFileAuthState(userSessionDir) → fresh.state.creds
- *      (objet B, copie statique lue depuis disque).
- *    - saveCredsUser = fresh.saveCreds écrit l'objet B.
- *    - Mais Baileys met à jour l'objet A (vrai état du socket) et émet creds.update.
- *    - Résultat : saveCredsUser() sauvegarde des creds périmés (objet B figé)
- *      → à la prochaine reconnexion, creds stale → échec d'authentification.
- *    - Idem pour les signal keys (makeCacheableSignalKeyStore était initialisé
- *      depuis tmpDir → les nouvelles pre-keys allaient dans tmpDir, supprimé après).
+ *  PROBLÈME v17/v18 :
+ *    - Le socket de couplage était séparé du socket du bot.
+ *    - La copie et la fermeture pendant le handshake pouvaient perdre des
+ *      clés de signal et faire refuser le code par WhatsApp.
  *
- *  FIX v18 (approche deux sockets) :
- *    1. session couplage (tmpDir) → flush + copie → userSessionDir  (inchangé)
- *    2. socket de couplage fermé proprement (flag intentionallyClosed)
- *    3. createBotInstance(userSessionDir, number) → NEW socket
- *       → Baileys lit auth.creds ET auth.keys depuis userSessionDir dès le départ
- *       → TOUTES les écritures futures (creds.update, pre-keys…) vont dans userSessionDir
- *       → zéro aliasing, zéro creds perdus
+ *  FIX v19 :
+ *    - Le socket de pairing utilise directement userSessionDir.
+ *    - Il devient le socket du bot après connection:'open'.
+ *    - Aucun tmpDir, aucune copie de clés, aucune fermeture/reconnexion
+ *      pendant le handshake WhatsApp.
  */
 'use strict';
 
@@ -46,12 +38,11 @@ const NodeCache = require('node-cache');
 
 const {
   attachBotHandlers,
-  createBotInstance,
   stopBotInstance,
   getBotInstance,
   getAllInstances,
   markConnected,
-  getVersion,
+  getLatestVersion,
 } = require('./lib/botInstance');
 
 const app  = express();
@@ -60,11 +51,10 @@ const PORT = process.env.PORT || 3000;
 /* ─── Répertoires ─────────────────────────────────────────── */
 const SESSIONS_DIR   = path.join(__dirname, 'sessions');
 const LEGACY_SESSION = path.join(__dirname, 'session');
-const TMP_PAIR_DIR   = path.join(__dirname, 'tmp_pair');
 const DATA_DIR       = path.join(__dirname, 'data');
 const OWNER_JSON     = path.join(DATA_DIR, 'owner.json');
 
-[SESSIONS_DIR, LEGACY_SESSION, TMP_PAIR_DIR, DATA_DIR].forEach(d => {
+[SESSIONS_DIR, LEGACY_SESSION, DATA_DIR].forEach(d => {
   try { fs.mkdirSync(d, { recursive: true }); } catch {}
 });
 
@@ -105,7 +95,7 @@ if (SELF_URL) {
 }
 
 /* ─── Sockets de couplage en cours ───────────────────────── */
-// Map<string, { sock, saveCreds, tmpDir, timer }>
+// Map<string, { sock, saveCreds, sessionDir, timer }>
 const pairingSockets = new Map();
 
 /* ─── Sessions marquées prêtes ───────────────────────────── */
@@ -190,7 +180,7 @@ app.get('/reset', (req, res) => {
         const p = pairingSockets.get(num);
         clearTimeout(p.timer);
         try { p.sock?.ws?.close(); } catch {}
-        try { fs.rmSync(p.tmpDir, { recursive: true, force: true }); } catch {}
+        try { fs.rmSync(p.sessionDir, { recursive: true, force: true }); } catch {}
         pairingSockets.delete(num);
       }
       pairedNumbers.delete(num);
@@ -221,20 +211,15 @@ app.get('/debug', (_q, r) => r.json({
 /* ════════════════════════════════════════════════════════════
  *  /code  — Génération du code de couplage
  *
- *  FLUX (socket de couplage stable, puis socket bot propre) :
+ *  FLUX (un seul socket, session persistante) :
  *
- *  1. Créer socket Baileys dans un dossier tmp
+ *  1. Créer socket Baileys dans ./sessions/user_<num>/
  *  2. Après connection:'connecting' → requestPairingCode (3s de délai)
  *  3. Retourner le code au frontend
  *  4. Quand connection:'open' (code entré dans WhatsApp) :
- *       a. saveCreds() → flush session sur disque (tmpDir)
- *       b. Copier les fichiers de session dans ./sessions/user_<num>/
- *       c. Obtenir un nouveau saveCreds pointant sur userSessionDir  ← FIX v17
- *       d. Retirer l'ancien handler creds.update (tmpDir)            ← FIX v17
- *       e. attachBotHandlers(sock, userSessionDir, num, saveCredsUser) ← FIX v17
- *          → ce socket DEVIENT le bot, les creds sont persistés
- *            dans userSessionDir (pas dans tmpDir qui sera effacé)
- *       f. Nettoyage du dossier tmp après validation du nouveau socket
+ *       a. flush saveCreds()
+ *       b. attachBotHandlers() sur ce même socket
+ *       c. garder la connexion ouverte — aucun handoff risqué
  * ════════════════════════════════════════════════════════════ */
 async function handleCode(req, res) {
   res.setHeader('Content-Type', 'application/json');
@@ -251,30 +236,35 @@ async function handleCode(req, res) {
   if (existing && !existing.connected) stopBotInstance(number);
 
   const userSessionDir = path.join(SESSIONS_DIR, `user_${number}`);
-  const tmpDir         = path.join(TMP_PAIR_DIR, `tmp_${number}`);
+  const sessionDir     = userSessionDir;
 
   // Fermer le couplage précédent pour ce numéro s'il existe
   if (pairingSockets.has(number)) {
     const old = pairingSockets.get(number);
     clearTimeout(old.timer);
     try { old.sock?.ws?.close(); } catch {}
-    try { fs.rmSync(old.tmpDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(old.sessionDir, { recursive: true, force: true }); } catch {}
     pairingSockets.delete(number);
     await new Promise(r => setTimeout(r, 300));
   }
 
-  try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-  fs.mkdirSync(tmpDir, { recursive: true });
+  // Une tentative précédente non connectée peut avoir laissé des clés
+  // incomplètes. On repart d'une session propre pour chaque nouveau code.
+  try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
+  fs.mkdirSync(sessionDir, { recursive: true });
 
   console.log(`[VARNOX] /code for ${number}`);
 
   try {
-    // ── Créer le socket de couplage ────────────────────────────────────────
+    // ── Créer le socket directement dans la session permanente ────────────
     const logger = pino({ level: 'silent' });
-    const { state, saveCreds } = await useMultiFileAuthState(tmpDir);
+    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+    // Ne jamais générer un code avec la version fallback si le réseau est
+    // disponible : WhatsApp peut l'afficher puis refuser sa validation.
+    const version = await getLatestVersion();
 
     const sock = makeWASocket({
-      version              : getVersion(),    // Baileys 7 latest préchargé au démarrage
+      version,
       logger,
       printQRInTerminal    : false,
       browser              : Browsers.ubuntu('Chrome'),
@@ -290,7 +280,7 @@ async function handleCode(req, res) {
       markOnlineOnConnect   : true,
     });
 
-    // ★ CRITIQUE : enregistrer creds.update dès maintenant (vers tmpDir).
+    // ★ CRITIQUE : enregistrer creds.update dès maintenant (vers sessionDir).
     // WhatsApp envoie des mises à jour de clés en continu pendant et après
     // le couplage. Sans ce handler, les clés de session (noise keys, signal
     // pre-keys, etc.) ne sont pas écrites sur disque au fur et à mesure.
@@ -336,93 +326,36 @@ async function handleCode(req, res) {
     }
 
     // ── Gestion de la session après couplage réussi ───────────────────────
-    // Flag : indique que le socket de couplage a été fermé VOLONTAIREMENT
-    // pour démarrer le nouveau socket bot depuis userSessionDir.
-    let intentionallyClosed = false;
+    // Le socket reste ouvert et devient directement le socket du bot.
+    let pairActivated = false;
 
     async function promotePairToBot() {
       // Éviter un double-déclenchement si connection:'open' fire deux fois
-      if (intentionallyClosed) return;
+      if (pairActivated) return;
+      pairActivated = true;
 
-      // 1. ★ Attendre 6s après connection:'open' ★
-      //    WhatsApp envoie des paquets supplémentaires (clés de session, noise,
-      //    prékeys, infos de compte…) dans les secondes qui suivent l'ouverture.
-      //    Le handler creds.update ci-dessus les capte et les écrit dans tmpDir.
-      //    Sans cette attente, saveCreds() snapshote un état INCOMPLET.
-      //    Ce délai laisse les dernières mises à jour de clés arriver avant
-      //    toute copie ou fermeture du socket.
-      await new Promise(r => setTimeout(r, 6000));
-      if (intentionallyClosed) return; // vérification après le délai
-
-      // 2. Flush explicite (en plus du handler auto) pour être sûr
+      // Laisser les dernières clés de signal être écrites avant activation.
+      await new Promise(r => setTimeout(r, 4000));
       try { await saveCreds(); } catch (e) {
-        console.error(`[VARNOX] saveCreds(tmp) error:`, e.message);
+        console.error(`[VARNOX] saveCreds error:`, e.message);
       }
 
-      // 3. Copier la session tmp → session permanente
-      let copyOk = false;
-      try {
-        const stageDir = `${userSessionDir}.stage`;
-        fs.rmSync(stageDir, { recursive: true, force: true });
-        fs.mkdirSync(stageDir, { recursive: true });
-        const files = fs.readdirSync(tmpDir);
-        if (!files.includes('creds.json')) throw new Error('creds.json absent après authentification');
-        for (const f of files) {
-          const src = path.join(tmpDir, f);
-          const dst = path.join(stageDir, f);
-          const stat = fs.statSync(src);
-          if (stat.isFile()) fs.copyFileSync(src, dst);
-        }
-        fs.rmSync(userSessionDir, { recursive: true, force: true });
-        fs.renameSync(stageDir, userSessionDir);
-        copyOk = true;
-        console.log(`[VARNOX] ✅ Session copied to ${userSessionDir}`);
-      } catch (e) {
-        console.error(`[VARNOX] Session copy error:`, e.message);
+      if (!fs.existsSync(path.join(sessionDir, 'creds.json'))) {
+        pairActivated = false;
+        throw new Error('creds.json absent après authentification');
       }
 
-      if (!copyOk) {
-        console.error(`[VARNOX] ❌ Copy failed — bot non activé pour ${number}`);
-        return;
-      }
-
-      // 4. Mettre à jour owner.json (premier utilisateur)
+      // Mettre à jour owner.json (premier utilisateur)
       if (getAllInstances().length === 0) initOwnerJson(number);
       pairedNumbers.set(number, { ts: Date.now() });
 
-      // 5. Fermer la référence dans pairingSockets
+      // Le socket actuel devient le socket du bot : aucun deuxième handshake.
       const p = pairingSockets.get(number);
       if (p) { clearTimeout(p.timer); pairingSockets.delete(number); }
 
-      // 6. ★ FIX v18 : fermer le socket de couplage et démarrer un NOUVEAU socket ★
-      //
-      //    POURQUOI l'approche "réutiliser le socket de couplage" était cassée (v17) :
-      //      - Le socket utilise state.creds (objet A, initialisé depuis tmpDir).
-      //      - useMultiFileAuthState(userSessionDir) crée fresh.state.creds (objet B).
-      //      - fresh.saveCreds() écrit l'objet B — figé au moment de la lecture.
-      //      - Baileys met à jour l'objet A et émet creds.update.
-      //      - → On sauvegarde des creds périmés (B) → reconnexion échoue.
-      //      - Idem pour makeCacheableSignalKeyStore : les pre-keys allaient dans tmpDir.
-      //
-      //    SOLUTION : nouveau socket depuis userSessionDir
-      //      - auth.creds ET auth.keys lus depuis userSessionDir dès le départ.
-      //      - Toutes les écritures futures vont dans userSessionDir.
-      //      - Zéro aliasing, zéro creds perdus.
-      //
-      intentionallyClosed = true;
-      try { sock.ws?.close(); } catch {}   // fermeture propre du socket de couplage
-
-      // Attendre 2 s (le socket doit être fermé côté WS avant reconnexion)
-      setTimeout(async () => {
-        try {
-          await createBotInstance(userSessionDir, number);
-          console.log(`[VARNOX] ✅ Bot socket created for ${number}; waiting for WhatsApp open`);
-        } catch (e) {
-          console.error(`[VARNOX] createBotInstance failed for ${number}:`, e.message);
-        }
-        // Nettoyer tmpDir (copie déjà effectuée)
-        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-      }, 2000);
+      attachBotHandlers(sock, sessionDir, number, saveCreds);
+      markConnected(number);
+      console.log(`[VARNOX] ✅ Bot activated on persistent socket for ${number}`);
     }
 
     // ── Listener de connexion ─────────────────────────────────────────────
@@ -440,8 +373,8 @@ async function handleCode(req, res) {
       }
 
       if (connection === 'close') {
-        // Socket fermé volontairement dans promotePairToBot → rien à faire
-        if (intentionallyClosed) return;
+        // Après activation, le handler de botInstance gère la reconnexion.
+        if (pairActivated) return;
 
         const sc        = lastDisconnect?.error?.output?.statusCode;
         const loggedOut = sc === DisconnectReason.loggedOut || sc === 401;
@@ -458,7 +391,7 @@ async function handleCode(req, res) {
         if (loggedOut && !pairedNumbers.has(number)) {
           const p = pairingSockets.get(number);
           if (p) { clearTimeout(p.timer); pairingSockets.delete(number); }
-          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+          try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
         }
         // Sinon → Baileys / botInstance gère la reconnexion
       }
@@ -480,18 +413,18 @@ async function handleCode(req, res) {
         try { pairingSockets.get(number).sock?.ws?.close(); } catch {}
         pairingSockets.delete(number);
         if (!pairedNumbers.has(number))
-          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+          try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
       }
     }, 15 * 60 * 1000);
 
-    pairingSockets.set(number, { sock, saveCreds, tmpDir, timer });
+    pairingSockets.set(number, { sock, saveCreds, sessionDir, timer });
 
     return res.json({ error: false, code: formatted });
 
   } catch (err) {
     console.error(`[VARNOX] /code error ${number}:`, err.message);
     if (!pairedNumbers.has(number))
-      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
     return res.json({ error: true, message: err.message || 'Erreur génération du code' });
   }
 }
@@ -503,15 +436,15 @@ app.post('/code', handleCode);
 app.get('*', (_q, r) => {
   const p = path.join(__dirname, 'public', 'index.html');
   if (fs.existsSync(p)) return r.sendFile(p);
-  r.json({ status: 'VARNOX XD V2 — Multi-User', v: '17.0.0' });
+  r.json({ status: 'VARNOX XD V2 — Multi-User', v: '19.0.0' });
 });
 
 /* ─── Démarrage ────────────────────────────────────────────── */
 app.listen(PORT, () => {
   console.log(`\n╔════════════════════════════════════════════════╗`);
-  console.log(`║  VARNOX XD V2 v17 — Multi-User sans délai      ║`);
+  console.log(`║  VARNOX XD V2 v19 — Pairing stable              ║`);
   console.log(`║  Port : ${PORT}                                    ║`);
-  console.log(`║  saveCreds → userSessionDir après couplage      ║`);
+  console.log(`║  saveCreds → session permanente                  ║`);
   console.log(`╚════════════════════════════════════════════════╝\n`);
 });
 

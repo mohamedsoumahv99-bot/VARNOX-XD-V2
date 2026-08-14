@@ -11,6 +11,8 @@ services:
         value: 10000
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: "20"
       - key: OWNER_NUMBER
         sync: false
       - key: RENDER_EXTERNAL_URL
