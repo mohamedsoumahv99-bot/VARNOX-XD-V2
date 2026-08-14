@@ -101,6 +101,8 @@ const pairingSockets = new Map();
 /* ─── Sessions marquées prêtes ───────────────────────────── */
 // Map<string, { ts }>
 const pairedNumbers = new Map();
+// Map<string, { code, message, ts }>
+const pairingFailures = new Map();
 
 /* ═══════════════════════════════════════════════════════════
  *  Démarrage des sessions existantes (au boot)
@@ -140,7 +142,7 @@ app.get('/ping', (_q, r) => r.json({ pong: true, ts: Date.now() }));
 
 app.get('/health', (_q, r) => {
   const insts = getAllInstances();
-  r.json({ status: 'online', bot: 'VARNOX XD V2', v: '17.0.0', uptime: Math.floor(process.uptime()), instances: insts, total: insts.length });
+  r.json({ status: 'online', bot: 'VARNOX XD V2', v: '19.1.0', uptime: Math.floor(process.uptime()), instances: insts, total: insts.length });
 });
 
 app.get('/botStatus', (req, res) => {
@@ -165,9 +167,19 @@ app.get('/session', (req, res) => {
   if (!number) return res.json({ ready: false });
   number = number.replace(/\D/g, '');
   const i = getBotInstance(number);
-  if (i?.connected) return res.json({ ready: true });
-  if (fs.existsSync(path.join(SESSIONS_DIR, `user_${number}`, 'creds.json'))) return res.json({ ready: true });
-  res.json({ ready: false });
+  // IMPORTANT: creds.json est créé dès le début du pairing. Sa présence
+  // ne signifie pas que WhatsApp a accepté le code.
+  if (i?.connected && pairedNumbers.has(number)) {
+    return res.json({ ready: true, connected: true });
+  }
+  const failure = pairingFailures.get(number);
+  res.json({
+    ready    : false,
+    connected: false,
+    pairing  : pairingSockets.has(number),
+    error    : failure?.message || null,
+    code     : failure?.code || null,
+  });
 });
 
 app.get('/reset', (req, res) => {
@@ -205,6 +217,7 @@ app.get('/debug', (_q, r) => r.json({
   instances    : getAllInstances(),
   pairing      : [...pairingSockets.keys()],
   paired       : [...pairedNumbers.keys()],
+  failures     : [...pairingFailures.entries()],
   memMB        : Math.round(process.memoryUsage().rss / 1024 / 1024),
 }));
 
@@ -254,6 +267,7 @@ async function handleCode(req, res) {
   fs.mkdirSync(sessionDir, { recursive: true });
 
   console.log(`[VARNOX] /code for ${number}`);
+  pairingFailures.delete(number);
 
   try {
     // ── Créer le socket directement dans la session permanente ────────────
@@ -267,7 +281,9 @@ async function handleCode(req, res) {
       version,
       logger,
       printQRInTerminal    : false,
-      browser              : Browsers.ubuntu('Chrome'),
+      // Desktop client is the most compatible profile for phone-number
+      // linking. Some WhatsApp builds reject the Ubuntu companion profile.
+      browser              : Browsers.macOS('Desktop'),
       auth: {
         creds : state.creds,
         keys  : makeCacheableSignalKeyStore(state.keys, logger),
@@ -382,13 +398,23 @@ async function handleCode(req, res) {
 
         if (!codeDone) {
           // Le code n'a pas encore été émis — signaler l'erreur
-          if (loggedOut) { codeDone = true; clearTimeout(hardTimer); codeReject(new Error('Connexion rejetée. Réessaie.')); }
+          if (loggedOut) {
+            const message = 'WhatsApp a rejeté la connexion avant la validation du code.';
+            pairingFailures.set(number, { code: sc || 401, message, ts: Date.now() });
+            codeDone = true;
+            clearTimeout(hardTimer);
+            codeReject(new Error(message));
+          }
           // Sinon Baileys reconnecte automatiquement → on laisse faire
           return;
         }
 
         // Code déjà envoyé → si loggedOut AVANT activation du bot, nettoyer
         if (loggedOut && !pairedNumbers.has(number)) {
+          const message = sc === 401
+            ? 'Code refusé par WhatsApp. Supprime les anciennes sessions liées, attends quelques secondes, puis génère un nouveau code.'
+            : `Connexion WhatsApp refusée (code ${sc}).`;
+          pairingFailures.set(number, { code: sc || 401, message, ts: Date.now() });
           const p = pairingSockets.get(number);
           if (p) { clearTimeout(p.timer); pairingSockets.delete(number); }
           try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}

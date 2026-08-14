@@ -494,6 +494,16 @@ function startPoll(num) {
       if (d.ready) {
         stopPoll();
         showSuccess();
+      } else if (d.error && !d.pairing) {
+        stopPoll();
+        const sm = document.getElementById('statusMsg');
+        const cb = document.getElementById('codeBox');
+        const ci = document.getElementById('codeInner');
+        cb.className = 'code-box error';
+        ci.innerHTML = `<span class="code-err">❌ ${d.error}</span>`;
+        sm.textContent = 'Génère un nouveau code après avoir supprimé l’ancien appareil lié.';
+        sm.className = 'status err';
+        document.getElementById('btnGen').disabled = false;
       }
     } catch (_) {}
   }, 3000);
