@@ -152,7 +152,16 @@ app.get('/ping', (_q, r) => r.json({ pong: true, ts: Date.now() }));
 
 app.get('/health', (_q, r) => {
   const insts = getAllInstances();
-  r.json({ status: 'online', bot: 'VARNOX XD V2', v: '19.1.0', uptime: Math.floor(process.uptime()), instances: insts, total: insts.length });
+  r.json({
+    status: 'online',
+    bot: 'VARNOX XD V2',
+    v: '19.2.0',
+    build: '3acf967',
+    waFallback: '2.3000.1043857760',
+    uptime: Math.floor(process.uptime()),
+    instances: insts,
+    total: insts.length,
+  });
 });
 
 app.get('/botStatus', (req, res) => {
