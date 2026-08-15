@@ -89,7 +89,9 @@ const question = (text) => {
 
 async function startXeonBotInc() {
     try {
-        let version = [2, 3000, 1023097280];
+        // Baileys 6.7.24 default. Do not fall back to the old 1023097280
+        // version: WhatsApp can reject the generated pairing code.
+        let version = [2, 3000, 1043857760];
         let isLatest = false;
         try {
             const _v = await Promise.race([

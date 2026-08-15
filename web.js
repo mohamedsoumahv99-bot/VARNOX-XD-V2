@@ -104,6 +104,16 @@ const pairedNumbers = new Map();
 // Map<string, { code, message, ts }>
 const pairingFailures = new Map();
 
+function disconnectInfo(error) {
+  const code = error?.output?.statusCode
+    ?? error?.data?.statusCode
+    ?? error?.statusCode
+    ?? error?.output?.payload?.statusCode
+    ?? null;
+  const message = error?.message || error?.output?.payload?.message || String(error || 'unknown');
+  return { code, message };
+}
+
 /* ═══════════════════════════════════════════════════════════
  *  Démarrage des sessions existantes (au boot)
  * ═══════════════════════════════════════════════════════════ */
@@ -392,15 +402,16 @@ async function handleCode(req, res) {
         // Après activation, le handler de botInstance gère la reconnexion.
         if (pairActivated) return;
 
-        const sc        = lastDisconnect?.error?.output?.statusCode;
+        const info      = disconnectInfo(lastDisconnect?.error);
+        const sc        = info.code;
         const loggedOut = sc === DisconnectReason.loggedOut || sc === 401;
-        console.error(`[VARNOX] Pairing socket closed for ${number}; code=${sc ?? 'unknown'}; reason=${lastDisconnect?.error?.message || 'unknown'}`);
+        console.error(`[VARNOX] Pairing socket closed for ${number}; code=${sc ?? 'unknown'}; reason=${info.message}`);
 
         if (!codeDone) {
           // Le code n'a pas encore été émis — signaler l'erreur
           if (loggedOut) {
             const message = 'WhatsApp a rejeté la connexion avant la validation du code.';
-            pairingFailures.set(number, { code: sc || 401, message, ts: Date.now() });
+            pairingFailures.set(number, { code: sc || 401, message, detail: info.message, ts: Date.now() });
             codeDone = true;
             clearTimeout(hardTimer);
             codeReject(new Error(message));
@@ -409,12 +420,13 @@ async function handleCode(req, res) {
           return;
         }
 
-        // Code déjà envoyé → si loggedOut AVANT activation du bot, nettoyer
-        if (loggedOut && !pairedNumbers.has(number)) {
+        // Any close before activation invalidates the displayed code. Do not
+        // keep polling a dead socket or silently wait forever on the panel.
+        if (!pairedNumbers.has(number)) {
           const message = sc === 401
             ? 'Code refusé par WhatsApp. Supprime les anciennes sessions liées, attends quelques secondes, puis génère un nouveau code.'
-            : `Connexion WhatsApp refusée (code ${sc}).`;
-          pairingFailures.set(number, { code: sc || 401, message, ts: Date.now() });
+            : `Connexion WhatsApp fermée avant la validation (code ${sc ?? 'inconnu'}).`;
+          pairingFailures.set(number, { code: sc || 0, message, detail: info.message, ts: Date.now() });
           const p = pairingSockets.get(number);
           if (p) { clearTimeout(p.timer); pairingSockets.delete(number); }
           try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
