@@ -38,6 +38,7 @@ const NodeCache = require('node-cache');
 
 const {
   attachBotHandlers,
+  createBotInstance,
   stopBotInstance,
   getBotInstance,
   getAllInstances,
@@ -112,6 +113,101 @@ function disconnectInfo(error) {
     ?? null;
   const message = error?.message || error?.output?.payload?.message || String(error || 'unknown');
   return { code, message };
+}
+
+function isPairingRestart(code) {
+  return code === 515
+    || code === DisconnectReason.restartRequired
+    || code === DisconnectReason.connectionLost
+    || code === DisconnectReason.timedOut
+    || code === DisconnectReason.connectionClosed
+    || code === DisconnectReason.connectionReplaced;
+}
+
+function pairingSocketOptions(version, logger, state) {
+  return {
+    version,
+    logger,
+    printQRInTerminal: false,
+    browser: Browsers.macOS('Desktop'),
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, logger),
+    },
+    msgRetryCounterCache: new NodeCache({ stdTTL: 120 }),
+    connectTimeoutMs: 60000,
+    keepAliveIntervalMs: 10000,
+    defaultQueryTimeoutMs: 60000,
+    syncFullHistory: false,
+    markOnlineOnConnect: true,
+  };
+}
+
+async function recoverPairingSocket(number, sessionDir) {
+  const pending = pairingSockets.get(number);
+  if (!pending || pending.recovering || pairedNumbers.has(number)) return;
+
+  pending.recovering = true;
+  pending.recoveryAttempts = (pending.recoveryAttempts || 0) + 1;
+  if (pending.recoveryAttempts > 3) {
+    const message = 'WhatsApp a fermé la connexion de jumelage. Supprime les anciens appareils liés, puis génère un nouveau code.';
+    pairingFailures.set(number, { code: 515, message, ts: Date.now() });
+    clearTimeout(pending.timer);
+    pairingSockets.delete(number);
+    try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
+    return;
+  }
+
+  try {
+    // Important: reuse the same auth directory. Recreating an empty session
+    // produces a new identity and invalidates the code that is on the phone.
+    const logger = pino({ level: 'silent' });
+    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+    const version = await getLatestVersion();
+    const sock = makeWASocket(pairingSocketOptions(version, logger, state));
+    sock.ev.on('creds.update', saveCreds);
+    sock._credsHandlerAttached = true;
+
+    const next = {
+      ...pending,
+      sock,
+      saveCreds,
+      recovering: false,
+    };
+    pairingSockets.set(number, next);
+
+    sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
+      if (connection === 'open') {
+        try {
+          await next.activate(sock, saveCreds);
+        } catch (e) {
+          console.error(`[VARNOX] Pairing recovery activation failed for ${number}:`, e.message);
+          pairingFailures.set(number, { code: 500, message: e.message, ts: Date.now() });
+          clearTimeout(next.timer);
+          pairingSockets.delete(number);
+          try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
+        }
+        return;
+      }
+
+      if (connection === 'close' && !pairedNumbers.has(number)) {
+        const info = disconnectInfo(lastDisconnect?.error);
+        if (info.code === 401 || info.code === DisconnectReason.loggedOut) {
+          const message = 'WhatsApp a refusé le code. Supprime les anciens appareils liés et génère un nouveau code.';
+          pairingFailures.set(number, { code: 401, message, ts: Date.now() });
+          clearTimeout(next.timer);
+          pairingSockets.delete(number);
+          try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
+        } else if (isPairingRestart(info.code)) {
+          setTimeout(() => recoverPairingSocket(number, sessionDir), 750);
+        }
+      }
+    });
+  } catch (e) {
+    pending.recovering = false;
+    console.error(`[VARNOX] Pairing recovery failed for ${number}:`, e.message);
+    setTimeout(() => recoverPairingSocket(number, sessionDir), 1500);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -296,24 +392,7 @@ async function handleCode(req, res) {
     // disponible : WhatsApp peut l'afficher puis refuser sa validation.
     const version = await getLatestVersion();
 
-    const sock = makeWASocket({
-      version,
-      logger,
-      printQRInTerminal    : false,
-      // Desktop client is the most compatible profile for phone-number
-      // linking. Some WhatsApp builds reject the Ubuntu companion profile.
-      browser              : Browsers.macOS('Desktop'),
-      auth: {
-        creds : state.creds,
-        keys  : makeCacheableSignalKeyStore(state.keys, logger),
-      },
-      msgRetryCounterCache  : new NodeCache({ stdTTL: 120 }),
-      connectTimeoutMs      : 60000,
-      keepAliveIntervalMs   : 10000,
-      defaultQueryTimeoutMs : 60000,
-      syncFullHistory       : false,
-      markOnlineOnConnect   : true,
-    });
+    const sock = makeWASocket(pairingSocketOptions(version, logger, state));
 
     // ★ CRITIQUE : enregistrer creds.update dès maintenant (vers sessionDir).
     // WhatsApp envoie des mises à jour de clés en continu pendant et après
@@ -364,14 +443,14 @@ async function handleCode(req, res) {
     // Le socket reste ouvert et devient directement le socket du bot.
     let pairActivated = false;
 
-    async function promotePairToBot() {
+    async function promotePairToBot(activeSock = sock, activeSaveCreds = saveCreds) {
       // Éviter un double-déclenchement si connection:'open' fire deux fois
       if (pairActivated) return;
       pairActivated = true;
 
       // Laisser les dernières clés de signal être écrites avant activation.
       await new Promise(r => setTimeout(r, 4000));
-      try { await saveCreds(); } catch (e) {
+      try { await activeSaveCreds(); } catch (e) {
         console.error(`[VARNOX] saveCreds error:`, e.message);
       }
 
@@ -388,7 +467,7 @@ async function handleCode(req, res) {
       const p = pairingSockets.get(number);
       if (p) { clearTimeout(p.timer); pairingSockets.delete(number); }
 
-      attachBotHandlers(sock, sessionDir, number, saveCreds);
+      attachBotHandlers(activeSock, sessionDir, number, activeSaveCreds);
       markConnected(number);
       console.log(`[VARNOX] ✅ Bot activated on persistent socket for ${number}`);
     }
@@ -404,7 +483,7 @@ async function handleCode(req, res) {
 
       if (connection === 'open') {
         console.log(`[VARNOX] ✅ WA authenticated for ${number}`);
-        await promotePairToBot();
+        await promotePairToBot(sock, saveCreds);
       }
 
       if (connection === 'close') {
@@ -429,8 +508,16 @@ async function handleCode(req, res) {
           return;
         }
 
-        // Any close before activation invalidates the displayed code. Do not
-        // keep polling a dead socket or silently wait forever on the panel.
+        // WhatsApp commonly closes the first socket with 515
+        // (restartRequired) while finishing phone-number linking. This is
+        // not a rejection: keep the same auth directory and reconnect it.
+        if (codeDone && isPairingRestart(sc)) {
+          console.warn(`[VARNOX] Pairing socket restart required for ${number}; preserving session`);
+          setTimeout(() => recoverPairingSocket(number, sessionDir), 750);
+          return;
+        }
+
+        // A real rejection invalidates the displayed code.
         if (!pairedNumbers.has(number)) {
           const message = sc === 401
             ? 'Code refusé par WhatsApp. Supprime les anciennes sessions liées, attends quelques secondes, puis génère un nouveau code.'
@@ -464,7 +551,15 @@ async function handleCode(req, res) {
       }
     }, 15 * 60 * 1000);
 
-    pairingSockets.set(number, { sock, saveCreds, sessionDir, timer });
+    pairingSockets.set(number, {
+      sock,
+      saveCreds,
+      sessionDir,
+      timer,
+      activate: promotePairToBot,
+      recoveryAttempts: 0,
+      recovering: false,
+    });
 
     return res.json({ error: false, code: formatted });
 
