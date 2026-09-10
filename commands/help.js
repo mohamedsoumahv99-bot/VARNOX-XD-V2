@@ -19,7 +19,6 @@ async function helpCommand(sock, chatId, message) {
 ├ ߷ ᴏᴡɴᴇʀ         : ʋαɾɳσx ᴛᴇᴄʜ
 ├ ߷ ᴄᴏᴍᴍᴀɴᴅᴇs     : 115
 ├ ߷ ᴜᴘᴛɪᴍᴇ        : ${uptime}
-├ ߷ ᴅᴀᴛᴇ          : ${date} 
 ├ ߷ ʜᴇᴜʀᴇ         : ${runtime}
 ├ ߷ ᴘʟᴀᴛᴇғᴏʀᴍᴇ    : ʟɪɴᴜx
 ├ ߷ ᴅéᴠᴇʟᴏᴘᴘᴇᴜʀ   : ʋαɾɳσx 
