@@ -14,7 +14,7 @@ async function helpCommand(sock, chatId, message) {
   const uptime    = upH > 0 ? `${upH}h ${upM}m` : `${upM}m`;
 
   const helpMessage =
-`╭━━╭──⟪𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2⟫──╮
+`╭──⟪𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2⟫──╮
 ├ ߷ ᴘʀéғɪxᴇ       : .
 ├ ߷ ᴏᴡɴᴇʀ         : ʋαɾɳσx ᴛᴇᴄʜ
 ├ ߷ ᴄᴏᴍᴍᴀɴᴅᴇs     : 115
@@ -147,7 +147,7 @@ async function helpCommand(sock, chatId, message) {
 
   try {
     await sock.sendMessage(chatId, {
-      image   : { url: 'https://files.catbox.moe/24ugxs.jpg' },
+      image   : { url: 'https://n.uguu.se/KPBhyEAD.jpg' },
       caption : helpMessage,
       mentions: [senderId],
       contextInfo: {
