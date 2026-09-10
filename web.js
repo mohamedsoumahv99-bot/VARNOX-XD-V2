@@ -129,7 +129,9 @@ function pairingSocketOptions(version, logger, state) {
     version,
     logger,
     printQRInTerminal: false,
-    browser: Browsers.macOS('Desktop'),
+    // This is the profile used by the last known-good pairing flow.
+    // Keep it aligned with the Baileys 7 pairing implementation.
+    browser: Browsers.ubuntu('Chrome'),
     auth: {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger),
@@ -137,9 +139,6 @@ function pairingSocketOptions(version, logger, state) {
     msgRetryCounterCache: new NodeCache({ stdTTL: 120 }),
     connectTimeoutMs: 60000,
     keepAliveIntervalMs: 10000,
-    defaultQueryTimeoutMs: 60000,
-    syncFullHistory: false,
-    markOnlineOnConnect: true,
   };
 }
 
@@ -251,8 +250,8 @@ app.get('/health', (_q, r) => {
   r.json({
     status: 'online',
     bot: 'VARNOX XD V2',
-    v: '19.2.0',
-    build: '3acf967',
+    v: '19.3.0',
+    build: 'pairing-baileys7-ubuntu',
     waFallback: '2.3000.1043857760',
     uptime: Math.floor(process.uptime()),
     instances: insts,
