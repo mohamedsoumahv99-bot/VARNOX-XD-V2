@@ -3,6 +3,7 @@ services:
     name: varnox-xd-v2
     env: node
     plan: free
+    autoDeploy: true
     buildCommand: npm install --legacy-peer-deps
     startCommand: npm start
     healthCheckPath: /health
