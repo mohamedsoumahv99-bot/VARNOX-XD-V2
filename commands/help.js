@@ -1,6 +1,20 @@
 'use strict';
 const settings = require('../settings');
 const os       = require('os');
+const fs       = require('fs');
+const path     = require('path');
+
+const channelInfo = {
+  contextInfo: {
+    forwardingScore: 1,
+    isForwarded: true,
+    forwardedNewsletterMessageInfo: {
+      newsletterJid: '120363424782348922@newsletter',
+      newsletterName: '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2',
+      serverMessageId: -1
+    }
+  }
+};
 
 async function helpCommand(sock, chatId, message) {
   // Extract sender number from message
@@ -146,25 +160,19 @@ async function helpCommand(sock, chatId, message) {
 > ©2026 ʋαɾɳσx xᴅ ʋ2 by varnox`;
 
   try {
+    const menuImage = path.join(__dirname, '../assets/bot_image.jpg');
     await sock.sendMessage(chatId, {
-      image   : { url: 'https://n.uguu.se/KPBhyEAD.jpg' },
+      image   : fs.readFileSync(menuImage),
       caption : helpMessage,
       mentions: [senderId],
-      contextInfo: {
-        forwardingScore: 1,
-        isForwarded    : true,
-        forwardedNewsletterMessageInfo: {
-          newsletterJid  : '120363424782348922@newsletter',
-          newsletterName : '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2',
-          serverMessageId: -1,
-        },
-      },
+      ...channelInfo,
     }, { quoted: message });
   } catch (err) {
     console.error('[help] image failed, sending text:', err.message);
     await sock.sendMessage(chatId, {
       text    : helpMessage,
       mentions: [senderId],
+      ...channelInfo,
     }, { quoted: message });
   }
 }
