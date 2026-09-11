@@ -160,7 +160,7 @@ async function helpCommand(sock, chatId, message) {
 > ©2026 ʋαɾɳσx xᴅ ʋ2 by varnox`;
 
   try {
-    const menuImage = path.join(__dirname, '../assets/bot_image.jpg');
+    const menuImage = path.join(__dirname, '../assets/menu-style.jpg');
     await sock.sendMessage(chatId, {
       image   : fs.readFileSync(menuImage),
       caption : helpMessage,
