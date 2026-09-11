@@ -173,6 +173,16 @@ const channelInfo = {
     }
 };
 
+function readBotMode() {
+    try {
+        const data = JSON.parse(fs.readFileSync('./data/messageCount.json', 'utf8'));
+        return data.isPublic !== false;
+    } catch (error) {
+        console.error('Error checking access mode:', error);
+        return true;
+    }
+}
+
 async function handleMessages(sock, messageUpdate, printLog) {
     try {
         const { messages, type } = messageUpdate;
@@ -214,6 +224,8 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
         // Handle button responses
         if (message.message?.buttonsResponseMessage) {
+            // Private mode also blocks interactive menu actions for non-owners.
+            if (!readBotMode() && !senderIsOwnerOrSudo) return;
             const buttonId = message.message.buttonsResponseMessage.selectedButtonId;
             const chatId = message.key.remoteJid;
 
@@ -254,15 +266,8 @@ async function handleMessages(sock, messageUpdate, printLog) {
         if (userMessage.startsWith('.')) {
             console.log(`📝 Command used in ${isGroup ? 'group' : 'private'}: ${userMessage}`);
         }
-        // Read bot mode once; don't early-return so moderation can still run in private mode
-        let isPublic = true;
-        try {
-            const data = JSON.parse(fs.readFileSync('./data/messageCount.json'));
-            if (typeof data.isPublic === 'boolean') isPublic = data.isPublic;
-        } catch (error) {
-            console.error('Error checking access mode:', error);
-            // default isPublic=true on error
-        }
+        // Read bot mode once. Private mode is a hard owner/sudo lock.
+        const isPublic = readBotMode();
         const isOwnerOrSudoCheck = message.key.fromMe || senderIsOwnerOrSudo;
         // Check if user is banned (skip ban check for unban command)
         if (isBanned(senderId) && !userMessage.startsWith('.unban')) {
@@ -273,6 +278,16 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     ...channelInfo
                 });
             }
+            return;
+        }
+
+        // Private mode must block every bot feature for everyone else:
+        // commands, games, chatbot responses and plain-text menu aliases.
+        if (!isPublic && !isOwnerOrSudoCheck) return;
+
+        // Accept both ".menu" and the natural WhatsApp message "menu".
+        if (userMessage === 'menu' || userMessage === 'help') {
+            await helpCommand(sock, chatId, message, global.channelLink);
             return;
         }
 
@@ -342,20 +357,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
             }
             return;
         }
-        // In private mode, only owner/sudo OR group admins can run commands
-        if (!isPublic && !isOwnerOrSudoCheck) {
-            if (isGroup) {
-                // Les admins du groupe peuvent toujours utiliser les commandes même en mode privé
-                const { isSenderAdmin: isGroupAdmin } = await isAdmin(sock, chatId, senderId);
-                if (!isGroupAdmin) {
-                    return;
-                }
-                // L'admin du groupe peut continuer
-            } else {
-                return;
-            }
-        }
-
         // List of admin commands
         const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.kick', '.kickall', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.setgdesc', '.setgname', '.setgpp', '.deleteall', '.open', '.close'];
         const isAdminCommand = adminCommands.some(cmd => userMessage.startsWith(cmd));
