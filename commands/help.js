@@ -123,7 +123,7 @@ const categories = [
     title: 'sʏsᴛèᴍᴇ',
     icon: '⚙️',
     aliases: ['system', 'config'],
-    commands: ['menu', 'allmenu', 'settings', 'pair', 'update', 'clearsession', 'cleartmp']
+    commands: ['menu', 'allmenu', 'settings', 'update', 'clearsession', 'cleartmp']
   },
   {
     key: 'telechargement',
