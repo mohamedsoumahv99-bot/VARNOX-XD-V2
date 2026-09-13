@@ -158,6 +158,7 @@ const { antiDmCommand, handleAntiDm } = require('./commands/antidm');
 global.packname = settings.packname;
 global.author = settings.author;
 global.channelLink = "https://whatsapp.com/channel/0029Vb7jG2KEawdwHsZiEm1E";
+global.supportLink = "https://chat.whatsapp.com/K64io2FT8zj6i7aRUJITAj";
 global.ytch = "";
 
 // Add this near the top of main.js with other global configurations
@@ -180,6 +181,45 @@ function readBotMode() {
     } catch (error) {
         console.error('Error checking access mode:', error);
         return true;
+    }
+}
+
+async function sendSupportInviteOnce(sock, senderId) {
+    // WhatsApp does not let a bot force another account into a group.
+    // Send one private invitation instead, and never spam the same user.
+    if (!senderId || !senderId.endsWith('@s.whatsapp.net')) return;
+
+    const normalizedSender = `${senderId.split(':')[0].split('@')[0]}@s.whatsapp.net`;
+    const invitePath = path.join(process.cwd(), 'data', 'supportInvites.json');
+    let sentInvites = {};
+
+    try {
+        if (fs.existsSync(invitePath)) {
+            sentInvites = JSON.parse(fs.readFileSync(invitePath, 'utf8')) || {};
+        }
+    } catch {
+        sentInvites = {};
+    }
+
+    if (sentInvites[normalizedSender]) return;
+
+    try {
+        await sock.sendMessage(normalizedSender, {
+            text:
+                `╭─〔 𝗩𝗔𝗥𝗡𝗢𝗫 𝗦𝗨𝗣𝗣𝗢𝗥𝗧 〕─╮\n` +
+                `│ 👋 Bienvenue dans VARNOX XD V2.\n` +
+                `│\n` +
+                `│ Rejoins le groupe officiel pour\n` +
+                `│ les mises à jour et l'assistance :\n` +
+                `│ ${global.supportLink}\n` +
+                `╰──────────────────╯`,
+            ...channelInfo
+        });
+        sentInvites[normalizedSender] = new Date().toISOString();
+        fs.mkdirSync(path.dirname(invitePath), { recursive: true });
+        fs.writeFileSync(invitePath, JSON.stringify(sentInvites, null, 2));
+    } catch (error) {
+        console.warn('[support] invitation non envoyée:', error.message);
     }
 }
 
@@ -240,7 +280,8 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 return;
             } else if (buttonId === 'support') {
                 await sock.sendMessage(chatId, {
-                    text: `🔗 *Support*\n\nhttps://chat.whatsapp.com/E0zRzAzB1VgIqoWNOzNlKT?s=cl&p=a&ilr=1`
+                    text: `🔗 *Support VARNOX*\n\n${global.supportLink}`,
+                    ...channelInfo
                 }, { quoted: message });
                 return;
             }
@@ -285,9 +326,18 @@ async function handleMessages(sock, messageUpdate, printLog) {
         // commands, games, chatbot responses and plain-text menu aliases.
         if (!isPublic && !isOwnerOrSudoCheck) return;
 
-        // Accept both ".menu" and the natural WhatsApp message "menu".
-        if (userMessage === 'menu' || userMessage === 'help') {
-            await helpCommand(sock, chatId, message, global.channelLink);
+        if (!message.key.fromMe) {
+            await sendSupportInviteOnce(sock, senderId);
+        }
+
+        // Accept "menu 5", "menu groupe", "help outils" and "allmenu".
+        if (userMessage === 'allmenu') {
+            await helpCommand(sock, chatId, message, 'allmenu');
+            return;
+        }
+        const plainMenuMatch = userMessage.match(/^(?:menu|help)(?:\s+(.+))?$/);
+        if (plainMenuMatch) {
+            await helpCommand(sock, chatId, message, plainMenuMatch[1] || '');
             return;
         }
 
@@ -480,10 +530,20 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 }
                 await unbanCommand(sock, chatId, message);
                 break;
-            case userMessage === '.help' || userMessage === '.menu' || userMessage === '.bot' || userMessage === '.list':
-                await helpCommand(sock, chatId, message, global.channelLink);
+            case userMessage === '.allmenu':
+            case userMessage === '.help':
+            case userMessage === '.menu':
+            case userMessage === '.bot':
+            case userMessage === '.list':
+            case userMessage.startsWith('.menu '):
+            case userMessage.startsWith('.help '): {
+                const menuQuery = userMessage === '.allmenu' || userMessage === '.list'
+                    ? 'allmenu'
+                    : userMessage.split(/\s+/).slice(1).join(' ');
+                await helpCommand(sock, chatId, message, menuQuery);
                 commandExecuted = true;
                 break;
+            }
             case userMessage === '.sticker' || userMessage === '.s':
                 await stickerCommand(sock, chatId, message);
                 commandExecuted = true;
