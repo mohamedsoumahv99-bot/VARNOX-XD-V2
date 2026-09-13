@@ -517,7 +517,15 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage.startsWith('.mode'):
                 // Check if sender is the owner
                 if (!message.key.fromMe && !senderIsOwnerOrSudo) {
-                    await sock.sendMessage(chatId, { text: 'Only bot owner can use this command!', ...channelInfo }, { quoted: message });
+                    await sock.sendMessage(chatId, {
+                        text:
+                            `╭─〔 𝗩𝗔𝗥𝗡𝗢𝗫 𝗔𝗖𝗖𝗘𝗦𝗦 〕─╮\n` +
+                            `│ ❌ *ACCESS DENIED*\n` +
+                            `│ Cette commande est réservée\n` +
+                            `│ au propriétaire ou aux sudo.\n` +
+                            `╰──────────────────╯`,
+                        ...channelInfo
+                    }, { quoted: message });
                     return;
                 }
                 // Read current data first
@@ -526,16 +534,28 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     data = JSON.parse(fs.readFileSync('./data/messageCount.json'));
                 } catch (error) {
                     console.error('Error reading access mode:', error);
-                    await sock.sendMessage(chatId, { text: 'Failed to read bot mode status', ...channelInfo });
+                    await sock.sendMessage(chatId, {
+                        text: '╭─〔 𝗩𝗔𝗥𝗡𝗢𝗫 𝗔𝗖𝗖𝗘𝗦𝗦 〕─╮\n│ ❌ Impossible de lire le mode.\n╰──────────────────╯',
+                        ...channelInfo
+                    });
                     return;
                 }
 
                 const action = userMessage.split(' ')[1]?.toLowerCase();
                 // If no argument provided, show current status
                 if (!action) {
-                    const currentMode = data.isPublic ? 'public' : 'private';
+                    const currentMode = data.isPublic ? 'PUBLIC' : 'PRIVATE';
+                    const accessInfo = data.isPublic
+                        ? '🌐 Tout le monde peut utiliser le bot.'
+                        : '🔒 Accès réservé au propriétaire et aux sudo autorisés.';
                     await sock.sendMessage(chatId, {
-                        text: `Current bot mode: *${currentMode}*\n\nUsage: .mode public/private\n\nExample:\n.mode public - Allow everyone to use bot\n.mode private - Restrict to owner only`,
+                        text:
+                            `╭─〔 𝗩𝗔𝗥𝗡𝗢𝗫 𝗔𝗖𝗖𝗘𝗦𝗦 〕─╮\n` +
+                            `│ 🔐 Mode actuel : *${currentMode}*\n` +
+                            `│ ${accessInfo}\n` +
+                            `│\n` +
+                            `│ Utilisation : *.mode public* ou *.mode private*\n` +
+                            `╰──────────────────╯`,
                         ...channelInfo
                     }, { quoted: message });
                     return;
@@ -543,7 +563,11 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
                 if (action !== 'public' && action !== 'private') {
                     await sock.sendMessage(chatId, {
-                        text: 'Usage: .mode public/private\n\nExample:\n.mode public - Allow everyone to use bot\n.mode private - Restrict to owner only',
+                        text:
+                            `╭─〔 𝗩𝗔𝗥𝗡𝗢𝗫 𝗔𝗖𝗖𝗘𝗦𝗦 〕─╮\n` +
+                            `│ ⚠️ Option invalide.\n` +
+                            `│ Utilise *.mode public* ou *.mode private*.\n` +
+                            `╰──────────────────╯`,
                         ...channelInfo
                     }, { quoted: message });
                     return;
@@ -556,10 +580,24 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     // Save updated data
                     fs.writeFileSync('./data/messageCount.json', JSON.stringify(data, null, 2));
 
-                    await sock.sendMessage(chatId, { text: `Bot is now in *${action}* mode`, ...channelInfo });
+                    const modeName = action.toUpperCase();
+                    const modeInfo = action === 'public'
+                        ? '🌐 Le bot est ouvert à tous.'
+                        : '🔒 Le bot est verrouillé pour les membres et admins.';
+                    await sock.sendMessage(chatId, {
+                        text:
+                            `╭─〔 𝗩𝗔𝗥𝗡𝗢𝗫 𝗔𝗖𝗖𝗘𝗦𝗦 〕─╮\n` +
+                            `│ ✅ Mode activé : *${modeName}*\n` +
+                            `│ ${modeInfo}\n` +
+                            `╰──────────────────╯`,
+                        ...channelInfo
+                    });
                 } catch (error) {
                     console.error('Error updating access mode:', error);
-                    await sock.sendMessage(chatId, { text: 'Failed to update bot access mode', ...channelInfo });
+                    await sock.sendMessage(chatId, {
+                        text: '╭─〔 𝗩𝗔𝗥𝗡𝗢𝗫 𝗔𝗖𝗖𝗘𝗦𝗦 〕─╮\n│ ❌ Échec de la mise à jour du mode.\n╰──────────────────╯',
+                        ...channelInfo
+                    });
                 }
                 break;
             case userMessage.startsWith('.anticall'):
@@ -900,7 +938,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await stickerTelegramCommand(sock, chatId, message);
                 break;
 
-            // .vv → envoie le média en PV du propriétaire
+            // .vv → renvoie le média dans la discussion actuelle
             case userMessage === '.vv':
             case userMessage === '.🥷':
                 await vvCommand(sock, chatId, message, false);
