@@ -175,7 +175,7 @@ function nowInfo() {
 function menuHeader(senderNum) {
   const info = nowInfo();
   return (
-    `╭──⟪ 🤖 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 ⟫──╮\n` +
+    `╭──⟪𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮⟫──╮\n` +
     `├ ߷ ᴘʀéғɪxᴇ       : .\n` +
     `├ ߷ ᴏᴡɴᴇʀ         : ${settings.botOwner || settings.author || 'VARNOX'}\n` +
     `├ ߷ ᴄᴏᴍᴍᴀɴᴅᴇs     : ${commandCount}\n` +
@@ -227,8 +227,7 @@ function overview(senderNum, notice = '') {
     `💡 ᴛᴀᴘᴇ *ᴍᴇɴᴜ <ɴᴜᴍéʀᴏ>* ᴏᴜ *ᴍᴇɴᴜ <ɴᴏᴍ>* ᴘᴏᴜʀ ᴠᴏɪʀ ᴜɴᴇ ᴄᴀᴛéɢᴏʀɪᴇ.\n` +
     `💡 ᴛᴀᴘᴇ *ᴀʟʟᴍᴇɴᴜ* ᴘᴏᴜʀ ᴛᴏᴜᴛ ᴀғғɪᴄʜᴇʀ.\n` +
     `📌 ᴇxᴇᴍᴘʟᴇs : *ᴍᴇɴᴜ 5* • *ᴍᴇɴᴜ ɢʀᴏᴜᴘᴇ*\n\n` +
-    `🔗 sᴜᴘᴘᴏʀᴛ : ${SUPPORT_LINK}\n` +
-    `📢 ᴄʜᴀîɴᴇ : ${CHANNEL_LINK}\n\n` +
+  `📢 ᴄʜᴀîɴᴇ : ${CHANNEL_LINK}\n\n` +
     `> 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 • ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴠᴀʀɴᴏx`
   );
 }
@@ -237,7 +236,6 @@ function allMenu(senderNum) {
   return (
     `${menuHeader(senderNum)}\n\n` +
     categories.map(category => categoryBox(category)).join('\n\n') +
-    `\n\n🔗 sᴜᴘᴘᴏʀ : ${SUPPORT_LINK}\n` +
     `📢 ᴄʜᴀîɴᴇ : ${CHANNEL_LINK}\n\n` +
     `> 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 • ᴛᴏᴜᴛᴇs ʟᴇs ᴄᴏᴍᴍᴀɴᴅᴇs`
   );
@@ -304,7 +302,6 @@ async function helpCommand(sock, chatId, message, query = '') {
     message,
     `${menuHeader(senderNum)}\n\n${categoryBox(category)}\n\n` +
     `💡 ᴜᴛɪʟɪsᴇ *ᴍᴇɴᴜ* ᴘᴏᴜʀ ʀᴇᴠᴇɴɪʀ ᴀᴜx ᴄᴀᴛéɢᴏʀɪᴇs.\n` +
-    `🔗 sᴜᴘᴘᴏʀᴛ : ${SUPPORT_LINK}\n\n` +
     `> 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 • ᴄᴀᴛéɢᴏʀɪᴇ ${index + 1}`,
     senderId,
     false
