@@ -1,18 +1,16 @@
 'use strict';
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
-const settings = require('../settings');
 const { channelInfo } = require('../lib/messageConfig');
 
 /**
  * vvCommand — ouvre un média vue-unique
  * @param {boolean} sendToPv
- *   false (défaut) → envoie au PV du propriétaire  (.vv)
- *   true           → envoie au PV de l'expéditeur   (.vv2)
+ *   false (défaut) → renvoie dans la discussion actuelle (.vv)
+ *   true           → envoie au PV de l'expéditeur         (.vv2)
  */
 async function vvCommand(sock, chatId, message, sendToPv = false) {
-    const ownerJid  = settings.ownerNumber + '@s.whatsapp.net';
     const senderJid = message.key.participant || message.key.remoteJid;
-    const targetJid = sendToPv ? senderJid : ownerJid;
+    const targetJid = sendToPv ? senderJid : chatId;
 
     // Chercher le message cité (vue-unique ou normal)
     const ctx    = message.message?.extendedTextMessage?.contextInfo;
@@ -70,7 +68,7 @@ async function vvCommand(sock, chatId, message, sendToPv = false) {
             await sock.sendMessage(targetJid, { video: buffer, caption, ...channelInfo });
         }
 
-        // Confirmer dans le chat si vv2 (envoi en PV de l'expéditeur)
+        // Confirmer dans le chat source si vv2 (envoi en PV de l'expéditeur)
         if (sendToPv && targetJid !== chatId) {
             await sock.sendMessage(chatId, {
                 text:
