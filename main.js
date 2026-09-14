@@ -46,6 +46,7 @@ const banCommand = require('./commands/ban');
 const { promoteCommand } = require('./commands/promote');
 const { demoteCommand } = require('./commands/demote');
 const muteCommand = require('./commands/mute');
+const { isMuted } = muteCommand;
 const unmuteCommand = require('./commands/unmute');
 const stickerCommand = require('./commands/sticker');
 const isAdmin = require('./lib/isAdmin');
@@ -209,6 +210,16 @@ async function handleMessages(sock, messageUpdate, printLog) {
         const isGroup = chatId.endsWith('@g.us');
         const senderIsSudo = await isSudo(senderId);
         const senderIsOwnerOrSudo = await isOwnerOrSudo(senderId, sock, chatId);
+
+        // Suppression des messages des utilisateurs ciblés par .mute @user.
+        if (isGroup && !message.key.fromMe && isMuted(chatId, senderId)) {
+            try {
+                await sock.sendMessage(chatId, {delete: message.key});
+            } catch (error) {
+                console.error('[mute] impossible de supprimer le message:', error.message);
+            }
+            return;
+        }
 
         // ── AntDM : bloquer les inconnus en PV ──────────────────────────────
         if (!isGroup && !message.key.fromMe) {
@@ -385,7 +396,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
                 if (
                     userMessage.startsWith('.mute') ||
-                    userMessage === '.unmute' ||
+                    userMessage.startsWith('.unmute') ||
                     userMessage.startsWith('.ban') ||
                     userMessage.startsWith('.unban') ||
                     userMessage.startsWith('.promote') ||
@@ -449,17 +460,23 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage.startsWith('.mute'):
                 {
                     const parts = userMessage.trim().split(/\s+/);
-                    const muteArg = parts[1];
-                    const muteDuration = muteArg !== undefined ? parseInt(muteArg, 10) : undefined;
-                    if (muteArg !== undefined && (isNaN(muteDuration) || muteDuration <= 0)) {
-                        await sock.sendMessage(chatId, { text: 'Please provide a valid number of minutes or use .mute with no number to mute immediately.', ...channelInfo }, { quoted: message });
+                    const mentionedJidListMute = message.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+                    const extraArgs = parts.slice(1).filter(arg => !arg.startsWith('@'));
+                    const durationArg = extraArgs.find(arg => /^\d+$/.test(arg));
+                    const hasInvalidArg = extraArgs.some(arg => !/^\d+$/.test(arg));
+                    const muteDuration = durationArg ? parseInt(durationArg, 10) : undefined;
+                    if (hasInvalidArg || (durationArg && muteDuration <= 0)) {
+                        await sock.sendMessage(chatId, { text: '❌ Utilise .mute @user [minutes] ou réponds à son message avec .mute.', ...channelInfo }, { quoted: message });
                     } else {
-                        await muteCommand(sock, chatId, senderId, message, muteDuration);
+                        await muteCommand(sock, chatId, senderId, message, muteDuration, mentionedJidListMute);
                     }
                 }
                 break;
-            case userMessage === '.unmute':
-                await unmuteCommand(sock, chatId, senderId);
+            case userMessage.startsWith('.unmute'):
+                {
+                    const mentionedJidListUnmute = message.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+                    await unmuteCommand(sock, chatId, senderId, message, mentionedJidListUnmute);
+                }
                 break;
             case userMessage.startsWith('.ban'):
                 if (!isGroup) {
