@@ -4,8 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const settings = require('../settings');
 
-const CHANNEL_LINK = 'https://whatsapp.com/channel/0029Vb7jG2KEawdwHsZiEm1E';
-const SUPPORT_LINK = 'https://chat.whatsapp.com/K64io2FT8zj6i7aRUJITAj';
 const MENU_IMAGE = path.join(__dirname, '../assets/menu-style.jpg');
 
 const channelInfo = {
@@ -64,7 +62,7 @@ const categories = [
   },
   {
     key: 'ia',
-    title: 'ɪɴᴛᴇʟʟɪɢᴇɴᴄᴇ ᴀʀᴛɪғɪᴄɪᴇʟʟᴇ',
+    title: 'AI',
     icon: '🧠',
     aliases: ['ai', 'intelligenceartificielle'],
     commands: ['ai', 'chatbot', 'imagine', 'sora', 'anime']
@@ -227,16 +225,17 @@ function overview(senderNum, notice = '') {
     `💡 ᴛᴀᴘᴇ *ᴍᴇɴᴜ <ɴᴜᴍéʀᴏ>* ᴏᴜ *ᴍᴇɴᴜ <ɴᴏᴍ>* ᴘᴏᴜʀ ᴠᴏɪʀ ᴜɴᴇ ᴄᴀᴛéɢᴏʀɪᴇ.\n` +
     `💡 ᴛᴀᴘᴇ *ᴀʟʟᴍᴇɴᴜ* ᴘᴏᴜʀ ᴛᴏᴜᴛ ᴀғғɪᴄʜᴇʀ.\n` +
     `📌 ᴇxᴇᴍᴘʟᴇs : *ᴍᴇɴᴜ 5* • *ᴍᴇɴᴜ ɢʀᴏᴜᴘᴇ*\n\n` +
-  `📢 ᴄʜᴀîɴᴇ : ${CHANNEL_LINK}\n\n` +
     `> 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 • ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴠᴀʀɴᴏx`
   );
 }
 
 function allMenu(senderNum) {
   return (
-    `${menuHeader(senderNum)}\n\n` +
+    `╭───⟪ 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 • ᴀʟʟᴍᴇɴᴜ ⟫───╮\n` +
+    `│ ᴛᴏᴜᴛᴇs ʟᴇs ᴄᴀᴛéɢᴏʀɪᴇs ᴅᴜ ʙᴏᴛ\n` +
+    `╰────────────────────────────────╯\n\n` +
     categories.map(category => categoryBox(category)).join('\n\n') +
-    `📢 ᴄʜᴀîɴᴇ : ${CHANNEL_LINK}\n\n` +
+    `\n\n💡 ᴜᴛɪʟɪsᴇ *ᴍᴇɴᴜ* ᴘᴏᴜʀ ʀᴇᴠᴇɴɪʀ ᴀᴜx ᴄᴀᴛéɢᴏʀɪᴇs.\n` +
     `> 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 • ᴛᴏᴜᴛᴇs ʟᴇs ᴄᴏᴍᴍᴀɴᴅᴇs`
   );
 }
@@ -278,7 +277,7 @@ async function helpCommand(sock, chatId, message, query = '') {
   }
 
   if (['all', 'allmenu', 'full', 'tout'].includes(normalize(normalizedQuery))) {
-    await sendMenu(sock, chatId, message, allMenu(senderNum), senderId, false);
+    await sendMenu(sock, chatId, message, allMenu(senderNum), senderId, true);
     return;
   }
 
@@ -300,11 +299,11 @@ async function helpCommand(sock, chatId, message, query = '') {
     sock,
     chatId,
     message,
-    `${menuHeader(senderNum)}\n\n${categoryBox(category)}\n\n` +
+    `${categoryBox(category)}\n\n` +
     `💡 ᴜᴛɪʟɪsᴇ *ᴍᴇɴᴜ* ᴘᴏᴜʀ ʀᴇᴠᴇɴɪʀ ᴀᴜx ᴄᴀᴛéɢᴏʀɪᴇs.\n` +
     `> 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 • ᴄᴀᴛéɢᴏʀɪᴇ ${index + 1}`,
     senderId,
-    false
+    true
   );
 }
 
