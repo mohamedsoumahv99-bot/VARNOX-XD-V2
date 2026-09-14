@@ -1,15 +1,9 @@
 const axios = require('axios');
+const { commandInput, safeFileName } = require('../lib/downloadUtils');
 
 async function spotifyCommand(sock, chatId, message) {
     try {
-        const rawText = message.message?.conversation?.trim() ||
-            message.message?.extendedTextMessage?.text?.trim() ||
-            message.message?.imageMessage?.caption?.trim() ||
-            message.message?.videoMessage?.caption?.trim() ||
-            '';
-
-        const used = (rawText || '').split(/\s+/)[0] || '.spotify';
-        const query = rawText.slice(used.length).trim();
+        const query = commandInput(message);
 
         if (!query) {
             await sock.sendMessage(chatId, { text: 'Usage: .spotify <song/artist/keywords>\nExample: .spotify con calma' }, { quoted: message });
@@ -24,7 +18,7 @@ async function spotifyCommand(sock, chatId, message) {
         }
 
         const r = data.result;
-        const audioUrl = r.audio;
+        const audioUrl = r.audio || r.audio_url || r.download || r.downloadUrl;
         if (!audioUrl) {
             await sock.sendMessage(chatId, { text: 'No downloadable audio found for this query.' }, { quoted: message });
             return;
@@ -41,7 +35,7 @@ async function spotifyCommand(sock, chatId, message) {
         await sock.sendMessage(chatId, {
             audio: { url: audioUrl },
             mimetype: 'audio/mpeg',
-            fileName: `${(r.title || r.name || 'track').replace(/[\\/:*?"<>|]/g, '')}.mp3`
+            fileName: `${safeFileName(r.title || r.name, 'track')}.mp3`
         }, { quoted: message });
 
        

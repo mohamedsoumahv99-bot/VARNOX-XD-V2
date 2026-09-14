@@ -1,5 +1,6 @@
 const { ttdl } = require("ruhend-scraper");
 const axios = require('axios');
+const { commandInput, isHttpUrl } = require('../lib/downloadUtils');
 
 // Store processed message IDs to prevent duplicates
 const processedMessages = new Set();
@@ -7,29 +8,21 @@ const processedMessages = new Set();
 async function tiktokCommand(sock, chatId, message) {
     try {
         // Check if message has already been processed
-        if (processedMessages.has(message.key.id)) {
+        const messageId = message.key?.id;
+        if (messageId && processedMessages.has(messageId)) {
             return;
         }
         
         // Add message ID to processed set
-        processedMessages.add(message.key.id);
+        if (messageId) processedMessages.add(messageId);
         
         // Clean up old message IDs after 5 minutes
         setTimeout(() => {
-            processedMessages.delete(message.key.id);
+            if (messageId) processedMessages.delete(messageId);
         }, 5 * 60 * 1000);
 
-        const text = message.message?.conversation || message.message?.extendedTextMessage?.text;
-        
-        if (!text) {
-            return await sock.sendMessage(chatId, { 
-                text: "Please provide a TikTok link for the video."
-            });
-        }
+        const url = commandInput(message);
 
-        // Extract URL from command
-        const url = text.split(' ').slice(1).join(' ').trim();
-        
         if (!url) {
             return await sock.sendMessage(chatId, { 
                 text: "Please provide a TikTok link for the video."
@@ -45,7 +38,7 @@ async function tiktokCommand(sock, chatId, message) {
             /https?:\/\/(?:www\.)?tiktok\.com\/t\//
         ];
 
-        const isValidUrl = tiktokPatterns.some(pattern => pattern.test(url));
+        const isValidUrl = isHttpUrl(url) && tiktokPatterns.some(pattern => pattern.test(url));
         
         if (!isValidUrl) {
             return await sock.sendMessage(chatId, { 

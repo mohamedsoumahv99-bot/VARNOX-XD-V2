@@ -7,6 +7,8 @@ const settings = {
   author: 'ʋαɾɳσx ❍ғғɪᴄɪᴀʟ',               // Ton nom
   botName: "𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2",           // Nom du bot affiché
   botOwner: 'ʋαɾɳσx ❍ғғɪᴄɪᴀʟ',             // Ton vrai nom
+  menuOwner: 'ʋαɾɳσx',
+  developer: 'ʋαɾɳσx Tech',
 
   // ⚠️ Ton numéro WhatsApp SANS le + (ex: 224621000000)
   ownerNumber: process.env.OWNER_NUMBER || '224610835573',

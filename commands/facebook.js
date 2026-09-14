@@ -1,11 +1,11 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const { commandInput, isHttpUrl } = require('../lib/downloadUtils');
 
 async function facebookCommand(sock, chatId, message) {
     try {
-        const text = message.message?.conversation || message.message?.extendedTextMessage?.text;
-        const url = text.split(' ').slice(1).join(' ').trim();
+        const url = commandInput(message);
         
         if (!url) {
             return await sock.sendMessage(chatId, { 
@@ -14,7 +14,7 @@ async function facebookCommand(sock, chatId, message) {
         }
 
         // Validate Facebook URL
-        if (!url.includes('facebook.com')) {
+        if (!isHttpUrl(url) || !/(?:facebook\.com|fb\.watch)/i.test(url)) {
             return await sock.sendMessage(chatId, { 
                 text: "That is not a Facebook link."
             }, { quoted: message });

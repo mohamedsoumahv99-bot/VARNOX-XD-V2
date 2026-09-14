@@ -1,5 +1,6 @@
 const axios = require('axios');
 const yts = require('yt-search');
+const { commandInput, isHttpUrl, safeFileName } = require('../lib/downloadUtils');
 
 const AXIOS_DEFAULTS = {
     timeout: 60000,
@@ -62,8 +63,7 @@ async function getOkatsuVideoByUrl(youtubeUrl) {
 
 async function videoCommand(sock, chatId, message) {
     try {
-        const text = message.message?.conversation || message.message?.extendedTextMessage?.text;
-        const searchQuery = text.split(' ').slice(1).join(' ').trim();
+        const searchQuery = commandInput(message);
         
         
         if (!searchQuery) {
@@ -75,7 +75,7 @@ async function videoCommand(sock, chatId, message) {
         let videoUrl = '';
         let videoTitle = '';
         let videoThumbnail = '';
-        if (searchQuery.startsWith('http://') || searchQuery.startsWith('https://')) {
+        if (isHttpUrl(searchQuery)) {
             videoUrl = searchQuery;
         } else {
             // Search YouTube for the video
@@ -150,7 +150,7 @@ async function videoCommand(sock, chatId, message) {
         await sock.sendMessage(chatId, {
             video: { url: videoData.download || videoData.dl || videoData.url },
             mimetype: 'video/mp4',
-            fileName: `${(videoData.title || videoTitle || 'video').replace(/[^\w\s-]/g, '')}.mp4`,
+            fileName: `${safeFileName(videoData.title || videoTitle, 'video')}.mp4`,
             caption: `*${videoData.title || videoTitle || 'Video'}*\n\n> *_Downloaded by 𝐂𝐞𝐧𝐭𝐫𝐚𝐥-𝐡𝐞𝐱_*`
         }, { quoted: message });
         

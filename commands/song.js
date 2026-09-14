@@ -3,6 +3,7 @@ const yts = require('yt-search');
 const fs = require('fs');
 const path = require('path');
 const { toAudio } = require('../lib/converter');
+const { commandInput, isHttpUrl, safeFileName } = require('../lib/downloadUtils');
 
 const AXIOS_DEFAULTS = {
 	timeout: 60000,
@@ -69,17 +70,17 @@ async function getOkatsuDownloadByUrl(youtubeUrl) {
 
 async function songCommand(sock, chatId, message) {
     try {
-        const text = message.message?.conversation || message.message?.extendedTextMessage?.text || '';
-        if (!text) {
+        const query = commandInput(message);
+        if (!query) {
             await sock.sendMessage(chatId, { text: 'Usage: .song <song name or YouTube link>' }, { quoted: message });
             return;
         }
 
         let video;
-        if (text.includes('youtube.com') || text.includes('youtu.be')) {
-			video = { url: text };
+        if (isHttpUrl(query) && /(?:youtube\.com|youtu\.be)/i.test(query)) {
+			video = { url: query };
         } else {
-			const search = await yts(text);
+			const search = await yts(query);
 			if (!search || !search.videos.length) {
                 await sock.sendMessage(chatId, { text: 'No results found.' }, { quoted: message });
                 return;
@@ -88,10 +89,16 @@ async function songCommand(sock, chatId, message) {
         }
 
         // Inform user
-        await sock.sendMessage(chatId, {
-            image: { url: video.thumbnail },
-            caption: `🎵 Downloading: *${video.title}*\n⏱ Duration: ${video.timestamp}`
-        }, { quoted: message });
+        if (video.thumbnail) {
+            await sock.sendMessage(chatId, {
+                image: { url: video.thumbnail },
+                caption: `🎵 Downloading: *${video.title}*\n⏱ Duration: ${video.timestamp || '—'}`
+            }, { quoted: message });
+        } else {
+            await sock.sendMessage(chatId, {
+                text: `🎵 Downloading: *${video.title || query}*`
+            }, { quoted: message });
+        }
 
 		// Try multiple APIs with fallback chain: EliteProTech -> Yupra -> Okatsu
 		let audioData;
@@ -132,6 +139,11 @@ async function songCommand(sock, chatId, message) {
 						}
 					});
 					audioBuffer = Buffer.from(audioResponse.data);
+					const contentType = String(audioResponse.headers?.['content-type'] || '').toLowerCase();
+					const signature = audioBuffer.toString('utf8', 0, 32).trimStart().toLowerCase();
+					if (contentType.includes('text/html') || signature.startsWith('<!doctype') || signature.startsWith('<html')) {
+						throw new Error('Audio provider returned an error page');
+					}
 					
 					// Validate buffer
 					if (audioBuffer && audioBuffer.length > 0) {
@@ -247,8 +259,8 @@ async function songCommand(sock, chatId, message) {
 
 		// Convert to MP3 if not already MP3
 		let finalBuffer = audioBuffer;
-		let finalMimetype = 'audio/mpeg';
-		let finalExtension = 'mp3';
+		let finalMimetype = actualMimetype;
+		let finalExtension = fileExtension;
 
 		if (fileExtension !== 'mp3') {
 			try {
@@ -259,7 +271,9 @@ async function songCommand(sock, chatId, message) {
 				finalMimetype = 'audio/mpeg';
 				finalExtension = 'mp3';
 			} catch (convErr) {
-				throw new Error(`Failed to convert ${detectedFormat} to MP3: ${convErr.message}`);
+				// Sending the original valid audio is safer than failing the
+				// download when ffmpeg is unavailable on the host.
+				console.warn(`Audio conversion skipped (${detectedFormat}):`, convErr.message);
 			}
 		}
 
@@ -267,7 +281,7 @@ async function songCommand(sock, chatId, message) {
 		await sock.sendMessage(chatId, {
 			audio: finalBuffer,
 			mimetype: finalMimetype,
-			fileName: `${(audioData.title || video.title || 'song').replace(/[^\w\s-]/g, '')}.${finalExtension}`,
+			fileName: `${safeFileName(audioData.title || video.title, 'song')}.${finalExtension}`,
 			ptt: false
 		}, { quoted: message });
 

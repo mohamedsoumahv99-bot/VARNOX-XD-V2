@@ -173,17 +173,17 @@ function nowInfo() {
 function menuHeader(senderNum) {
   const info = nowInfo();
   return (
-    `╭──⟪𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮⟫──╮\n` +
+    `╭──⟪🤖𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮⟫──╮\n` +
     `├ ߷ ᴘʀéғɪxᴇ       : .\n` +
-    `├ ߷ ᴏᴡɴᴇʀ         : ${settings.botOwner || settings.author || 'VARNOX'}\n` +
+    `├ ߷ ᴏᴡɴᴇʀ         : ${settings.menuOwner || settings.botOwner || 'VARNOX'}\n` +
     `├ ߷ ᴄᴏᴍᴍᴀɴᴅᴇs     : ${commandCount}\n` +
     `├ ߷ ᴜᴘᴛɪᴍᴇ        : ${info.runtime}\n` +
     `├ ߷ ᴅᴀᴛᴇ          : ${info.date}\n` +
     `├ ߷ ʜᴇᴜʀᴇ         : ${info.time}\n` +
-    `├ ߷ ᴘʟᴀᴛᴇғᴏʀᴍᴇ    : ʟɪɴᴜx\n` +
-    `├ ߷ ᴅéᴠᴇʟᴏᴘᴘᴇᴜʀ   : ${settings.author || 'ʋαɾɳσx'}\n` +
+    `├ ߷ ᴘʟᴀᴛᴇғᴏʀᴍᴇ    : ${process.platform.toUpperCase()}\n` +
+    `├ ߷ ᴅéᴠᴇʟᴏᴘᴘᴇᴜʀ   : ${settings.developer || settings.author || 'ʋαɾɳσx Tech'}\n` +
     `├ ߷ ᴠᴇʀsɪᴏɴ       : ${settings.version || '2.0.0'}\n` +
-    `├ ߷ ᴜsᴇʀ          : @${senderNum}\n` +
+    `├ ߷ ᴜsᴇʀ          : ${senderNum && senderNum !== '?' ? `@${senderNum}` : ''}\n` +
     `╰──────────────────╯`
   );
 }
@@ -231,9 +231,7 @@ function overview(senderNum, notice = '') {
 
 function allMenu(senderNum) {
   return (
-    `╭───⟪ 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 • ᴀʟʟᴍᴇɴᴜ ⟫───╮\n` +
-    `│ ᴛᴏᴜᴛᴇs ʟᴇs ᴄᴀᴛéɢᴏʀɪᴇs ᴅᴜ ʙᴏᴛ\n` +
-    `╰────────────────────────────────╯\n\n` +
+    `${menuHeader(senderNum)}\n\n` +
     categories.map(category => categoryBox(category)).join('\n\n') +
     `\n\n💡 ᴜᴛɪʟɪsᴇ *ᴍᴇɴᴜ* ᴘᴏᴜʀ ʀᴇᴠᴇɴɪʀ ᴀᴜx ᴄᴀᴛéɢᴏʀɪᴇs.\n` +
     `> 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 • ᴛᴏᴜᴛᴇs ʟᴇs ᴄᴏᴍᴍᴀɴᴅᴇs`
