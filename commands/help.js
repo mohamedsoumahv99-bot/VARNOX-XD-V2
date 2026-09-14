@@ -54,8 +54,9 @@ const categories = [
     aliases: ['group', 'groupes'],
     commands: [
       'groupinfo', 'staff', 'tagall', 'tag', 'hidetag', 'tagnotadmin',
-      'kick', 'kickall', 'promote', 'demote', 'warn', 'warnings',
+      'kick', 'kickall', 'kickall2', 'promote', 'demote', 'warn', 'warnings',
       'mute', 'unmute', 'open', 'close', 'antilink', 'antitag',
+      'antiflood', 'antispam', 'antimedia', 'antisticker', 'antivoice',
       'antibadword', 'antibot', 'welcome', 'goodbye', 'setgname',
       'setgdesc', 'setgpp', 'resetlink', 'delete', 'clear', 'deleteall'
     ]
