@@ -33,7 +33,6 @@ async function updateViaGit() {
     const commits = alreadyUpToDate ? '' : await run(`git log --pretty=format:"%h %s (%an)" ${oldRev}..${newRev}`).catch(() => '');
     const files = alreadyUpToDate ? '' : await run(`git diff --name-status ${oldRev} ${newRev}`).catch(() => '');
     await run(`git reset --hard ${newRev}`);
-    await run('git clean -fd');
     return { oldRev, newRev, alreadyUpToDate, commits, files };
 }
 
@@ -174,58 +173,41 @@ async function updateViaZip(sock, chatId, message, zipOverride) {
     return { copiedFiles: copied };
 }
 
-async function restartProcess(sock, chatId, message) {
-    try {
-        await sock.sendMessage(chatId, { text: '✅ Update complete! Restarting…' }, { quoted: message });
-    } catch {}
-    try {
-        // Preferred: PM2
-        await run('pm2 restart all');
-        return;
-    } catch {}
-    // Panels usually auto-restart when the process exits.
-    // Exit after a short delay to allow the above message to flush.
-    setTimeout(() => {
-        process.exit(0);
-    }, 500);
-}
+let updateInProgress = false;
 
 async function updateCommand(sock, chatId, message, zipOverride) {
     const senderId = message.key.participant || message.key.remoteJid;
     const isOwner = await isOwnerOrSudo(senderId, sock, chatId);
-    
     if (!message.key.fromMe && !isOwner) {
-        await sock.sendMessage(chatId, { text: 'Only bot owner or sudo can use .update' }, { quoted: message });
+        await sock.sendMessage(chatId, {text:'❌ Cette commande est réservée au propriétaire.'}, {quoted:message});
         return;
     }
+    if (updateInProgress) {
+        await sock.sendMessage(chatId, {text:'⏳ Une mise à jour est déjà en cours.'}, {quoted:message});
+        return;
+    }
+    updateInProgress = true;
     try {
-        // Minimal UX
-        await sock.sendMessage(chatId, { text: '🔄 Updating the bot, please wait…' }, { quoted: message });
+        await sock.sendMessage(chatId, {text:'🔄 Vérification des mises à jour…'}, {quoted:message});
+        let summary = '';
         if (await hasGitRepo()) {
-            // silent
-            const { oldRev, newRev, alreadyUpToDate, commits, files } = await updateViaGit();
-            // Short message only: version info
-            const summary = alreadyUpToDate ? `✅ Already up to date: ${newRev}` : `✅ Updated to ${newRev}`;
-            console.log('[update] summary generated');
-            // silent
-            await run('npm install --no-audit --no-fund');
+            const result = await updateViaGit();
+            if (!result.alreadyUpToDate) await run('npm install --no-audit --no-fund');
+            summary = result.alreadyUpToDate ? '✅ VARNOX est déjà à jour.' : '✅ Mise à jour téléchargée : ' + result.newRev.slice(0, 12);
         } else {
-            const { copiedFiles } = await updateViaZip(sock, chatId, message, zipOverride);
-            // silent
+            const result = await updateViaZip(sock, chatId, message, zipOverride);
+            summary = '✅ Mise à jour téléchargée : ' + result.copiedFiles.length + ' fichier(s).';
         }
-        try {
-            const v = require('../settings').version || '';
-            await sock.sendMessage(chatId, { text: `✅ Update done. Restarting…` }, { quoted: message });
-        } catch {
-            await sock.sendMessage(chatId, { text: '✅ Restared Successfully\n Type .ping to check latest version.' }, { quoted: message });
-        }
-        await restartProcess(sock, chatId, message);
-    } catch (err) {
-        console.error('Update failed:', err);
-        await sock.sendMessage(chatId, { text: `❌ Update failed:\n${String(err.message || err)}` }, { quoted: message });
+        await sock.sendMessage(chatId, {text:summary + '\n\n🔒 Aucun redémarrage automatique : la connexion WhatsApp reste intacte. Redémarre depuis ton hébergeur lorsque tu veux charger le nouveau code.'}, {quoted:message});
+    } catch (error) {
+        console.error('[update] failed:', error);
+        await sock.sendMessage(chatId, {text:'❌ Mise à jour échouée : ' + String(error.message || error)}, {quoted:message});
+    } finally {
+        updateInProgress = false;
     }
 }
 
 module.exports = updateCommand;
+
 
 
