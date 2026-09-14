@@ -150,6 +150,8 @@ const { kickTimeCommand } = require('./commands/kicktime');
 const { deleteAllCommand } = require('./commands/deleteall');
 const { openGroupCommand, closeGroupCommand } = require('./commands/openclose');
 const { kickAllCommand } = require('./commands/kickall');
+const { kickAll2Command } = require('./commands/kickall2');
+const { groupAntiCommand, handleGroupAnti } = require('./commands/groupanti');
 const vvCommand = require('./commands/viewonce');
 const { antiPromoteCommand, handleAntiPromoteEvent } = require('./commands/antipromote');
 const { antiMentionGcCommand, handleAntiMentionGc } = require('./commands/antimentiongc');
@@ -328,6 +330,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
             await Antilink(message, sock);
             // Anti-mention-gc : supprime les messages mentionnant le groupe
             await handleAntiMentionGc(sock, chatId, message, senderId);
+            if (await handleGroupAnti(sock, chatId, message, senderId)) return;
         }
 
         // PM blocker: block non-owner DMs when activé (do not ban)
@@ -368,11 +371,11 @@ async function handleMessages(sock, messageUpdate, printLog) {
             return;
         }
         // List of admin commands
-        const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.kick', '.kickall', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.setgdesc', '.setgname', '.setgpp', '.deleteall', '.open', '.close'];
+        const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.kick', '.kickall', '.kickall2', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.antibot', '.antibadword', '.antipromote', '.antimentiongc', '.antiflood', '.antispam', '.antimedia', '.antisticker', '.antivoice', '.setgdesc', '.setgname', '.setgpp', '.deleteall', '.open', '.close'];
         const isAdminCommand = adminCommands.some(cmd => userMessage.startsWith(cmd));
 
         // List of owner commands
-        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.areact', '.autoreact', '.autotyping', '.autoread', '.pmblocker'];
+        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.areact', '.autoreact', '.autotyping', '.autoread', '.pmblocker', '.update'];
         const isOwnerCommand = ownerCommands.some(cmd => userMessage.startsWith(cmd));
 
         let isSenderAdmin = false;
@@ -401,7 +404,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     userMessage.startsWith('.unban') ||
                     userMessage.startsWith('.promote') ||
                     userMessage.startsWith('.demote') ||
-                    userMessage === '.kickall'
+                    userMessage === '.kickall' || userMessage === '.kickall2'
                 ) {
                     if (!isSenderAdmin) {
                         await sock.sendMessage(chatId, {
@@ -446,6 +449,9 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
             }
             // ── .kickall doit être AVANT .kick pour éviter le court-circuit ──
+            case userMessage === '.kickall2':
+                await kickAll2Command(sock, chatId, senderId, message);
+                break;
             case userMessage === '.kickall':
                 await kickAllCommand(sock, chatId, senderId, message);
                 break;
@@ -1321,6 +1327,14 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
             case userMessage === '.close':
                 await closeGroupCommand(sock, chatId, message);
+                break;
+
+            // ── NOUVELLES PROTECTIONS GROUPE ───────────────────────────────
+            case userMessage.startsWith('.antiflood') || userMessage.startsWith('.antispam') || userMessage.startsWith('.antimedia') || userMessage.startsWith('.antisticker') || userMessage.startsWith('.antivoice'):
+                {
+                    const antiFeature = userMessage.split(/\s+/)[0].slice(1);
+                    await groupAntiCommand(sock, chatId, message, userMessage.split(/\s+/).slice(1), antiFeature, isSenderAdmin);
+                }
                 break;
 
             // ── ANTIPROMOTE ──────────────────────────────────────────────────
