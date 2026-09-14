@@ -146,7 +146,7 @@ const categories = [
   }
 ];
 
-const commandCount = new Set(categories.flatMap(category => category.commands)).size;
+const commandCount = settings.commandCount || 118;
 
 function normalize(value) {
   return String(value || '')
@@ -190,11 +190,12 @@ function menuHeader(senderNum) {
 
 function categoryBox(category) {
   return (
-    `╭───⟪ ${category.icon} ${category.key === 'groupe' ? 'ɢʀᴏᴜᴘᴇ' : category.title} ⟫───╮\n` +
+    `╭───⟪${category.title}⟫───╮\n` +
+    `┃❍╭━━━━━━━━━━━━━━≽\n` +
     category.commands.map((command, index) =>
-      `├ ߷ ${String(index + 1).padStart(2, '0')} • .${command}`
+      `┃⌬┃${String(index + 1).padStart(2, '0')} • .${command}`
     ).join('\n') +
-    `\n╰───────────────────╯`
+    `\n╰━━━━━━━━━━━━❍`
   );
 }
 
@@ -213,15 +214,16 @@ function categoryIndex(query) {
 
 function overview(senderNum, notice = '') {
   const categoryLines = categories.map((category, index) =>
-    `├ ߷ ${String(index + 1).padStart(2, '0')} • ${category.icon} ${category.title}`
+    `┃⌬┃${String(index + 1).padStart(2, '0')} • ${category.title}`
   ).join('\n');
 
   return (
     `${notice ? `${notice}\n\n` : ''}` +
     `${menuHeader(senderNum)}\n\n` +
-    `╭───⟪ ᴄᴀᴛéɢᴏʀɪᴇs ⟫───╮\n` +
+    `╭───⟪ᴄᴀᴛéɢᴏʀɪᴇs⟫\n` +
+    `┃❍╭━━━━━━━━━━━━━━≽\n` +
     `${categoryLines}\n` +
-    `╰───────────────────╯\n\n` +
+    `╰━━━━━━━━━━━━❍\n\n` +
     `💡 ᴛᴀᴘᴇ *ᴍᴇɴᴜ <ɴᴜᴍéʀᴏ>* ᴏᴜ *ᴍᴇɴᴜ <ɴᴏᴍ>* ᴘᴏᴜʀ ᴠᴏɪʀ ᴜɴᴇ ᴄᴀᴛéɢᴏʀɪᴇ.\n` +
     `💡 ᴛᴀᴘᴇ *ᴀʟʟᴍᴇɴᴜ* ᴘᴏᴜʀ ᴛᴏᴜᴛ ᴀғғɪᴄʜᴇʀ.\n` +
     `📌 ᴇxᴇᴍᴘʟᴇs : *ᴍᴇɴᴜ 5* • *ᴍᴇɴᴜ ɢʀᴏᴜᴘᴇ*\n\n` +
