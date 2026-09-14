@@ -22,7 +22,7 @@ const settings = {
   commandCount: 118,
 
   // Ton lien GitHub (optionnel)
-  updateZipUrl: "https://github.com/Med12-q/VARNOX-XD-V2",
+  updateZipUrl: "https://github.com/mohamedsoumahv99-bot/VARNOX-XD-V2/archive/refs/heads/main.zip",
 
   // URL du panneau — auto-détection Render / Railway / Vercel / fallback
   pairApiUrl: process.env.RENDER_EXTERNAL_URL
