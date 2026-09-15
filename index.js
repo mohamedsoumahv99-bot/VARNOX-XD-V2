@@ -96,11 +96,11 @@ async function startXeonBotInc() {
         try {
             const _v = await Promise.race([
                 fetchLatestBaileysVersion(),
-                new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 8000))
+                new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 2500))
             ]);
             if (_v && _v.version) { version = _v.version; isLatest = _v.isLatest; }
         } catch (e) {
-            console.warn('[VARNOX] fetchLatestBaileysVersion timeout → fallback version');
+            console.warn('[VARNOX] Version Baileys indisponible rapidement → version de secours');
         }
         // Supporte --session-dir <dir> pour les instances multi-utilisateurs
         const sessionDirArg = (() => {
@@ -254,7 +254,7 @@ async function startXeonBotInc() {
                 console.error('Error requesting pairing code:', error)
                 console.log(chalk.red('Failed to get pairing code. Please check your phone number and try again.'))
             }
-        }, 3000)
+        }, 500)
     }
 
     // Connection handling
@@ -277,12 +277,12 @@ async function startXeonBotInc() {
             // cela enverrait le lien de la chaîne à n'importe quel utilisateur
             // qui connecte son compte. Le message de bienvenue est supprimé.
 
-            await delay(1999)
+            await delay(250)
             console.log(chalk.yellow(`\n\n                  ${chalk.bold.blue(`[ ${global.botname || '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2'} ]`)}\n\n`))
             console.log(chalk.cyan(`< ================================================== >`))
             console.log(chalk.magenta(`\n${global.themeemoji || '•'} YT CHANNEL:𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2`))
             console.log(chalk.magenta(`${global.themeemoji || '•'} GITHUB: VARNOX-XD-V2`))
-            console.log(chalk.magenta(`${global.themeemoji || '•'} WA NUMBER: ${owner}`))
+            console.log(chalk.magenta(`${global.themeemoji || '•'} WA NUMBER: ${owner.ownerNumber || owner.ownerName || 'Owner'}`))
             console.log(chalk.magenta(`${global.themeemoji || '•'} CREDIT: Central-Hex`))
             console.log(chalk.green(`${global.themeemoji || '•'} 🤖 Bot Connected Successfully! ✅`))
             console.log(chalk.blue(`Bot Version: ${settings.version}`))
@@ -296,7 +296,7 @@ async function startXeonBotInc() {
             
             if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
                 try {
-                    rmSync('./session', { recursive: true, force: true })
+                    rmSync(SESSION_DIR, { recursive: true, force: true })
                     console.log(chalk.yellow('Session folder deleted. Please re-authenticate.'))
                 } catch (error) {
                     console.error('Error deleting session:', error)
@@ -306,8 +306,8 @@ async function startXeonBotInc() {
             
             if (shouldReconnect) {
                 console.log(chalk.yellow('Reconnecting...'))
-                await delay(5000)
-                startXeonBotInc()
+                await delay(3000)
+                await startXeonBotInc()
             }
         }
     })
