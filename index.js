@@ -67,8 +67,8 @@ setInterval(() => {
     }
 }, 30_000) // check every 30 seconds
 
-let phoneNumber = "224610835573"
-let owner = (() => { try { return JSON.parse(fs.readFileSync("./data/owner.json", "utf8")); } catch { return { ownerNumber: process.env.OWNER_NUMBER || "224610835573", ownerName: "Owner", botName: "VARNOX XD V2", prefix: process.env.PREFIX || ".", version: "2.0.0", mess: "Owner" }; } })()
+let phoneNumber = settings.ownerNumber
+let owner = (() => { try { return JSON.parse(fs.readFileSync("./data/owner.json", "utf8")); } catch { return { ownerNumber: settings.ownerNumber, ownerName: settings.botOwner, botName: settings.botName, prefix: process.env.PREFIX || ".", version: settings.version, mess: settings.botOwner }; } })()
 
 global.botname = "𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2"
 global.themeemoji = "•"

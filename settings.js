@@ -4,14 +4,14 @@ const settings = {
   // ════════════════════════════════════════════════════
 
   packname: '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2',          // Nom du pack sticker
-  author: 'ʋαɾɳσx ❍ғғɪᴄɪᴀʟ',               // Ton nom
+  author: '𝗩꯭𝗔꯭𝗥꯭𝗡꯭𝗢꯭𝗫꯭͡ 𝗫꯭𝗧꯭𝗘꯭𝗖꯭𝗛꯭͡',               // Ton nom
   botName: "𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2",           // Nom du bot affiché
-  botOwner: 'ʋαɾɳσx ❍ғғɪᴄɪᴀʟ',             // Ton vrai nom
+  botOwner: '𝗩꯭𝗔꯭𝗥꯭𝗡꯭𝗢꯭𝗫꯭͡ 𝗫꯭𝗧꯭𝗘꯭𝗖꯭𝗛꯭͡',             // Ton vrai nom
   menuOwner: 'ʋαɾɳσx',
   developer: 'ʋαɾɳσx Tech',
 
   // ⚠️ Ton numéro WhatsApp SANS le + (ex: 224621000000)
-  ownerNumber: process.env.OWNER_NUMBER || '224610835573',
+  ownerNumber: '224669288332',
 
   giphyApiKey: 'qnl7ssQChTdPjsKta2Ax2LMaGXz303tq',
   commandMode: "public",               // "public" ou "private"
