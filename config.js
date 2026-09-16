@@ -15,12 +15,12 @@ global.APIs = {
 };
 
 global.APIKeys = {
-    'https://api.xteam.xyz': 'd90a9e986e18778b',
-    'https://api.lolhuman.xyz': '85faf717d0545d14074659ad',
-    'https://api.neoxr.my.id': 'yourkey',
+    'https://api.xteam.xyz': process.env.XTEAM_API_KEY || '',
+    'https://api.lolhuman.xyz': process.env.LOLHUMAN_API_KEY || '',
+    'https://api.neoxr.my.id': process.env.NEOXR_API_KEY || '',
     'https://violetics.pw': 'beta',
-    'https://zenzapis.xyz': 'yourkey',
-    'https://api-fgmods.ddns.net': 'fg-dylux'
+    'https://zenzapis.xyz': process.env.ZENZ_API_KEY || '',
+    'https://api-fgmods.ddns.net': process.env.FGMODS_API_KEY || ''
 };
 
 module.exports = {

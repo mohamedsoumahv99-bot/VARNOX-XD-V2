@@ -156,6 +156,9 @@ const vvCommand = require('./commands/viewonce');
 const { antiPromoteCommand, handleAntiPromoteEvent } = require('./commands/antipromote');
 const { antiMentionGcCommand, handleAntiMentionGc } = require('./commands/antimentiongc');
 const { antiDmCommand, handleAntiDm } = require('./commands/antidm');
+const { getPrefix, normalizeCommandText, setPrefix } = require('./lib/prefix');
+const { setCmdCommand, dispatchCustomCommand } = require('./commands/customcmd');
+const { GROUP_COMMANDS, handleGroupExtraCommand } = require('./commands/groupExtras');
 
 // Global settings
 global.packname = settings.packname;
@@ -186,6 +189,7 @@ function readBotMode() {
 }
 
 async function handleMessages(sock, messageUpdate, printLog) {
+    let chatId = '';
     try {
         const { messages, type } = messageUpdate;
         if (type !== 'notify') return;
@@ -207,7 +211,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
             return;
         }
 
-        const chatId = message.key.remoteJid;
+        chatId = message.key.remoteJid;
         const senderId = message.key.participant || message.key.remoteJid;
         const isGroup = chatId.endsWith('@g.us');
         const senderIsSudo = await isSudo(senderId);
@@ -253,21 +257,17 @@ async function handleMessages(sock, messageUpdate, printLog) {
             }
         }
 
-        const userMessage = (
+        const rawText = (
             message.message?.conversation?.trim() ||
             message.message?.extendedTextMessage?.text?.trim() ||
             message.message?.imageMessage?.caption?.trim() ||
             message.message?.videoMessage?.caption?.trim() ||
             message.message?.buttonsResponseMessage?.selectedButtonId?.trim() ||
             ''
-        ).toLowerCase().replace(/\.\s+/g, '.').trim();
-
-        // Preserve raw message for commands like .tag that need original casing
-        const rawText = message.message?.conversation?.trim() ||
-            message.message?.extendedTextMessage?.text?.trim() ||
-            message.message?.imageMessage?.caption?.trim() ||
-            message.message?.videoMessage?.caption?.trim() ||
-            '';
+        );
+        // Internally, every command continues to use ".". The active prefix
+        // can be changed per group/private scope, including an emoji.
+        const userMessage = normalizeCommandText(rawText, getPrefix(chatId));
 
         // Only log command usage
         if (userMessage.startsWith('.')) {
@@ -372,7 +372,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         }
         // List of admin commands
         const commandMatches = cmd => userMessage === cmd || userMessage.startsWith(`${cmd} `);
-        const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.kick', '.kicktime', '.kickall', '.kickall2', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.antibot', '.antibadword', '.antipromote', '.antimentiongc', '.antiflood', '.antispam', '.antimedia', '.antisticker', '.antivoice', '.setgdesc', '.setgname', '.setgpp', '.deleteall', '.open', '.close'];
+        const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.demoteadmin', '.kick', '.kicktime', '.kickall', '.kickall2', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.antibot', '.antibadword', '.antipromote', '.antimentiongc', '.antiflood', '.antispam', '.antimedia', '.antisticker', '.antivoice', '.setgdesc', '.setgname', '.setgpp', '.deleteall', '.open', '.close'];
         const isAdminCommand = adminCommands.some(commandMatches);
 
         // List of owner commands
@@ -405,6 +405,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     commandMatches('.unban') ||
                     commandMatches('.promote') ||
                     commandMatches('.demote') ||
+                    commandMatches('.demoteadmin') ||
                     commandMatches('.kickall') || commandMatches('.kickall2')
                 ) {
                     if (!isSenderAdmin) {
@@ -429,6 +430,75 @@ async function handleMessages(sock, messageUpdate, printLog) {
         // Command handlers - Execute commands immediately without waiting for typing indicator
         // We'll show typing indicator after command execution if needed
         let commandExecuted = false;
+
+        // Custom sticker commands are checked before the large legacy switch.
+        // This keeps setcmd extensible without adding generated case labels.
+        const customCommandName = userMessage.match(/^\.([a-z0-9_-]+)/)?.[1] || '';
+        if (customCommandName && customCommandName !== 'setcmd') {
+            if (await dispatchCustomCommand(sock, chatId, message, customCommandName)) {
+                commandExecuted = true;
+                sock.sendPresenceUpdate('paused', chatId).catch(() => {});
+                return;
+            }
+        }
+
+        if (userMessage === '.setprefix' || userMessage.startsWith('.setprefix ')) {
+            const requestedPrefix = userMessage.slice('.setprefix'.length).trim();
+            if (isGroup) {
+                const prefixStatus = await isAdmin(sock, chatId, senderId);
+                if (!prefixStatus.isSenderAdmin && !senderIsOwnerOrSudo) {
+                    await sock.sendMessage(chatId, { text: '❌ Seuls les admins peuvent changer le préfixe.', ...channelInfo }, { quoted: message });
+                    return;
+                }
+            } else if (!senderIsOwnerOrSudo) {
+                await sock.sendMessage(chatId, { text: '❌ Cette commande est réservée au propriétaire en privé.', ...channelInfo }, { quoted: message });
+                return;
+            }
+            if (!requestedPrefix) {
+                await sock.sendMessage(chatId, { text: `ℹ️ Préfixe actuel : ${getPrefix(chatId)}\nUtilise .setprefix ! ou .setprefix 🔥`, ...channelInfo }, { quoted: message });
+                return;
+            }
+            try {
+                const prefix = setPrefix(chatId, requestedPrefix);
+                await sock.sendMessage(chatId, { text: `✅ Préfixe configuré : ${prefix}\nExemple : ${prefix}menu`, ...channelInfo }, { quoted: message });
+            } catch (error) {
+                await sock.sendMessage(chatId, { text: `❌ ${error.message}`, ...channelInfo }, { quoted: message });
+            }
+            return;
+        }
+
+        if (userMessage === '.setcmd' || userMessage.startsWith('.setcmd ')) {
+            if (isGroup) {
+                const setcmdStatus = await isAdmin(sock, chatId, senderId);
+                if (!setcmdStatus.isSenderAdmin && !senderIsOwnerOrSudo) {
+                    await sock.sendMessage(chatId, { text: '❌ Seuls les admins peuvent créer une commande sticker.', ...channelInfo }, { quoted: message });
+                    return;
+                }
+            } else if (!senderIsOwnerOrSudo) {
+                await sock.sendMessage(chatId, { text: '❌ Cette commande est réservée au propriétaire en privé.', ...channelInfo }, { quoted: message });
+                return;
+            }
+            try {
+                await setCmdCommand(sock, chatId, message, userMessage.slice('.setcmd'.length).trim().split(/\s+/).filter(Boolean));
+            } catch (error) {
+                await sock.sendMessage(chatId, { text: `❌ Impossible de créer la commande : ${error.message}`, ...channelInfo }, { quoted: message });
+            }
+            return;
+        }
+
+        if (isGroup && GROUP_COMMANDS.includes(customCommandName)) {
+            await handleGroupExtraCommand(
+                sock,
+                chatId,
+                message,
+                customCommandName,
+                userMessage.slice(`.${customCommandName}`.length).trim().split(/\s+/).filter(Boolean),
+                senderIsOwnerOrSudo
+            );
+            commandExecuted = true;
+            sock.sendPresenceUpdate('paused', chatId).catch(() => {});
+            return;
+        }
 
         // ── Emoji reaction fires IN PARALLEL during execution ───────────────
         // No await = reaction sends while the command runs → appears "during use"
@@ -806,6 +876,12 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage.startsWith('.promote'):
                 const mentionedJidListPromote = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
                 await promoteCommand(sock, chatId, mentionedJidListPromote, message);
+                break;
+            case userMessage.startsWith('.demoteadmin'):
+                {
+                    const mentionedJidListDemoteAdmin = message.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+                    await demoteCommand(sock, chatId, mentionedJidListDemoteAdmin, message);
+                }
                 break;
             case userMessage.startsWith('.demote'):
                 const mentionedJidListDemote = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];

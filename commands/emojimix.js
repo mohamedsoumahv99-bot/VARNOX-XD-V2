@@ -25,21 +25,16 @@ async function emojimixCommand(sock, chatId, msg) {
 
         let [emoji1, emoji2] = args[0].split('+').map(e => e.trim());
 
-        // Using Tenor API endpoint
-        const url = `https://tenor.googleapis.com/v2/featured?key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ&contentfilter=high&media_filter=png_transparent&component=proactive&collection=emoji_kitchen_v5&q=${encodeURIComponent(emoji1)}_${encodeURIComponent(emoji2)}`;
-
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (!data.results || data.results.length === 0) {
-            await sock.sendMessage(chatId, { 
-                text: '❌ These emojis cannot be mixed! Try different ones.' 
-            });
-            return;
+        let imageUrl;
+        if (process.env.TENOR_API_KEY) {
+            const url = `https://tenor.googleapis.com/v2/featured?key=${encodeURIComponent(process.env.TENOR_API_KEY)}&contentfilter=high&media_filter=png_transparent&component=proactive&collection=emoji_kitchen_v5&q=${encodeURIComponent(emoji1)}_${encodeURIComponent(emoji2)}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            imageUrl = data.results?.[0]?.url;
         }
-
-        // Get the first result URL
-        const imageUrl = data.results[0].url;
+        if (!imageUrl) {
+            imageUrl = `https://emojik.vercel.app/s/${encodeURIComponent(emoji1)}_${encodeURIComponent(emoji2)}?size=512`;
+        }
 
         // Create temp directory if it doesn't exist
         const tmpDir = path.join(process.cwd(), 'tmp');

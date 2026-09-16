@@ -36,7 +36,7 @@
     "jimp": "^1.6.0",
     "jsdom": "^22.1.0",
     "libphonenumber-js": "^1.11.18",
-    "libsignal": "^2.0.1",
+    "libsignal": "^6.0.0",
     "link-preview-js": "^3.0.5",
     "moment-timezone": "^0.5.43",
     "mumaker": "^2.0.0",
@@ -59,12 +59,17 @@
     "ws": "^8.17.1",
     "yargs": "^17.6.0",
     "yargs-parser": "^21.1.1",
-    "youtube-yts": "^2.0.0",
     "ytdl-core": "^4.11.5",
     "yt-search": "^2.12.1"
   },
   "overrides": {
-    "jimp": "^1.6.0"
+    "jimp": "^1.6.0",
+    "form-data": "^4.0.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "form-data": "^4.0.4"
+    }
   },
   "engines": {
     "node": ">=20.0.0"

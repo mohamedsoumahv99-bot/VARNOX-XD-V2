@@ -2,15 +2,17 @@ const fetch = require('node-fetch');
 
 async function flirtCommand(sock, chatId, message) {
     try {
-        const shizokeys = 'shizo';
-        const res = await fetch(`https://shizoapi.onrender.com/api/texts/flirt?apikey=${shizokeys}`);
+        const shizokeys = process.env.SHIZO_API_KEY;
+        const res = shizokeys
+            ? await fetch(`https://shizoapi.onrender.com/api/texts/flirt?apikey=${encodeURIComponent(shizokeys)}`)
+            : null;
         
-        if (!res.ok) {
+        if (res && !res.ok) {
             throw await res.text();
         }
         
-        const json = await res.json();
-        const flirtMessage = json.result;
+        const json = res ? await res.json() : null;
+        const flirtMessage = json?.result || '✨ Ton sourire pourrait améliorer la journée de n’importe qui.';
 
         // Send the flirt message
         await sock.sendMessage(chatId, { text: flirtMessage }, { quoted: message });

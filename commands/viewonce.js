@@ -9,12 +9,14 @@ const { channelInfo } = require('../lib/messageConfig');
  *   true           → envoie au PV de l'expéditeur         (.vv2)
  */
 async function vvCommand(sock, chatId, message, sendToPv = false) {
-    const senderJid = message.key.participant || message.key.remoteJid;
-    const targetJid = sendToPv ? senderJid : chatId;
-
     // Chercher le message cité (vue-unique ou normal)
     const ctx    = message.message?.extendedTextMessage?.contextInfo;
     const quoted = ctx?.quotedMessage;
+    const senderJid = message.key.participant || message.key.remoteJid;
+    // In a group, the private destination for vv2 is the author of the
+    // quoted view-once message, not the person who typed .vv2.
+    const quotedSenderJid = ctx?.participant || ctx?.remoteJid || senderJid;
+    const targetJid = sendToPv ? (quotedSenderJid || senderJid) : chatId;
 
     const quotedImage =
         quoted?.imageMessage ||
@@ -43,7 +45,7 @@ async function vvCommand(sock, chatId, message, sendToPv = false) {
     }
 
     try {
-        const senderNum = (senderJid || '').split('@')[0];
+        const senderNum = (quotedSenderJid || senderJid || '').split('@')[0];
         const location  = chatId.endsWith('@g.us') ? chatId : 'Privé';
 
         const caption =

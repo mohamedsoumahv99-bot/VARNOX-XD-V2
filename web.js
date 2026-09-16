@@ -137,8 +137,9 @@ function pairingSocketOptions(version, logger, state) {
       keys: makeCacheableSignalKeyStore(state.keys, logger),
     },
     msgRetryCounterCache: new NodeCache({ stdTTL: 120 }),
-    connectTimeoutMs: 60000,
-    keepAliveIntervalMs: 10000,
+    connectTimeoutMs: 30000,
+    keepAliveIntervalMs: 15000,
+    markOnlineOnConnect: false,
   };
 }
 
@@ -414,7 +415,7 @@ async function handleCode(req, res) {
         codeDone = true;
         codeReject(new Error('Timeout 60s — WhatsApp n’a pas préparé la connexion. Réessaie avec le numéro international sans +.'));
       }
-    }, 60000);
+    }, 45000);
 
     async function tryGetCode() {
       if (codeDone) return;
@@ -428,12 +429,12 @@ async function handleCode(req, res) {
         const raw = await sock.requestPairingCode(number);
         if (!codeDone) {
           if (raw) { codeDone = true; clearTimeout(hardTimer); codeResolve(raw); }
-          else if (attempts < 5) setTimeout(tryGetCode, 2000);
+          else if (attempts < 5) setTimeout(tryGetCode, Math.min(400 * attempts, 2000));
           else { codeDone = true; clearTimeout(hardTimer); codeReject(new Error('Code null. Réessaie.')); }
         }
       } catch (e) {
         if (codeDone) return;
-        if (attempts < 5) setTimeout(tryGetCode, 2500);
+        if (attempts < 5) setTimeout(tryGetCode, Math.min(500 * attempts, 2500));
         else { codeDone = true; clearTimeout(hardTimer); codeReject(new Error(e.message)); }
       }
     }
@@ -448,7 +449,7 @@ async function handleCode(req, res) {
       pairActivated = true;
 
       // Laisser les dernières clés de signal être écrites avant activation.
-      await new Promise(r => setTimeout(r, 4000));
+      await new Promise(r => setTimeout(r, 1200));
       try { await activeSaveCreds(); } catch (e) {
         console.error(`[VARNOX] saveCreds error:`, e.message);
       }
@@ -475,9 +476,10 @@ async function handleCode(req, res) {
     sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
       if (connection === 'connecting' && !pairStarted) {
         pairStarted = true;
-        // WhatsApp/Baileys doit finir son handshake avant requestPairingCode.
-        // Le flux officiel du même dépôt attend 3 secondes.
-        setTimeout(tryGetCode, 3000);
+        // Le socket est déjà en phase de handshake. Une courte attente évite
+        // la race sans imposer le délai de plusieurs secondes de l'ancienne
+        // implémentation.
+        setTimeout(tryGetCode, 650);
       }
 
       if (connection === 'open') {
@@ -532,7 +534,12 @@ async function handleCode(req, res) {
 
     // Fallback : si 'connecting' tarde ou ne se déclenche pas avant que l'on
     // enregistre le listener (race condition possible avec certaines versions)
-    setTimeout(() => { if (!codeDone && !pairStarted) { pairStarted = true; tryGetCode(); } }, 7000);
+    setTimeout(() => {
+      if (!codeDone && !pairStarted) {
+        pairStarted = true;
+        tryGetCode();
+      }
+    }, 2500);
 
     // ── Attendre le code ──────────────────────────────────────────────────
     const raw       = await codePromise;

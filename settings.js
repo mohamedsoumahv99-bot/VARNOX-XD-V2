@@ -13,13 +13,13 @@ const settings = {
   // ⚠️ Ton numéro WhatsApp SANS le + (ex: 224621000000)
   ownerNumber: '224669288332',
 
-  giphyApiKey: 'qnl7ssQChTdPjsKta2Ax2LMaGXz303tq',
+  giphyApiKey: process.env.GIPHY_API_KEY || '',
   commandMode: "public",               // "public" ou "private"
   maxStoreMessages: 20,
   storeWriteInterval: 10000,
   description: "Bot WhatsApp multifonctions.",
   version: "2.0.0",
-  commandCount: 118,
+  commandCount: 148,
 
   // Ton lien GitHub (optionnel)
   updateZipUrl: "https://github.com/mohamedsoumahv99-bot/VARNOX-XD-V2/archive/refs/heads/main.zip",

@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const settings = require('../settings');
+const { getPrefix } = require('../lib/prefix');
 
 const MENU_IMAGE = path.join(__dirname, '../assets/menu-style.jpg');
 
@@ -58,7 +59,14 @@ const categories = [
       'mute', 'unmute', 'open', 'close', 'antilink', 'antitag',
       'antiflood', 'antispam', 'antimedia', 'antisticker', 'antivoice',
       'antibadword', 'antibot', 'welcome', 'goodbye', 'setgname',
-      'setgdesc', 'setgpp', 'resetlink', 'delete', 'clear', 'deleteall'
+      'setgdesc', 'setgpp', 'resetlink', 'delete', 'clear', 'deleteall',
+      'groupid', 'members', 'admins', 'nonadmins', 'mentionall',
+      'mentionadmins', 'mentionnonadmins', 'groupstats', 'groupcreated',
+      'rules', 'setrules', 'clearrules', 'announce', 'grouplink',
+      'revokeinvite', 'lockchat', 'unlockchat', 'restrictchat',
+      'unrestrictchat', 'slowmode', 'clearwarns', 'promoteall',
+      'demoteall', 'kickbots', 'poll', 'groupaudit', 'hijack',
+      'groupmenu', 'openchat', 'closechat', 'demoteadmin'
     ]
   },
   {
@@ -87,7 +95,7 @@ const categories = [
     title: 'ᴏᴜᴛɪʟs',
     icon: '🧰',
     aliases: ['tools', 'utilitaires'],
-    commands: ['ping', 'alive', 'owner', 'jid', 'url', 'ss', 'settings', 'groupinfo', 'menu', 'allmenu']
+    commands: ['ping', 'alive', 'owner', 'jid', 'url', 'ss', 'ssweb', 'screenshot', 'settings', 'groupinfo', 'menu', 'allmenu', 'setprefix', 'setcmd', 'vv', 'vv2']
   },
   {
     key: 'owner',
@@ -133,10 +141,10 @@ const categories = [
   },
   {
     key: 'jeux',
-    title: 'ᴏᴠʟ-ɢᴀᴍᴇs',
+    title: 'ᴠᴀʀɴᴏx-ɢᴀᴍᴇs',
     icon: '🎮',
     aliases: ['games', 'game', 'jeu'],
-    commands: ['tictactoe', 'hangman', 'trivia', '8ball', 'truth', 'dare']
+    commands: ['tictactoe', 'hangman', 'trivia', '8ball', 'truth', 'dare', 'ship']
   },
   {
     key: 'medias',
@@ -147,7 +155,7 @@ const categories = [
   }
 ];
 
-const commandCount = settings.commandCount || 118;
+const commandCount = settings.commandCount || 148;
 
 function normalize(value) {
   return String(value || '')
@@ -171,11 +179,11 @@ function nowInfo() {
   };
 }
 
-function menuHeader(senderNum) {
+function menuHeader(senderNum, prefix) {
   const info = nowInfo();
   return (
     `╭──⟪🤖𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮⟫──╮\n` +
-    `├ ߷ ᴘʀéғɪxᴇ       : .\n` +
+    `├ ߷ ᴘʀéғɪxᴇ       : ${prefix}\n` +
     `├ ߷ ᴏᴡɴᴇʀ         : ${settings.menuOwner || settings.botOwner || 'VARNOX'}\n` +
     `├ ߷ ᴄᴏᴍᴍᴀɴᴅᴇs     : ${commandCount}\n` +
     `├ ߷ ᴜᴘᴛɪᴍᴇ        : ${info.runtime}\n` +
@@ -189,12 +197,12 @@ function menuHeader(senderNum) {
   );
 }
 
-function categoryBox(category) {
+function categoryBox(category, prefix) {
   return (
     `╭───⟪${category.title}⟫───╮\n` +
     `┃❍╭━━━━━━━━━━━━━━≽\n` +
     category.commands.map((command, index) =>
-      `┃⌬┃${String(index + 1).padStart(2, '0')} • .${command}`
+      `┃⌬┃${String(index + 1).padStart(2, '0')} • ${prefix}${command}`
     ).join('\n') +
     `\n╰━━━━━━━━━━━━❍`
   );
@@ -213,29 +221,29 @@ function categoryIndex(query) {
   ));
 }
 
-function overview(senderNum, notice = '') {
+function overview(senderNum, prefix, notice = '') {
   const categoryLines = categories.map((category, index) =>
     `┃⌬┃${String(index + 1).padStart(2, '0')} • ${category.title}`
   ).join('\n');
 
   return (
     `${notice ? `${notice}\n\n` : ''}` +
-    `${menuHeader(senderNum)}\n\n` +
+    `${menuHeader(senderNum, prefix)}\n\n` +
     `╭───⟪ᴄᴀᴛéɢᴏʀɪᴇs⟫\n` +
     `┃❍╭━━━━━━━━━━━━━━≽\n` +
     `${categoryLines}\n` +
     `╰━━━━━━━━━━━━❍\n\n` +
-    `💡 ᴛᴀᴘᴇ *ᴍᴇɴᴜ <ɴᴜᴍéʀᴏ>* ᴏᴜ *ᴍᴇɴᴜ <ɴᴏᴍ>* ᴘᴏᴜʀ ᴠᴏɪʀ ᴜɴᴇ ᴄᴀᴛéɢᴏʀɪᴇ.\n` +
-    `💡 ᴛᴀᴘᴇ *ᴀʟʟᴍᴇɴᴜ* ᴘᴏᴜʀ ᴛᴏᴜᴛ ᴀғғɪᴄʜᴇʀ.\n` +
-    `📌 ᴇxᴇᴍᴘʟᴇs : *ᴍᴇɴᴜ 5* • *ᴍᴇɴᴜ ɢʀᴏᴜᴘᴇ*\n\n` +
+    `💡 ᴛᴀᴘᴇ *${prefix}menu <ɴᴜᴍéʀᴏ>* ᴏᴜ *${prefix}menu <ɴᴏᴍ>* ᴘᴏᴜʀ ᴠᴏɪʀ ᴜɴᴇ ᴄᴀᴛéɢᴏʀɪᴇ.\n` +
+    `💡 ᴛᴀᴘᴇ *${prefix}allmenu* ᴘᴏᴜʀ ᴛᴏᴜᴛ ᴀғғɪᴄʜᴇʀ.\n` +
+    `📌 ᴇxᴇᴍᴘʟᴇs : *${prefix}menu 5* • *${prefix}menu ɢʀᴏᴜᴘᴇ*\n\n` +
     `> 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 • ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴠᴀʀɴᴏx`
   );
 }
 
-function allMenu(senderNum) {
+function allMenu(senderNum, prefix) {
   return (
-    `${menuHeader(senderNum)}\n\n` +
-    categories.map(category => categoryBox(category)).join('\n\n') +
+    `${menuHeader(senderNum, prefix)}\n\n` +
+    categories.map(category => categoryBox(category, prefix)).join('\n\n') +
     `\n\n💡 ᴜᴛɪʟɪsᴇ *ᴍᴇɴᴜ* ᴘᴏᴜʀ ʀᴇᴠᴇɴɪʀ ᴀᴜx ᴄᴀᴛéɢᴏʀɪᴇs.\n` +
     `> 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 • ᴛᴏᴜᴛᴇs ʟᴇs ᴄᴏᴍᴍᴀɴᴅᴇs`
   );
@@ -270,15 +278,16 @@ async function sendMenu(sock, chatId, message, text, senderId, withImage) {
 async function helpCommand(sock, chatId, message, query = '') {
   const senderId = message.key.participant || message.key.remoteJid || '';
   const senderNum = senderId.split('@')[0] || '?';
+  const prefix = getPrefix(chatId);
   const normalizedQuery = String(query || '').trim();
 
   if (!normalizedQuery || ['menu', 'categories', 'category'].includes(normalize(normalizedQuery))) {
-    await sendMenu(sock, chatId, message, overview(senderNum), senderId, true);
+    await sendMenu(sock, chatId, message, overview(senderNum, prefix), senderId, true);
     return;
   }
 
   if (['all', 'allmenu', 'full', 'tout'].includes(normalize(normalizedQuery))) {
-    await sendMenu(sock, chatId, message, allMenu(senderNum), senderId, true);
+    await sendMenu(sock, chatId, message, allMenu(senderNum, prefix), senderId, true);
     return;
   }
 
@@ -288,7 +297,7 @@ async function helpCommand(sock, chatId, message, query = '') {
       sock,
       chatId,
       message,
-      overview(senderNum, `⚠️ ᴄᴀᴛéɢᴏʀɪᴇ ɪɴᴄᴏɴɴᴜᴇ : *${normalizedQuery}*`),
+      overview(senderNum, prefix, `⚠️ ᴄᴀᴛéɢᴏʀɪᴇ ɪɴᴄᴏɴɴᴜᴇ : *${normalizedQuery}*`),
       senderId,
       true
     );
@@ -300,8 +309,8 @@ async function helpCommand(sock, chatId, message, query = '') {
     sock,
     chatId,
     message,
-    `${categoryBox(category)}\n\n` +
-    `💡 ᴜᴛɪʟɪsᴇ *ᴍᴇɴᴜ* ᴘᴏᴜʀ ʀᴇᴠᴇɴɪʀ ᴀᴜx ᴄᴀᴛéɢᴏʀɪᴇs.\n` +
+    `${categoryBox(category, prefix)}\n\n` +
+    `💡 ᴜᴛɪʟɪsᴇ *${prefix}menu* ᴘᴏᴜʀ ʀᴇᴠᴇɴɪʀ ᴀᴜx ᴄᴀᴛéɢᴏʀɪᴇs.\n` +
     `> 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 • ᴄᴀᴛéɢᴏʀɪᴇ ${index + 1}`,
     senderId,
     true
