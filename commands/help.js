@@ -95,7 +95,7 @@ const categories = [
     title: 'ᴏᴜᴛɪʟs',
     icon: '🧰',
     aliases: ['tools', 'utilitaires'],
-    commands: ['ping', 'alive', 'owner', 'jid', 'url', 'ss', 'ssweb', 'screenshot', 'settings', 'groupinfo', 'menu', 'allmenu', 'setprefix', 'setcmd', 'vv', 'vv2']
+    commands: ['ping', 'alive', 'owner', 'jid', 'url', 'ss', 'ssweb', 'screenshot', 'settings', 'groupinfo', 'menu', 'allmenu', 'setprefix', 'prefix', 'prefixe', 'setcmd', 'vv', 'vv2']
   },
   {
     key: 'owner',

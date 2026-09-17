@@ -28,7 +28,8 @@ async function fetchScreenshot(url) {
     const providers = [
         {
             name: 'thum.io',
-            url: `https://image.thum.io/get/width/1280/crop/2000/noanimate/${encodeURIComponent(url)}`
+            // thum.io expects the target URL as the final raw path segment.
+            url: `https://image.thum.io/get/width/1280/crop/2000/noanimate/${url}`
         },
         {
             name: 'microlink',

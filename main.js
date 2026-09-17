@@ -265,9 +265,30 @@ async function handleMessages(sock, messageUpdate, printLog) {
             message.message?.buttonsResponseMessage?.selectedButtonId?.trim() ||
             ''
         );
+        // Owner-friendly diagnostic alias. It reports only the active scope
+        // (this private chat or this group), never another user's chat data.
+        if (/^>\s*prefixe?\s*$/i.test(rawText) && senderIsOwnerOrSudo) {
+            await sock.sendMessage(chatId, {
+                text: `🔑 Préfixe actif pour cette discussion : ${getPrefix(chatId)}`
+            }, { quoted: message });
+            return;
+        }
         // Internally, every command continues to use ".". The active prefix
         // can be changed per group/private scope, including an emoji.
         const userMessage = normalizeCommandText(rawText, getPrefix(chatId));
+
+        if (userMessage === '.prefix' || userMessage === '.prefixe') {
+            if (!senderIsOwnerOrSudo) {
+                await sock.sendMessage(chatId, {
+                    text: '❌ Cette commande est réservée au propriétaire.'
+                }, { quoted: message });
+            } else {
+                await sock.sendMessage(chatId, {
+                    text: `🔑 Préfixe actif pour cette discussion : ${getPrefix(chatId)}`
+                }, { quoted: message });
+            }
+            return;
+        }
 
         // Only log command usage
         if (userMessage.startsWith('.')) {
