@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const isAdmin = require('../lib/isAdmin');
+const { channelInfo } = require('../lib/messageConfig');
 
 const STATE_FILE = path.join(__dirname, '../data/group-extras.json');
 
@@ -11,7 +12,7 @@ const GROUP_COMMANDS = [
     'mentionnonadmins', 'groupstats', 'groupcreated', 'rules', 'setrules',
     'clearrules', 'announce', 'grouplink', 'revokeinvite', 'lockchat',
     'unlockchat', 'restrictchat', 'unrestrictchat', 'slowmode', 'clearwarns',
-    'promoteall', 'demoteall', 'kickbots', 'poll', 'groupaudit',
+    'promoteall', 'demoteall', 'approveall', 'kickbots', 'poll', 'groupaudit',
     'groupmenu', 'openchat', 'closechat'
 ];
 
@@ -242,6 +243,64 @@ async function handleGroupExtraCommand(sock, chatId, message, command, args, own
             }
             await sock.groupParticipantsUpdate(chatId, mentionJids(limited), command === 'promoteall' ? 'promote' : 'demote');
             await sock.sendMessage(chatId, { text: `✅ ${limited.length} membre(s) traité(s).`, mentions: mentionJids(limited) }, { quoted: message });
+            break;
+        }
+        case 'approveall': {
+            if (!await requireBotAdmin(sock, chatId, message, owner)) break;
+            if (typeof sock.groupRequestParticipantsList !== 'function' ||
+                typeof sock.groupRequestParticipantsUpdate !== 'function') {
+                await sock.sendMessage(chatId, {
+                    text: '❌ Cette version de Baileys ne permet pas de traiter les demandes d’adhésion.',
+                    ...channelInfo
+                }, { quoted: message });
+                break;
+            }
+
+            let requests = [];
+            try {
+                requests = await sock.groupRequestParticipantsList(chatId) || [];
+            } catch (error) {
+                console.error('[approveall] lecture des demandes impossible :', error.message);
+                await sock.sendMessage(chatId, {
+                    text: '❌ Impossible de lire les demandes d’adhésion du groupe.',
+                    ...channelInfo
+                }, { quoted: message });
+                break;
+            }
+
+            const requestJids = requests
+                .map(request => request.jid || request.id || request.phoneNumber)
+                .filter(Boolean);
+            if (!requestJids.length) {
+                await sock.sendMessage(chatId, {
+                    text: 'ℹ️ Aucune demande d’adhésion en attente.',
+                    ...channelInfo
+                }, { quoted: message });
+                break;
+            }
+
+            let approved = 0;
+            for (let index = 0; index < requestJids.length; index += 50) {
+                const batch = requestJids.slice(index, index + 50);
+                try {
+                    await sock.groupRequestParticipantsUpdate(chatId, batch, 'approve');
+                    approved += batch.length;
+                } catch (error) {
+                    console.error('[approveall] approbation du lot impossible :', error.message);
+                    for (const jid of batch) {
+                        try {
+                            await sock.groupRequestParticipantsUpdate(chatId, [jid], 'approve');
+                            approved += 1;
+                        } catch (individualError) {
+                            console.error(`[approveall] demande refusée pour ${jid} :`, individualError.message);
+                        }
+                    }
+                }
+            }
+            await sock.sendMessage(chatId, {
+                text: `✅ ${approved}/${requestJids.length} demande(s) d’adhésion approuvée(s).`,
+                ...channelInfo
+            }, { quoted: message });
             break;
         }
         case 'kickbots':
