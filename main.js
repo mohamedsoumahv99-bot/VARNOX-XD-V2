@@ -161,6 +161,7 @@ const { antiDmCommand, handleAntiDm } = require('./commands/antidm');
 const { getPrefix, normalizeCommandText, setPrefix } = require('./lib/prefix');
 const { setCmdCommand, dispatchCustomCommand } = require('./commands/customcmd');
 const { GROUP_COMMANDS, handleGroupExtraCommand } = require('./commands/groupExtras');
+const fakeReactCommand = require('./commands/fakeract');
 
 // Global settings
 global.packname = settings.packname;
@@ -269,26 +270,22 @@ async function handleMessages(sock, messageUpdate, printLog) {
         );
         // Owner-friendly diagnostic alias. It reports only the active scope
         // (this private chat or this group), never another user's chat data.
-        if (/^>\s*prefixe?\s*$/i.test(rawText) && senderIsOwnerOrSudo) {
+        if (/^>\s+prefixe?\s*$/i.test(rawText)) {
             await sock.sendMessage(chatId, {
-                text: `🔑 Préfixe actif pour cette discussion : ${getPrefix(chatId)}`
+                text: `🔑 Préfixe actif pour cette discussion : ${getPrefix(chatId)}`,
+                ...channelInfo
             }, { quoted: message });
             return;
         }
-        // Internally, every command continues to use ".". The active prefix
-        // can be changed per group/private scope, including an emoji.
+        // Internally, commands use "." only after the active prefix has been
+        // matched. A configured prefix fully replaces the default ".".
         const userMessage = normalizeCommandText(rawText, getPrefix(chatId));
 
         if (userMessage === '.prefix' || userMessage === '.prefixe') {
-            if (!senderIsOwnerOrSudo) {
-                await sock.sendMessage(chatId, {
-                    text: '❌ Cette commande est réservée au propriétaire.'
-                }, { quoted: message });
-            } else {
-                await sock.sendMessage(chatId, {
-                    text: `🔑 Préfixe actif pour cette discussion : ${getPrefix(chatId)}`
-                }, { quoted: message });
-            }
+            await sock.sendMessage(chatId, {
+                text: `🔑 Préfixe actif pour cette discussion : ${getPrefix(chatId)}`,
+                ...channelInfo
+            }, { quoted: message });
             return;
         }
 
@@ -404,7 +401,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         const isBotAdminRequired = botAdminCommands.some(commandMatches);
 
         // List of owner commands
-        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.areact', '.autoreact', '.autotyping', '.autoread', '.pmblocker', '.update'];
+        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.areact', '.autoreact', '.autotyping', '.autoread', '.pmblocker', '.update', '.fakeract'];
         const isOwnerCommand = ownerCommands.some(commandMatches);
 
         let isSenderAdmin = false;
@@ -749,13 +746,20 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
             case userMessage.startsWith('.anticall'):
                 if (!message.key.fromMe && !senderIsOwnerOrSudo) {
-                    await sock.sendMessage(chatId, { text: 'Only owner/sudo can use anticall.' }, { quoted: message });
+                    await sock.sendMessage(chatId, {
+                        text: 'Only owner/sudo can use anticall.',
+                        ...channelInfo
+                    }, { quoted: message });
                     break;
                 }
                 {
                     const args = userMessage.split(' ').slice(1).join(' ');
                     await anticallCommand(sock, chatId, message, args);
                 }
+                break;
+            case userMessage.startsWith('.fakeract'):
+                await fakeReactCommand(sock, chatId, message, userMessage.slice('.fakeract'.length).trim());
+                commandExecuted = true;
                 break;
             case userMessage.startsWith('.pmblocker'):
                 {
