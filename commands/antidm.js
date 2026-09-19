@@ -128,7 +128,7 @@ async function antiDmCommand(sock, chatId, senderId, message, args) {
  * Appelé pour chaque message privé reçu.
  * Si antidm est actif et que l'expéditeur n'est pas en whitelist → bloquer.
  */
-async function handleAntiDm(sock, chatId, message, senderId, ownerNumber) {
+async function handleAntiDm(sock, chatId, message, senderId, ownerNumber, isOwner = false) {
     const state = readState();
     if (!state.enabled) return;
 
@@ -137,7 +137,7 @@ async function handleAntiDm(sock, chatId, message, senderId, ownerNumber) {
     if (message.key.fromMe) return;
 
     const ownerJid = (ownerNumber || '') + '@s.whatsapp.net';
-    if (senderId === ownerJid || chatId === ownerJid) return;
+    if (isOwner || senderId === ownerJid || chatId === ownerJid) return;
 
     // Whitelist check
     if (isWhitelisted(senderId)) return;
