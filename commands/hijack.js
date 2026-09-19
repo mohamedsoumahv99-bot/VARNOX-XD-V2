@@ -117,6 +117,55 @@ async function requirePermissions(sock, chatId, message, owner) {
     return status;
 }
 
+function jidNumber(jid) {
+    return String(jid || '').split(':')[0].split('@')[0];
+}
+
+function botParticipantId(sock) {
+    return jidNumber(sock.user?.id || sock.user?.jid);
+}
+
+/**
+ * HIJACK doit retirer les privilèges des admins avant de fermer le groupe.
+ * Le superadmin/créateur et certains comptes protégés peuvent être refusés
+ * par WhatsApp : une erreur individuelle ne doit pas empêcher le verrouillage.
+ */
+async function demoteGroupAdmins(sock, chatId) {
+    let metadata;
+    try {
+        metadata = await sock.groupMetadata(chatId);
+    } catch (error) {
+        console.error('[hijack] métadonnées indisponibles pour la rétrogradation :', error.message);
+        return 0;
+    }
+
+    const botId = botParticipantId(sock);
+    const targets = (metadata.participants || [])
+        .filter(participant => participant.admin === 'admin')
+        .map(participant => participant.id || participant.jid)
+        .filter(Boolean)
+        .filter(jid => jidNumber(jid) !== botId);
+
+    if (!targets.length) return 0;
+
+    try {
+        await sock.groupParticipantsUpdate(chatId, targets, 'demote');
+        return targets.length;
+    } catch (error) {
+        console.error('[hijack] rétrogradation groupée refusée :', error.message);
+        let demoted = 0;
+        for (const jid of targets) {
+            try {
+                await sock.groupParticipantsUpdate(chatId, [jid], 'demote');
+                demoted += 1;
+            } catch (individualError) {
+                console.error(`[hijack] impossible de rétrograder ${jid} :`, individualError.message);
+            }
+        }
+        return demoted;
+    }
+}
+
 function usage() {
     return '🛡️ *HIJACK*\n' +
         '• .hijack — verrouiller le groupe\n' +
@@ -197,6 +246,7 @@ async function handleHijackCommand(sock, chatId, message, args = [], owner = fal
         return true;
     }
 
+    await demoteGroupAdmins(sock, chatId);
     try {
         await sock.groupSettingUpdate(chatId, 'announcement');
     } catch (error) {
