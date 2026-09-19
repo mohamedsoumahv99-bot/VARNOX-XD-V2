@@ -36,6 +36,7 @@ const axios = require('axios');
 const ffmpeg = require('fluent-ffmpeg');
 const { isSudo } = require('./lib/index');
 const isOwnerOrSudo = require('./lib/isOwner');
+const { isPrimaryOwner } = isOwnerOrSudo;
 const { autotypingCommand, isAutotypingEnabled, handleAutotypingForMessage, handleAutotypingForCommand, showTypingAfterCommand } = require('./commands/autotyping');
 const { autoreadCommand, isAutoreadEnabled, handleAutoread } = require('./commands/autoread');
 
@@ -161,6 +162,7 @@ const { antiDmCommand, handleAntiDm } = require('./commands/antidm');
 const { getPrefix, normalizeCommandText, setPrefix } = require('./lib/prefix');
 const { setCmdCommand, dispatchCustomCommand } = require('./commands/customcmd');
 const { GROUP_COMMANDS, handleGroupExtraCommand } = require('./commands/groupExtras');
+const { handleFakeractChannelMessage } = require('./commands/fakeract');
 const fakeReactCommand = require('./commands/fakeract');
 
 // Global settings
@@ -215,10 +217,32 @@ async function handleMessages(sock, messageUpdate, printLog) {
         }
 
         chatId = message.key.remoteJid;
-        const senderId = message.key.participant || message.key.remoteJid;
+        // Les messages WhatsApp récents peuvent exposer à la fois un LID et
+        // le numéro réel. Garder tous les identifiants permet au propriétaire
+        // configuré de rester reconnu même si le bot est connecté à un autre
+        // compte ou si WhatsApp utilise le format LID.
+        const senderCandidates = [
+            message.key.participant,
+            message.key.participantAlt,
+            message.key.remoteJidAlt,
+            message.key.senderPn,
+            message.key.senderLid,
+            message.key.remoteJid
+        ].filter(Boolean);
+        const senderId = senderCandidates[0] || message.key.remoteJid;
         const isGroup = chatId.endsWith('@g.us');
+
+        // Une publication de chaîne ne doit pas traverser le routeur de
+        // commandes de groupe/PV. Le hook reste non bloquant pour préserver
+        // la réception temps réel des publications.
+        if (chatId.endsWith('@newsletter')) {
+            await handleFakeractChannelMessage(sock, message);
+            return;
+        }
+
         const senderIsSudo = await isSudo(senderId);
-        const senderIsOwnerOrSudo = await isOwnerOrSudo(senderId, sock, chatId);
+        const senderIsOwner = await isPrimaryOwner(senderCandidates, sock, chatId);
+        const senderIsOwnerOrSudo = senderIsOwner || await isOwnerOrSudo(senderCandidates, sock, chatId);
 
         // Suppression des messages des utilisateurs ciblés par .mute @user.
         if (isGroup && !message.key.fromMe && isMuted(chatId, senderId)) {
@@ -232,7 +256,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
         // ── AntDM : bloquer les inconnus en PV ──────────────────────────────
         if (!isGroup && !message.key.fromMe) {
-            await handleAntiDm(sock, chatId, message, senderId, settings.ownerNumber);
+            await handleAntiDm(sock, chatId, message, senderId, settings.ownerNumber, senderIsOwnerOrSudo);
         }
 
         // Vérification antibot : bloquer les autres bots dans le groupe
@@ -271,6 +295,13 @@ async function handleMessages(sock, messageUpdate, printLog) {
         // Owner-friendly diagnostic alias. It reports only the active scope
         // (this private chat or this group), never another user's chat data.
         if (/^>\s+prefixe?\s*$/i.test(rawText)) {
+            if (!senderIsOwner) {
+                await sock.sendMessage(chatId, {
+                    text: '❌ Cette commande est réservée au propriétaire configuré.',
+                    ...channelInfo
+                }, { quoted: message });
+                return;
+            }
             await sock.sendMessage(chatId, {
                 text: `🔑 Préfixe actif pour cette discussion : ${getPrefix(chatId)}`,
                 ...channelInfo
@@ -355,7 +386,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         }
 
         // PM blocker: block non-owner DMs when activé (do not ban)
-        if (!isGroup && !message.key.fromMe && !senderIsSudo) {
+        if (!isGroup && !message.key.fromMe && !senderIsOwnerOrSudo) {
             try {
                 const pmState = readPmBlockerState();
                 if (pmState.activé) {
