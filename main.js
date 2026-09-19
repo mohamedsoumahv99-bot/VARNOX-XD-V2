@@ -98,6 +98,8 @@ const characterCommand = require('./commands/character');
 const wastedCommand = require('./commands/wasted');
 const shipCommand = require('./commands/ship');
 const groupInfoCommand = require('./commands/groupinfo');
+const profileCommand = require('./commands/profile');
+const { handleHijackCommand, restoreHijackTimers } = require('./commands/hijack');
 const resetlinkCommand = require('./commands/resetlink');
 const staffCommand = require('./commands/staff');
 const unbanCommand = require('./commands/unban');
@@ -460,9 +462,27 @@ async function handleMessages(sock, messageUpdate, printLog) {
         // We'll show typing indicator after command execution if needed
         let commandExecuted = false;
 
+        // Réagir dès qu'une commande est reconnue, y compris pour les
+        // commandes custom et les protections qui sortent plus tôt.
+        const _cmdKey = userMessage.split(/\s+/)[0];
+        addCommandReaction(sock, message, _cmdKey).catch(() => {});
+
         // Custom sticker commands are checked before the large legacy switch.
         // This keeps setcmd extensible without adding generated case labels.
         const customCommandName = userMessage.match(/^\.([a-z0-9_-]+)/)?.[1] || '';
+        if (isGroup && customCommandName === 'hijack') {
+            await handleHijackCommand(
+                sock,
+                chatId,
+                message,
+                userMessage.slice('.hijack'.length).trim().split(/\s+/).filter(Boolean),
+                senderIsOwnerOrSudo
+            );
+            commandExecuted = true;
+            sock.sendPresenceUpdate('paused', chatId).catch(() => {});
+            return;
+        }
+
         if (customCommandName && customCommandName !== 'setcmd') {
             if (await dispatchCustomCommand(sock, chatId, message, customCommandName)) {
                 commandExecuted = true;
@@ -528,11 +548,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
             sock.sendPresenceUpdate('paused', chatId).catch(() => {});
             return;
         }
-
-        // ── Emoji reaction fires IN PARALLEL during execution ───────────────
-        // No await = reaction sends while the command runs → appears "during use"
-        const _cmdKey = userMessage.split(/\s+/)[0];
-        addCommandReaction(sock, message, _cmdKey).catch(() => {});
 
         // ── Typing presence: "En train d'écrire…" while processing ──────────
         sock.sendPresenceUpdate('composing', chatId).catch(() => {});
@@ -1051,6 +1066,9 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     return;
                 }
                 await groupInfoCommand(sock, chatId, message);
+                break;
+            case userMessage === '.profile' || userMessage === '.profil':
+                await profileCommand(sock, chatId, message);
                 break;
             case userMessage === '.resetlink' || userMessage === '.revoke' || userMessage === '.anularlink':
                 if (!isGroup) {
@@ -1575,6 +1593,7 @@ async function handleGroupParticipantUpdate(sock, update) {
 module.exports = {
     handleMessages,
     handleGroupParticipantUpdate,
+    restoreHijackTimers,
     handleStatus: async (sock, status) => {
         await handleStatusUpdate(sock, status);
     }

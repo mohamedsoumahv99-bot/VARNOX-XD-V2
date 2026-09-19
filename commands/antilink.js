@@ -8,7 +8,9 @@ const isAdmin                                       = require('../lib/isAdmin');
 async function handleAntilinkCommand(sock, chatId, userMessage, senderId, isSenderAdmin, message) {
     try {
         if (!isSenderAdmin) {
-            await sock.sendMessage(chatId, { text: '```For Group Admins Only!```' }, { quoted: message });
+            await sock.sendMessage(chatId, {
+                text: '❌ Cette commande est réservée aux administrateurs du groupe.'
+            }, { quoted: message });
             return;
         }
 
@@ -18,10 +20,12 @@ async function handleAntilinkCommand(sock, chatId, userMessage, senderId, isSend
 
         if (!action) {
             const usage =
-                `\`\`\`ANTILINK SETUP\n\n` +
-                `${prefix}antilink on\n` +
-                `${prefix}antilink set delete | kick | warn\n` +
-                `${prefix}antilink off\`\`\``;
+                `╭──⟪𝗩𝗔𝗥𝗡𝗢𝗫 𝗔𝗡𝗧𝗜𝗟𝗜𝗡𝗞⟫──╮\n` +
+                `┃⌬┃ Statut : consulte avec .antilink get\n` +
+                `┃⌬┃ .antilink on\n` +
+                `┃⌬┃ .antilink set delete | kick | warn\n` +
+                `┃⌬┃ .antilink off\n` +
+                `╰━━━━━━━━━━━━❍`;
             await sock.sendMessage(chatId, { text: usage }, { quoted: message });
             return;
         }
@@ -31,38 +35,38 @@ async function handleAntilinkCommand(sock, chatId, userMessage, senderId, isSend
                 const existingConfig = await getAntilink(chatId, 'on');
                 // FIX: la DB stocke `.enabled`, pas `.activé`
                 if (existingConfig?.enabled) {
-                    await sock.sendMessage(chatId, { text: '*_Antilink is already on_*' }, { quoted: message });
+                    await sock.sendMessage(chatId, { text: '⚠️ VARNOX antilink est déjà activé.' }, { quoted: message });
                     return;
                 }
                 const result = await setAntilink(chatId, 'on', 'delete');
                 await sock.sendMessage(chatId, {
-                    text: result ? '*_Antilink has been turned ON_*' : '*_Failed to turn on Antilink_*'
+                    text: result ? '╭──⟪𝗩𝗔𝗥𝗡𝗢𝗫 𝗔𝗡𝗧𝗜𝗟𝗜𝗡𝗞⟫──╮\n┃⌬┃ ✅ Protection activée.\n┃⌬┃ Action actuelle : suppression.\n╰━━━━━━━━━━━━❍' : '❌ Impossible d’activer antilink.'
                 }, { quoted: message });
                 break;
             }
 
             case 'off':
                 await removeAntilink(chatId, 'on');
-                await sock.sendMessage(chatId, { text: '*_Antilink has been turned OFF_*' }, { quoted: message });
+                await sock.sendMessage(chatId, { text: '╭──⟪𝗩𝗔𝗥𝗡𝗢𝗫 𝗔𝗡𝗧𝗜𝗟𝗜𝗡𝗞⟫──╮\n┃⌬┃ 🔕 Protection désactivée.\n╰━━━━━━━━━━━━❍' }, { quoted: message });
                 break;
 
             case 'set': {
                 if (args.length < 2) {
                     await sock.sendMessage(chatId, {
-                        text: `*_Please specify an action: ${prefix}antilink set delete | kick | warn_*`
+                        text: `❌ Choisis une action : ${prefix}antilink set delete | kick | warn`
                     }, { quoted: message });
                     return;
                 }
                 const setAction = args[1];
                 if (!['delete', 'kick', 'warn'].includes(setAction)) {
                     await sock.sendMessage(chatId, {
-                        text: '*_Invalid action. Choose delete, kick, or warn._*'
+                        text: '❌ Action invalide. Choisis delete, kick ou warn.'
                     }, { quoted: message });
                     return;
                 }
                 const setResult = await setAntilink(chatId, 'on', setAction);
                 await sock.sendMessage(chatId, {
-                    text: setResult ? `*_Antilink action set to ${setAction}_*` : '*_Failed to set Antilink action_*'
+                    text: setResult ? `✅ VARNOX antilink configuré sur : ${setAction}.` : '❌ Impossible de modifier l’action antilink.'
                 }, { quoted: message });
                 break;
             }
@@ -71,21 +75,22 @@ async function handleAntilinkCommand(sock, chatId, userMessage, senderId, isSend
                 const status = await getAntilink(chatId, 'on');
                 await sock.sendMessage(chatId, {
                     text:
-                        `*_Antilink Configuration:_*\n` +
-                        `Status: ${status?.enabled ? 'ON ✅' : 'OFF ❌'}\n` +
-                        `Action: ${status?.action || 'Non défini'}`
+                        `╭──⟪𝗩𝗔𝗥𝗡𝗢𝗫 𝗔𝗡𝗧𝗜𝗟𝗜𝗡𝗞⟫──╮\n` +
+                        `┃⌬┃ Statut : ${status?.enabled ? '✅ Activé' : '❌ Désactivé'}\n` +
+                        `┃⌬┃ Action : ${status?.action || 'delete'}\n` +
+                        `╰━━━━━━━━━━━━❍`
                 }, { quoted: message });
                 break;
             }
 
             default:
                 await sock.sendMessage(chatId, {
-                    text: `*_Use ${prefix}antilink for usage._*`
+                    text: `❌ Option invalide. Utilise ${prefix}antilink pour l’aide.`
                 }, { quoted: message });
         }
     } catch (error) {
         console.error('[antilink] Erreur commande:', error.message);
-        await sock.sendMessage(chatId, { text: '*_Error processing antilink command_*' }, { quoted: message });
+        await sock.sendMessage(chatId, { text: '❌ Une erreur a empêché VARNOX de traiter antilink.' }, { quoted: message });
     }
 }
 

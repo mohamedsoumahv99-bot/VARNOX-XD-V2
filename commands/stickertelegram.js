@@ -12,7 +12,7 @@ const settings = require('../settings');
 
 const execFileAsync = promisify(execFile);
 const TELEGRAM_URL = 'https://api.telegram.org';
-const MAX_STICKERS = 120;
+const MAX_STICKERS = 25;
 
 function getTelegramPackName(text) {
     const value = String(text || '').trim();
@@ -27,6 +27,15 @@ function getCommandText(message) {
         message.message?.conversation ||
         message.message?.extendedTextMessage?.text ||
         message.message?.imageMessage?.caption ||
+        ''
+    ).trim();
+}
+
+function getTelegramToken() {
+    return String(
+        process.env.TELEGRAM_BOT_TOKEN ||
+        process.env.TELEGRAM_TOKEN ||
+        process.env.TG_BOT_TOKEN ||
         ''
     ).trim();
 }
@@ -110,11 +119,11 @@ async function convertToWebp(inputBuffer, filePath, animated) {
 async function stickerTelegramCommand(sock, chatId, message) {
     const text = getCommandText(message);
     const packName = getTelegramPackName(text.replace(/^\S+\s*/, ''));
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const botToken = getTelegramToken();
 
     if (!packName) {
         await sock.sendMessage(chatId, {
-            text: '⚠️ Utilise .tg https://t.me/addstickers/NOM_DU_PACK'
+            text: '╭──⟪𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2⟫──╮\n┃⌬┃ Utilise : .tg https://t.me/addstickers/NOM_DU_PACK\n╰━━━━━━━━━━━━❍'
         }, { quoted: message });
         return;
     }
@@ -135,7 +144,7 @@ async function stickerTelegramCommand(sock, chatId, message) {
         if (!stickers.length) throw new Error('Le pack Telegram est vide.');
 
         await sock.sendMessage(chatId, {
-            text: `📦 Pack trouvé : ${packName}\n🔄 Conversion de ${stickers.length} sticker(s) avec le pack VARNOX...`
+            text: `╭──⟪𝗧𝗘𝗟𝗘𝗚𝗥𝗔𝗠 𝗦𝗧𝗜𝗖𝗞𝗘𝗥⟫──╮\n┃⌬┃ Pack : ${packName}\n┃⌬┃ Conversion de ${stickers.length} sticker(s)\n┃⌬┃ Limite VARNOX : 25 stickers\n╰━━━━━━━━━━━━❍`
         }, { quoted: message });
 
         let successCount = 0;
@@ -169,9 +178,9 @@ async function stickerTelegramCommand(sock, chatId, message) {
         }
 
         await sock.sendMessage(chatId, {
-            text: successCount
-                ? `✅ Conversion terminée : ${successCount}/${stickers.length} sticker(s).\n📦 Pack : ${settings.packname || 'VARNOX XD V2'}\n✍️ Auteur : ${settings.author || settings.developer || 'VARNOX'}`
-                : '❌ Aucun sticker compatible n’a pu être converti.'
+                text: successCount
+                ? `╭──⟪𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2⟫──╮\n┃⌬┃ ✅ Conversion terminée\n┃⌬┃ 📦 Stickers envoyés : ${successCount}/${stickers.length}\n┃⌬┃ 🏷️ Pack : ${settings.packname || 'VARNOX XD V2'}\n┃⌬┃ ✍️ Auteur : ${settings.author || settings.developer || 'VARNOX'}\n╰━━━━━━━━━━━━❍`
+                : '❌ Aucun sticker Telegram compatible n’a pu être converti.'
         }, { quoted: message });
     } catch (error) {
         console.error('[stickertelegram] erreur:', error);

@@ -39,18 +39,18 @@ async function groupAntiCommand(sock, chatId, message, args = [], feature, sende
         current.enabled = action === 'on';
         if (feature === 'antiflood' && /^\d+$/.test(args[1] || '')) current.limit = Math.max(2, Math.min(30, Number(args[1])));
         state[feature][chatId] = current; writeState(state);
-        return send(sock, chatId, message, (current.enabled ? '✅ ' : '❌ ') + feature + (current.enabled ? ' activé.' : ' désactivé.'));
+        return send(sock, chatId, message, `╭──⟪𝗩𝗔𝗥𝗡𝗢𝗫 𝗔𝗡𝗧𝗜⟫──╮\n┃⌬┃ ${current.enabled ? '✅' : '❌'} ${feature} ${current.enabled ? 'activé' : 'désactivé'}.\n┃⌬┃ Configuration enregistrée pour ce groupe.\n╰━━━━━━━━━━━━❍`);
     }
     if (action === 'limit' && feature === 'antiflood' && /^\d+$/.test(args[1] || '')) {
         current.limit = Math.max(2, Math.min(30, Number(args[1]))); state[feature][chatId] = current; writeState(state);
-        return send(sock, chatId, message, '✅ Limite antiflood : ' + current.limit + ' messages sur 10 secondes.');
+        return send(sock, chatId, message, '✅ VARNOX antiflood : ' + current.limit + ' messages sur 10 secondes.');
     }
     const extra = feature === 'antiflood' ? '\n┃⌬┃ .antiflood limit 8' : '';
-    return send(sock, chatId, message, '╭───⟪ ' + feature.toUpperCase() + ' ⟫───╮\n┃⌬┃ Statut : ' + (current.enabled ? '✅ Activé' : '❌ Désactivé') + '\n┃⌬┃ .' + feature + ' on\n┃⌬┃ .' + feature + ' off\n┃⌬┃ .' + feature + ' status' + extra + '\n╰━━━━━━━━━━━━❍');
+    return send(sock, chatId, message, '╭──⟪𝗩𝗔𝗥𝗡𝗢𝗫 ' + feature.toUpperCase() + '⟫──╮\n┃⌬┃ Statut : ' + (current.enabled ? '✅ Activé' : '❌ Désactivé') + '\n┃⌬┃ .' + feature + ' on\n┃⌬┃ .' + feature + ' off\n┃⌬┃ .' + feature + ' status' + extra + '\n╰━━━━━━━━━━━━❍');
 }
 async function warnAndDelete(sock, chatId, message, senderId, rule) {
     try { await sock.sendMessage(chatId, {delete:message.key}); } catch (error) { console.error('[group-anti] suppression:', error.message); }
-    const key = chatId + ':' + rule; const now = Date.now();
+    const key = chatId + ':' + senderId + ':' + rule; const now = Date.now();
     if ((warningCooldown.get(key) || 0) > now) return true;
     warningCooldown.set(key, now + 15000);
     try { await send(sock, chatId, message, '🛡️ @' + senderId.split('@')[0] + ' : message bloqué par ' + rule + '.', [senderId]); } catch (error) {}

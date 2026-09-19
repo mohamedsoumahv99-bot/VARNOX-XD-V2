@@ -11,7 +11,7 @@ const GROUP_COMMANDS = [
     'mentionnonadmins', 'groupstats', 'groupcreated', 'rules', 'setrules',
     'clearrules', 'announce', 'grouplink', 'revokeinvite', 'lockchat',
     'unlockchat', 'restrictchat', 'unrestrictchat', 'slowmode', 'clearwarns',
-    'promoteall', 'demoteall', 'kickbots', 'poll', 'groupaudit', 'hijack',
+    'promoteall', 'demoteall', 'kickbots', 'poll', 'groupaudit',
     'groupmenu', 'openchat', 'closechat'
 ];
 
@@ -265,18 +265,6 @@ async function handleGroupExtraCommand(sock, chatId, message, command, args, own
                 text: `🔎 Audit\n• Nom : ${meta.subject}\n• JID : ${chatId}\n• Membres : ${participants.length}\n• Admins : ${admins.length}\n• Bot admin : ${admins.some(p => participantNumber(p) === participantNumber({ id: sock.user?.id })) ? 'oui' : 'non'}`
             }, { quoted: message });
             break;
-        case 'hijack': {
-            if (!await requireAdmin(sock, chatId, message, owner)) break;
-            const state = groupState(chatId);
-            state[chatId].controlled = !state[chatId].controlled;
-            writeState(state);
-            await sock.sendMessage(chatId, {
-                text: state[chatId].controlled
-                    ? '✅ Mode contrôle VARNOX activé. Cela ne change pas les droits WhatsApp et ne permet pas de prendre le contrôle du groupe.'
-                    : '✅ Mode contrôle VARNOX désactivé.'
-            }, { quoted: message });
-            break;
-        }
         case 'groupmenu':
             await sock.sendMessage(chatId, {
                 text: `📚 Commandes groupe\n${GROUP_COMMANDS.map(name => `• .${name}`).join('\n')}`

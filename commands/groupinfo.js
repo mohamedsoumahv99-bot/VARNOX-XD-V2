@@ -64,15 +64,14 @@ async function groupInfoCommand(sock, chatId, msg) {
         })));
         const adminLines = adminEntries.length
             ? adminEntries.map((admin, index) =>
-                `┃⌬┃ ${index + 1}. @${getParticipantNumber(admin.jid)} — ${admin.name}`
+                `┃⌬┃ ${index + 1}. @${getParticipantNumber(admin.jid)}`
             ).join('\n')
             : '┃⌬┃ Aucun administrateur trouvé';
 
         let ownerLine = 'Inconnu';
         let ownerMention;
         if (ownerJid) {
-            const ownerName = await getParticipantName(sock, { id: ownerJid });
-            ownerLine = `@${getParticipantNumber(ownerJid)} — ${ownerName}`;
+            ownerLine = `@${getParticipantNumber(ownerJid)}`;
             ownerMention = ownerJid;
         }
 
