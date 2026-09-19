@@ -1,11 +1,13 @@
 const { handleAntiBadwordCommand } = require('../lib/antibadword');
 const isAdminHelper = require('../lib/isAdmin');
+const { channelInfo } = require('../lib/messageConfig');
 
 async function antibadwordCommand(sock, chatId, message, senderId, isSenderAdmin) {
     try {
         if (!isSenderAdmin) {
             await sock.sendMessage(chatId, {
-                text: '❌ Cette commande est réservée aux administrateurs du groupe.'
+                text: '❌ Cette commande est réservée aux administrateurs du groupe.',
+                ...channelInfo
             }, { quoted: message });
             return;
         }
@@ -18,7 +20,10 @@ async function antibadwordCommand(sock, chatId, message, senderId, isSenderAdmin
         await handleAntiBadwordCommand(sock, chatId, message, match);
     } catch (error) {
         console.error('Error in antibadword command:', error);
-        await sock.sendMessage(chatId, { text: '❌ Une erreur a empêché VARNOX de traiter antibadword.' }, { quoted: message });
+        await sock.sendMessage(chatId, {
+            text: '❌ Une erreur a empêché VARNOX de traiter antibadword.',
+            ...channelInfo
+        }, { quoted: message });
     }
 }
 
