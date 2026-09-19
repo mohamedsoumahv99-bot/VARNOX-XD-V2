@@ -279,9 +279,10 @@ async function handleMessages(sock, messageUpdate, printLog) {
         }
         // Internally, commands use "." only after the active prefix has been
         // matched. A configured prefix fully replaces the default ".".
-        const userMessage = normalizeCommandText(rawText, getPrefix(chatId));
+        const activePrefix = getPrefix(chatId);
+        const userMessage = normalizeCommandText(rawText, activePrefix);
 
-        if (userMessage === '.prefix' || userMessage === '.prefixe') {
+        if (rawText.startsWith(activePrefix) && (userMessage === '.prefix' || userMessage === '.prefixe')) {
             await sock.sendMessage(chatId, {
                 text: `🔑 Préfixe actif pour cette discussion : ${getPrefix(chatId)}`,
                 ...channelInfo
@@ -290,7 +291,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         }
 
         // Only log command usage
-        if (userMessage.startsWith('.')) {
+        if (rawText.startsWith(activePrefix) && userMessage.startsWith('.')) {
             console.log(`📝 Command used in ${isGroup ? 'group' : 'private'}: ${userMessage}`);
         }
         // Read bot mode once. Private mode is a hard owner/sudo lock.
@@ -368,7 +369,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         }
 
         // Then check for command prefix
-        if (!userMessage.startsWith('.')) {
+        if (!rawText.startsWith(activePrefix)) {
             // Show typing indicator if autotyping is activé
             await handleAutotypingForMessage(sock, chatId, userMessage);
 
