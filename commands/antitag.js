@@ -2,12 +2,13 @@
 
 const { setAntitag, getAntitag, removeAntitag } = require('../lib/index');
 const isAdmin = require('../lib/isAdmin');
+const { channelInfo } = require('../lib/messageConfig');
 
 // ─── Commande .antitag ────────────────────────────────────────────────────────
 async function handleAntitagCommand(sock, chatId, userMessage, senderId, isSenderAdmin, message) {
     try {
         if (!isSenderAdmin) {
-            await sock.sendMessage(chatId, { text: '```For Group Admins Only!```' }, { quoted: message });
+            await sock.sendMessage(chatId, { text: '```For Group Admins Only!```', ...channelInfo }, { quoted: message });
             return;
         }
 
@@ -21,7 +22,7 @@ async function handleAntitagCommand(sock, chatId, userMessage, senderId, isSende
                 `${prefix}antitag on\n` +
                 `${prefix}antitag set delete | kick\n` +
                 `${prefix}antitag off\`\`\``;
-            await sock.sendMessage(chatId, { text: usage }, { quoted: message });
+            await sock.sendMessage(chatId, { text: usage, ...channelInfo }, { quoted: message });
             return;
         }
 
@@ -30,38 +31,42 @@ async function handleAntitagCommand(sock, chatId, userMessage, senderId, isSende
                 const existingConfig = await getAntitag(chatId, 'on');
                 // FIX: la DB stocke `.enabled`, pas `.activé`
                 if (existingConfig?.enabled) {
-                    await sock.sendMessage(chatId, { text: '*_Antitag is already on_*' }, { quoted: message });
+                    await sock.sendMessage(chatId, { text: '*_Antitag is already on_*', ...channelInfo }, { quoted: message });
                     return;
                 }
                 const result = await setAntitag(chatId, 'on', 'delete');
                 await sock.sendMessage(chatId, {
-                    text: result ? '*_Antitag has been turned ON_*' : '*_Failed to turn on Antitag_*'
+                    text: result ? '*_Antitag has been turned ON_*' : '*_Failed to turn on Antitag_*',
+                    ...channelInfo
                 }, { quoted: message });
                 break;
             }
 
             case 'off':
                 await removeAntitag(chatId, 'on');
-                await sock.sendMessage(chatId, { text: '*_Antitag has been turned OFF_*' }, { quoted: message });
+                await sock.sendMessage(chatId, { text: '*_Antitag has been turned OFF_*', ...channelInfo }, { quoted: message });
                 break;
 
             case 'set': {
                 if (args.length < 2) {
                     await sock.sendMessage(chatId, {
-                        text: `*_Please specify an action: ${prefix}antitag set delete | kick_*`
+                        text: `*_Please specify an action: ${prefix}antitag set delete | kick_*`,
+                        ...channelInfo
                     }, { quoted: message });
                     return;
                 }
                 const setAction = args[1];
                 if (!['delete', 'kick'].includes(setAction)) {
                     await sock.sendMessage(chatId, {
-                        text: '*_Invalid action. Choose delete or kick._*'
+                        text: '*_Invalid action. Choose delete or kick._*',
+                        ...channelInfo
                     }, { quoted: message });
                     return;
                 }
                 const setResult = await setAntitag(chatId, 'on', setAction);
                 await sock.sendMessage(chatId, {
-                    text: setResult ? `*_Antitag action set to ${setAction}_*` : '*_Failed to set Antitag action_*'
+                    text: setResult ? `*_Antitag action set to ${setAction}_*` : '*_Failed to set Antitag action_*',
+                    ...channelInfo
                 }, { quoted: message });
                 break;
             }
@@ -72,19 +77,21 @@ async function handleAntitagCommand(sock, chatId, userMessage, senderId, isSende
                     text:
                         `*_Antitag Configuration:_*\n` +
                         `Status: ${status?.enabled ? 'ON ✅' : 'OFF ❌'}\n` +
-                        `Action: ${status?.action || 'Non défini'}`
+                        `Action: ${status?.action || 'Non défini'}`,
+                    ...channelInfo
                 }, { quoted: message });
                 break;
             }
 
             default:
                 await sock.sendMessage(chatId, {
-                    text: `*_Use ${prefix}antitag for usage._*`
+                    text: `*_Use ${prefix}antitag for usage._*`,
+                    ...channelInfo
                 }, { quoted: message });
         }
     } catch (error) {
         console.error('[antitag] Erreur commande:', error.message);
-        await sock.sendMessage(chatId, { text: '*_Error processing antitag command_*' }, { quoted: message });
+        await sock.sendMessage(chatId, { text: '*_Error processing antitag command_*', ...channelInfo }, { quoted: message });
     }
 }
 
@@ -154,14 +161,16 @@ async function handleTagDetection(sock, chatId, message, senderId) {
         if (action === 'delete') {
             await sock.sendMessage(chatId, {
                 text: `⚠️ *Tagall interdit !* @${senderId.split('@')[0]} a été averti.`,
-                mentions: [senderId]
+                mentions: [senderId],
+                ...channelInfo
             });
         } else if (action === 'kick') {
             try {
                 await sock.groupParticipantsUpdate(chatId, [senderId], 'remove');
                 await sock.sendMessage(chatId, {
                     text: `🚫 *Antitag :* @${senderId.split('@')[0]} a été expulsé pour avoir tagué tous les membres.`,
-                    mentions: [senderId]
+                    mentions: [senderId],
+                    ...channelInfo
                 });
             } catch (e) {
                 console.error('[antitag] Erreur kick:', e.message);
