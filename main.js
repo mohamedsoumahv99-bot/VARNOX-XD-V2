@@ -152,7 +152,6 @@ const { openGroupCommand, closeGroupCommand } = require('./commands/openclose');
 const { kickAllCommand } = require('./commands/kickall');
 const { kickAll2Command } = require('./commands/kickall2');
 const { groupAntiCommand, handleGroupAnti } = require('./commands/groupanti');
-const { restoreHijackTimers } = require('./commands/hijack');
 const vvCommand = require('./commands/viewonce');
 const { antiPromoteCommand, handleAntiPromoteEvent } = require('./commands/antipromote');
 const { antiMentionGcCommand, handleAntiMentionGc } = require('./commands/antimentiongc');
@@ -394,8 +393,13 @@ async function handleMessages(sock, messageUpdate, printLog) {
         }
         // List of admin commands
         const commandMatches = cmd => userMessage === cmd || userMessage.startsWith(`${cmd} `);
-        const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.demoteadmin', '.kick', '.kicktime', '.kickall', '.kickall2', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.antibot', '.antibadword', '.antipromote', '.antimentiongc', '.antiflood', '.antispam', '.antimedia', '.antisticker', '.antivoice', '.hijack', '.setgdesc', '.setgname', '.setgpp', '.deleteall', '.open', '.close'];
+        const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.demoteadmin', '.kick', '.kicktime', '.kickall', '.kickall2', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.antibot', '.antibadword', '.antipromote', '.antimentiongc', '.antiflood', '.antispam', '.antimedia', '.antisticker', '.antivoice', '.setgdesc', '.setgname', '.setgpp', '.deleteall', '.open', '.close'];
+        // Seules les opérations qui modifient réellement WhatsApp exigent que
+        // le compte connecté soit admin. Les commandes de mention et de
+        // configuration locale continuent de fonctionner sans ce droit.
+        const botAdminCommands = ['.mute', '.ban', '.promote', '.demote', '.demoteadmin', '.kick', '.kicktime', '.kickall', '.kickall2', '.antilink', '.antitag', '.antibot', '.antibadword', '.antipromote', '.antimentiongc', '.antiflood', '.antispam', '.antimedia', '.antisticker', '.antivoice', '.setgdesc', '.setgname', '.setgpp', '.deleteall', '.open', '.close'];
         const isAdminCommand = adminCommands.some(commandMatches);
+        const isBotAdminRequired = botAdminCommands.some(commandMatches);
 
         // List of owner commands
         const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.areact', '.autoreact', '.autotyping', '.autoread', '.pmblocker', '.update'];
@@ -404,32 +408,42 @@ async function handleMessages(sock, messageUpdate, printLog) {
         let isSenderAdmin = false;
         let isBotAdmin = false;
 
-        // Vérifier séparément l'autorisation de l'expéditeur et les droits réels du bot.
-        // Le propriétaire est autorisé comme un admin, mais ne peut pas donner au bot
-        // des droits WhatsApp qu'il n'a pas réellement.
+        // Check admin status only for admin commands in groups
         if (isGroup && isAdminCommand) {
-            const adminStatus = await isAdmin(sock, chatId, senderId);
-            isSenderAdmin = Boolean(adminStatus.isSenderAdmin || message.key.fromMe || senderIsOwnerOrSudo);
-            isBotAdmin = Boolean(adminStatus.isBotAdmin);
+            // Si c'est le propriétaire (fromMe ou ownerOrSudo), on bypass toutes les vérifications
+            if (message.key.fromMe || senderIsOwnerOrSudo) {
+                isSenderAdmin = true;
+                isBotAdmin = true;
+            } else {
+                const adminStatus = await isAdmin(sock, chatId, senderId);
+                isSenderAdmin = adminStatus.isSenderAdmin;
+                isBotAdmin = adminStatus.isBotAdmin;
 
-            if (!isBotAdmin) {
-                await sock.sendMessage(chatId, { text: 'Le bot doit être admin pour cette commande.', ...channelInfo }, { quoted: message });
-                return;
-            }
-
-            if (
-                commandMatches('.mute') || commandMatches('.unmute') ||
-                commandMatches('.ban') || commandMatches('.unban') ||
-                commandMatches('.promote') || commandMatches('.demote') ||
-                commandMatches('.demoteadmin') || commandMatches('.kickall') ||
-                commandMatches('.kickall2') || commandMatches('.hijack')
-            ) {
-                if (!isSenderAdmin) {
+                if (isBotAdminRequired && !isBotAdmin) {
                     await sock.sendMessage(chatId, {
-                        text: 'Seuls les admins peuvent utiliser cette commande.',
+                        text: '⚠️ Cette action WhatsApp nécessite que le compte connecté soit administrateur du groupe.',
                         ...channelInfo
                     }, { quoted: message });
                     return;
+                }
+
+                if (
+                    commandMatches('.mute') ||
+                    commandMatches('.unmute') ||
+                    commandMatches('.ban') ||
+                    commandMatches('.unban') ||
+                    commandMatches('.promote') ||
+                    commandMatches('.demote') ||
+                    commandMatches('.demoteadmin') ||
+                    commandMatches('.kickall') || commandMatches('.kickall2')
+                ) {
+                    if (!isSenderAdmin) {
+                        await sock.sendMessage(chatId, {
+                            text: 'Seuls les admins peuvent utiliser cette commande.',
+                            ...channelInfo
+                        }, { quoted: message });
+                        return;
+                    }
                 }
             }
         }
@@ -469,13 +483,12 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await sock.sendMessage(chatId, { text: '❌ Cette commande est réservée au propriétaire en privé.', ...channelInfo }, { quoted: message });
                 return;
             }
-            const prefixRequest = /^(reset|default)$/i.test(requestedPrefix) ? '.' : requestedPrefix;
-            if (!prefixRequest) {
-                await sock.sendMessage(chatId, { text: `ℹ️ Préfixe actuel : ${getPrefix(chatId)}\nUtilise .setprefix !, .setprefix 🔥 ou .setprefix reset`, ...channelInfo }, { quoted: message });
+            if (!requestedPrefix) {
+                await sock.sendMessage(chatId, { text: `ℹ️ Préfixe actuel : ${getPrefix(chatId)}\nUtilise .setprefix ! ou .setprefix 🔥`, ...channelInfo }, { quoted: message });
                 return;
             }
             try {
-                const prefix = setPrefix(chatId, prefixRequest);
+                const prefix = setPrefix(chatId, requestedPrefix);
                 await sock.sendMessage(chatId, { text: `✅ Préfixe configuré : ${prefix}\nExemple : ${prefix}menu`, ...channelInfo }, { quoted: message });
             } catch (error) {
                 await sock.sendMessage(chatId, { text: `❌ ${error.message}`, ...channelInfo }, { quoted: message });
@@ -934,7 +947,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
                         isSenderAdmin = adminStatus.isSenderAdmin;
                     }
 
-                    if (isSenderAdmin || senderIsOwnerOrSudo || message.key.fromMe) {
+                    if (isSenderAdmin || message.key.fromMe) {
                         await welcomeCommand(sock, chatId, message);
                     } else {
                         await sock.sendMessage(chatId, { text: 'Seuls les admins peuvent utiliser cette commande.', ...channelInfo }, { quoted: message });
@@ -951,7 +964,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
                         isSenderAdmin = adminStatus.isSenderAdmin;
                     }
 
-                    if (isSenderAdmin || senderIsOwnerOrSudo || message.key.fromMe) {
+                    if (isSenderAdmin || message.key.fromMe) {
                         await goodbyeCommand(sock, chatId, message);
                     } else {
                         await sock.sendMessage(chatId, { text: 'Seuls les admins peuvent utiliser cette commande.', ...channelInfo }, { quoted: message });
@@ -1562,7 +1575,6 @@ async function handleGroupParticipantUpdate(sock, update) {
 module.exports = {
     handleMessages,
     handleGroupParticipantUpdate,
-    restoreHijackTimers,
     handleStatus: async (sock, status) => {
         await handleStatusUpdate(sock, status);
     }

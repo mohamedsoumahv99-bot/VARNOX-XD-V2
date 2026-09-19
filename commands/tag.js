@@ -15,12 +15,7 @@ async function downloadMediaMessage(message, mediaType) {
 }
 
 async function tagCommand(sock, chatId, senderId, messageText, replyMessage, message) {
-    const { isSenderAdmin, isBotAdmin } = await isAdmin(sock, chatId, senderId);
-
-    if (!isBotAdmin) {
-        await sock.sendMessage(chatId, { text: `Le bot doit etre admin pour cette commande.`}, { quoted: message });
-        return;
-    }
+    const { isSenderAdmin } = await isAdmin(sock, chatId, senderId);
 
     if (!isSenderAdmin) {
         const stickerPath = './assets/sticktag.webp';  // Path to your sticker

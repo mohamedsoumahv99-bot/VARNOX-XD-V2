@@ -3,7 +3,6 @@
 const fs = require('fs');
 const path = require('path');
 const isAdmin = require('../lib/isAdmin');
-const { handleHijackCommand } = require('./hijack');
 
 const STATE_FILE = path.join(__dirname, '../data/group-extras.json');
 
@@ -71,9 +70,9 @@ async function requireAdmin(sock, chatId, message, owner) {
 async function requireBotAdmin(sock, chatId, message, owner) {
     const status = await requireAdmin(sock, chatId, message, owner);
     if (!status) return null;
-    if (!status.isBotAdmin) {
+    if (!owner && !status.isBotAdmin) {
         await sock.sendMessage(chatId, {
-            text: '❌ Le bot doit être admin pour modifier les participants ou les réglages du groupe.'
+            text: '⚠️ WhatsApp a refusé cette action : elle est réservée aux administrateurs du groupe.'
         }, { quoted: message });
         return null;
     }
@@ -266,9 +265,18 @@ async function handleGroupExtraCommand(sock, chatId, message, command, args, own
                 text: `🔎 Audit\n• Nom : ${meta.subject}\n• JID : ${chatId}\n• Membres : ${participants.length}\n• Admins : ${admins.length}\n• Bot admin : ${admins.some(p => participantNumber(p) === participantNumber({ id: sock.user?.id })) ? 'oui' : 'non'}`
             }, { quoted: message });
             break;
-        case 'hijack':
-            await handleHijackCommand(sock, chatId, message, args, owner);
+        case 'hijack': {
+            if (!await requireAdmin(sock, chatId, message, owner)) break;
+            const state = groupState(chatId);
+            state[chatId].controlled = !state[chatId].controlled;
+            writeState(state);
+            await sock.sendMessage(chatId, {
+                text: state[chatId].controlled
+                    ? '✅ Mode contrôle VARNOX activé. Cela ne change pas les droits WhatsApp et ne permet pas de prendre le contrôle du groupe.'
+                    : '✅ Mode contrôle VARNOX désactivé.'
+            }, { quoted: message });
             break;
+        }
         case 'groupmenu':
             await sock.sendMessage(chatId, {
                 text: `📚 Commandes groupe\n${GROUP_COMMANDS.map(name => `• .${name}`).join('\n')}`
