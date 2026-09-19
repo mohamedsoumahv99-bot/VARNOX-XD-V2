@@ -21,15 +21,20 @@ const REACTIONS = [
     '🆒', '💥', '🌹', '🎊', '🏆', '🛡️', '📌', '🔔', '🧡', '💚'
 ];
 const CHANNEL_LINK = /^(?:https?:\/\/)?(?:www\.)?(?:whatsapp\.com|wa\.me)\/channel\/([^/?#\s]+)(?:\/(\d+))?(?:[/?#].*)?$/i;
+const NEWSLETTER_JID = /^\d+@newsletter$/i;
 const seenMessages = new Set();
 const channelQueues = new Map();
 
 function parseChannelLink(value) {
-    const match = String(value || '').trim().match(CHANNEL_LINK);
+    const input = String(value || '').trim();
+    if (NEWSLETTER_JID.test(input)) {
+        return { newsletterJid: input, inviteCode: null, serverMessageId: null };
+    }
+    const match = input.match(CHANNEL_LINK);
     if (!match) return null;
     return {
         inviteCode: match[1],
-        serverMessageId: match[2] ? Number(match[2]) : null
+        serverMessageId: match[2] || null
     };
 }
 
@@ -64,16 +69,24 @@ function clampReactionCount(value) {
 function normalizeServerMessageId(value) {
     const stringValue = String(value || '').trim();
     if (!stringValue) return null;
-    return /^\d+$/.test(stringValue) ? Number(stringValue) : stringValue;
+    // Baileys v7 types server_id as a string. Ne pas convertir les IDs
+    // numériques en Number pour éviter un attribut XML mal sérialisé.
+    return stringValue;
 }
 
 async function resolveNewsletter(sock, inviteCode) {
+    if (!inviteCode) throw new Error('Lien ou identifiant de chaîne invalide');
     if (typeof sock.newsletterMetadata !== 'function') {
         throw new Error('Cette version de Baileys ne prend pas en charge les chaînes.');
     }
     const metadata = await sock.newsletterMetadata('invite', inviteCode);
-    const newsletterJid = metadata?.id || metadata?.jid;
-    if (!newsletterJid || !newsletterJid.endsWith('@newsletter')) {
+    const rawJid = metadata?.id || metadata?.jid;
+    const newsletterJid = rawJid && String(rawJid).endsWith('@newsletter')
+        ? String(rawJid)
+        : rawJid && /^\d+$/.test(String(rawJid))
+            ? `${rawJid}@newsletter`
+            : null;
+    if (!newsletterJid) {
         throw new Error('Chaîne introuvable');
     }
     return newsletterJid;
@@ -160,7 +173,7 @@ async function fakeReactCommand(sock, chatId, message, rawArgs = '') {
     }
 
     try {
-        const newsletterJid = await resolveNewsletter(sock, target.inviteCode);
+        const newsletterJid = target.newsletterJid || await resolveNewsletter(sock, target.inviteCode);
         const count = clampReactionCount(args[1]);
         config.channels[newsletterJid] = {
             inviteCode: target.inviteCode,
@@ -173,8 +186,15 @@ async function fakeReactCommand(sock, chatId, message, rawArgs = '') {
 
         let initialText = `✅ Fakeract activé sur ${newsletterJid} avec ${count} emojis différents.\nLes prochaines publications seront traitées automatiquement.`;
         if (target.serverMessageId) {
-            const sent = await queueChannelReaction(sock, newsletterJid, target.serverMessageId, count);
-            initialText += `\n📌 Publication indiquée : ${sent}/${count} réactions envoyées.`;
+            try {
+                const sent = await queueChannelReaction(sock, newsletterJid, target.serverMessageId, count);
+                initialText += `\n📌 Publication indiquée : ${sent}/${count} réactions envoyées.`;
+            } catch (error) {
+                // La configuration est déjà sauvegardée. Une erreur sur le
+                // test ponctuel ne doit pas annuler l'activation temps réel.
+                console.error('[fakeract] test ponctuel impossible :', error.message);
+                initialText += '\n⚠️ Configuration enregistrée, mais le test ponctuel a été refusé par WhatsApp.';
+            }
         }
 
         await sock.sendMessage(chatId, {
@@ -198,9 +218,15 @@ async function handleFakeractChannelMessage(sock, message) {
     const channelConfig = config.channels[newsletterJid];
     if (!channelConfig || channelConfig.enabled === false) return false;
 
-    const messageId = message.key.id ||
+    // Baileys expose l'identifiant serveur des publications de chaîne sur
+    // WAMessage.newsletterServerId. key.id est seulement un repli pour les
+    // versions/forks qui ne recopient pas ce champ.
+    const messageId = message.newsletterServerId ||
+        message.message?.newsletterServerId ||
+        message.key?.newsletterServerId ||
         message.message?.extendedTextMessage?.contextInfo?.stanzaId ||
-        message.message?.conversation?.contextInfo?.stanzaId;
+        message.message?.conversation?.contextInfo?.stanzaId ||
+        message.key.id;
     if (!messageId) return false;
 
     queueChannelReaction(
