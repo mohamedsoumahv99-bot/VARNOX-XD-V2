@@ -102,14 +102,14 @@ const categories = [
     title: 'ᴏᴡɴᴇʀ',
     icon: '👑',
     aliases: ['proprietaire', 'propriétaire'],
-    commands: ['mode', 'clearsession', 'cleartmp', 'update', 'settings', 'autostatus', 'autoread', 'autotyping', 'anticall', 'pmblocker', 'setpp', 'areact', 'sudo']
+    commands: ['mode', 'clearsession', 'cleartmp', 'update', 'settings', 'autostatus', 'autoread', 'autotyping', 'anticall', 'pmblocker', 'setpp', 'areact', 'fakeract', 'sudo']
   },
   {
     key: 'reactions',
     title: 'ʀéᴀᴄᴛɪᴏɴs',
     icon: '💫',
     aliases: ['reaction', 'react'],
-    commands: ['areact', 'autoreact', 'mention', 'setmention', 'heart']
+    commands: ['areact', 'autoreact', 'fakeract', 'mention', 'setmention', 'heart']
   },
   {
     key: 'recherche',
