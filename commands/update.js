@@ -143,7 +143,12 @@ async function updateViaZip(sock, chatId, message, zipOverride) {
     const srcRoot = fs.existsSync(root) && fs.lstatSync(root).isDirectory() ? root : extractTo;
 
     // Copy over while preserving runtime dirs/files
-    const ignore = ['node_modules', '.git', 'session', 'tmp', 'tmp/', 'temp', 'data', 'baileys_store.json'];
+    const ignore = [
+        'node_modules', '.git',
+        'session', 'sessions',
+        'tmp', 'temp',
+        'data', 'baileys_store.json'
+    ];
     const copied = [];
     // Preserve ownerNumber from existing settings.js if present
     let preservedOwner = null;
