@@ -1,3 +1,12 @@
+const { channelInfo } = require('../lib/messageConfig');
+
+function sendAntiMessage(sock, chatId, content, options) {
+    const forwarded = content && (content.text || content.caption || content.image || content.video || content.audio || content.sticker || content.document)
+        ? { ...content, ...channelInfo }
+        : content;
+    return sock.sendMessage(chatId, forwarded, options);
+}
+
 const fs = require('fs');
 const path = require('path');
 const { tmpdir } = require('os');
@@ -80,13 +89,13 @@ async function handleAntideleteCommand(sock, chatId, message, match) {
     const isOwner = await isOwnerOrSudo(senderId, sock, chatId);
     
     if (!message.key.fromMe && !isOwner) {
-        return sock.sendMessage(chatId, { text: '*Seul le propriétaire du bot peut utiliser cette commande.*' }, { quoted: message });
+        return sendAntiMessage(sock, chatId, { text: '*Seul le propriétaire du bot peut utiliser cette commande.*' }, { quoted: message });
     }
 
     const config = loadAntideleteConfig();
 
     if (!match) {
-        return sock.sendMessage(chatId, {
+        return sendAntiMessage(sock, chatId, {
             text: `*ANTIDELETE SETUP*\n\nCurrent Status: ${config.activé ? '✅ Enabled' : '❌ Disabled'}\n\n*.antidelete on* - Enable\n*.antidelete off* - Disable`
         }, {quoted: message});
     }
@@ -96,11 +105,11 @@ async function handleAntideleteCommand(sock, chatId, message, match) {
     } else if (match === 'off') {
         config.activé = false;
     } else {
-        return sock.sendMessage(chatId, { text: '*Commande invalide. Use .antidelete to see usage.*' }, {quoted:message});
+        return sendAntiMessage(sock, chatId, { text: '*Commande invalide. Use .antidelete to see usage.*' }, {quoted:message});
     }
 
     saveAntideleteConfig(config);
-    return sock.sendMessage(chatId, { text: `*Antidelete ${match === 'on' ? 'activé' : 'désactivé'}*` }, {quoted:message});
+    return sendAntiMessage(sock, chatId, { text: `*Antidelete ${match === 'on' ? 'activé' : 'désactivé'}*` }, {quoted:message});
 }
 
 // Store incoming messages (also handles anti-view-once by forwarding immediately)
@@ -188,9 +197,9 @@ From: @${senderName}`,
                     mentions: [sender]
                 };
                 if (mediaType === 'image') {
-                    await sock.sendMessage(ownerNumber, { image: { url: mediaPath }, ...mediaOptions });
+                    await sendAntiMessage(sock, ownerNumber, { image: { url: mediaPath }, ...mediaOptions });
                 } else if (mediaType === 'video') {
-                    await sock.sendMessage(ownerNumber, { video: { url: mediaPath }, ...mediaOptions });
+                    await sendAntiMessage(sock, ownerNumber, { video: { url: mediaPath }, ...mediaOptions });
                 }
                 // Cleanup immediately for view-once forward
                 try { fs.unlinkSync(mediaPath); } catch {}
@@ -241,7 +250,7 @@ async function handleMessageRevocation(sock, revocationMessage) {
             text += `\n*💬 Deleted Message:*\n${original.content}`;
         }
 
-        await sock.sendMessage(ownerNumber, {
+        await sendAntiMessage(sock, ownerNumber, {
             text,
             mentions: [deletedBy, sender]
         });
@@ -256,25 +265,25 @@ async function handleMessageRevocation(sock, revocationMessage) {
             try {
                 switch (original.mediaType) {
                     case 'image':
-                        await sock.sendMessage(ownerNumber, {
+                        await sendAntiMessage(sock, ownerNumber, {
                             image: { url: original.mediaPath },
                             ...mediaOptions
                         });
                         break;
                     case 'sticker':
-                        await sock.sendMessage(ownerNumber, {
+                        await sendAntiMessage(sock, ownerNumber, {
                             sticker: { url: original.mediaPath },
                             ...mediaOptions
                         });
                         break;
                     case 'video':
-                        await sock.sendMessage(ownerNumber, {
+                        await sendAntiMessage(sock, ownerNumber, {
                             video: { url: original.mediaPath },
                             ...mediaOptions
                         });
                         break;
                     case 'audio':
-                        await sock.sendMessage(ownerNumber, {
+                        await sendAntiMessage(sock, ownerNumber, {
                             audio: { url: original.mediaPath },
                             mimetype: 'audio/mpeg',
                             ptt: false,
@@ -283,7 +292,7 @@ async function handleMessageRevocation(sock, revocationMessage) {
                         break;
                 }
             } catch (err) {
-                await sock.sendMessage(ownerNumber, {
+                await sendAntiMessage(sock, ownerNumber, {
                     text: `⚠️ Error sending media: ${err.message}`
                 });
             }
