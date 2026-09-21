@@ -101,18 +101,37 @@ async function reactToPublication(sock, newsletterJid, serverMessageId, count) {
     if (!messageId) return 0;
 
     let sent = 0;
+    let failed = 0;
+    let lastError = null;
     for (const emoji of REACTIONS.slice(0, count)) {
         try {
             await sock.newsletterReactMessage(newsletterJid, messageId, emoji);
             sent += 1;
         } catch (error) {
-            // Une réaction refusée ne doit pas empêcher les autres emojis
-            // d'être tentés sur la même publication.
-            console.error(`[fakeract] ${newsletterJid}/${messageId}/${emoji}:`, error.message);
+            // Une réaction refusée ne doit pas empêcher les autres emojis.
+            failed += 1;
+            lastError = error;
         }
         await wait(REACTION_DELAY_MS);
     }
+    if (failed) {
+        console.error(`[fakeract] ${newsletterJid}/${messageId}: ${sent}/${count} réactions acceptées`, lastError?.message || '');
+    }
     return sent;
+}
+
+async function prepareLiveUpdates(sock, newsletterJid) {
+    // Ces appels sont idempotents dans WhatsApp. Ils sont best-effort :
+    // l'activation locale doit rester disponible même si une session déjà
+    // suivie refuse l'une des requêtes GraphQL.
+    const operations = [];
+    if (typeof sock.newsletterFollow === 'function') {
+        operations.push(Promise.resolve().then(() => sock.newsletterFollow(newsletterJid)));
+    }
+    if (typeof sock.subscribeNewsletterUpdates === 'function') {
+        operations.push(Promise.resolve().then(() => sock.subscribeNewsletterUpdates(newsletterJid)));
+    }
+    await Promise.allSettled(operations);
 }
 
 function queueChannelReaction(sock, newsletterJid, messageId, count) {
@@ -184,18 +203,8 @@ async function fakeReactCommand(sock, chatId, message, rawArgs = '') {
         };
         writeConfig(config);
 
-        let initialText = `✅ Fakeract activé sur ${newsletterJid} avec ${count} emojis différents.\nLes prochaines publications seront traitées automatiquement.`;
-        if (target.serverMessageId) {
-            try {
-                const sent = await queueChannelReaction(sock, newsletterJid, target.serverMessageId, count);
-                initialText += `\n📌 Publication indiquée : ${sent}/${count} réactions envoyées.`;
-            } catch (error) {
-                // La configuration est déjà sauvegardée. Une erreur sur le
-                // test ponctuel ne doit pas annuler l'activation temps réel.
-                console.error('[fakeract] test ponctuel impossible :', error.message);
-                initialText += '\n⚠️ Configuration enregistrée, mais le test ponctuel a été refusé par WhatsApp.';
-            }
-        }
+        await prepareLiveUpdates(sock, newsletterJid);
+        const initialText = `✅ Fakeract activé sur ${newsletterJid} avec ${count} emojis différents.\nLes prochaines publications seront traitées automatiquement.\n📡 Suivi temps réel demandé.`;
 
         await sock.sendMessage(chatId, {
             text: `${initialText}\n⚠️ Plafond de sécurité : ${MAX_REACTIONS} par publication.`,
