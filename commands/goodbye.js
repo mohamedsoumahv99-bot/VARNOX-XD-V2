@@ -2,7 +2,7 @@
 
 const { handleGoodbye } = require('../lib/welcome');
 const { isGoodByeOn } = require('../lib/index');
-const { channelInfo, memberCountAfterLeave, participantJid, sendMemberEvent } = require('../lib/memberEvent');
+const { channelInfo, participantJid, sendMemberEvent } = require('../lib/memberEvent');
 
 function commandArgs(text, command) {
     return text.replace(new RegExp('^\\s*\\.' + command + '\\b', 'i'), '').trim();
@@ -20,41 +20,11 @@ async function goodbyeCommand(sock, chatId, message) {
 async function handleLeaveEvent(sock, id, participants) {
     if (!(await isGoodByeOn(id))) return;
 
-    let groupMetadata;
-    try {
-        groupMetadata = await sock.groupMetadata(id);
-    } catch {
-        return;
-    }
-
-    const groupName = groupMetadata.subject || 'Groupe';
-    const memberCount = Array.isArray(groupMetadata.participants) ? groupMetadata.participants.length : 0;
-
     for (const participant of participants || []) {
         try {
             const jid = participantJid(participant);
             const senderNum = jid.split('@')[0];
-            const currentMemberCount = memberCountAfterLeave(groupMetadata.participants, jid);
-            const now = new Date();
-            const timeStr = now.toLocaleString('fr-FR', {
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit'
-            });
-            const goodbyeMsg =
-                '╭─〔 𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩𝟮 〕─╮\n' +
-                '│ 👋 Goodbye @' + senderNum + '\n' +
-                '│\n' +
-                '│ Thank you for being part of\n' +
-                '│ *' + groupName + '*\n' +
-                '│\n' +
-                '│ 👥 The group now has *' + currentMemberCount + '* member' + (currentMemberCount === 1 ? '' : 's') + '\n' +
-                '│ 📜 *Remember:*\n' +
-                '│ • Be respectful\n' +
-                '│ • No spam\n' +
-                '│ • Follow admin instructions\n' +
-                '╰──────────────────╯\n' +
-                '> POWERED BY VARNOX\n' +
-                '> ' + timeStr;
+            const goodbyeMsg = `👋 Au revoir @${senderNum}.`;
 
             await sendMemberEvent(sock, id, jid, goodbyeMsg);
         } catch (err) {
