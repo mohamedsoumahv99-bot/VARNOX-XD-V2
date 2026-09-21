@@ -790,7 +790,16 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 }
                 break;
             case userMessage.startsWith('.fakeract'):
-                await fakeReactCommand(sock, chatId, message, userMessage.slice('.fakeract'.length).trim());
+                // normalizeCommandText() lowercases command text. A channel
+                // invite code is case-sensitive, so preserve the original
+                // raw arguments when resolving the newsletter.
+                {
+                    const commandIndex = rawText.toLowerCase().indexOf('fakeract');
+                    const rawArgs = commandIndex >= 0
+                        ? rawText.slice(commandIndex + 'fakeract'.length).trim()
+                        : '';
+                    await fakeReactCommand(sock, chatId, message, rawArgs);
+                }
                 commandExecuted = true;
                 break;
             case userMessage.startsWith('.pmblocker'):
