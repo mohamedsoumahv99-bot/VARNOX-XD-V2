@@ -415,10 +415,14 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await handleTagDetection(sock, chatId, message, senderId);
                 await handleMentionDetection(sock, chatId, message);
 
-                // Only run chatbot in public mode or for owner/sudo
+                // Le chatbot est piloté par sa propre configuration. En
+                // groupe, il répond uniquement à une mention/réponse; en
+                // privé, il répond à chaque message quand le mode DM est ON.
                 if (isPublic || isOwnerOrSudoCheck) {
-                    await handleChatbotResponse(sock, chatId, message, userMessage, senderId);
+                    await handleChatbotResponse(sock, chatId, message, rawText, senderId);
                 }
+            } else if (isPublic || isOwnerOrSudoCheck) {
+                await handleChatbotResponse(sock, chatId, message, rawText, senderId);
             }
             return;
         }
@@ -1066,20 +1070,16 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await antibadwordCommand(sock, chatId, message, senderId, isSenderAdmin);
                 break;
             case userMessage.startsWith('.chatbot'):
-                if (!isGroup) {
-                    await sock.sendMessage(chatId, { text: 'This command can only be used in groups.', ...channelInfo }, { quoted: message });
-                    return;
+                {
+                    const chatbotAdminStatus = isGroup
+                        ? await isAdmin(sock, chatId, senderId)
+                        : { isSenderAdmin: false };
+                    const match = rawText.slice(rawText.toLowerCase().indexOf('chatbot') + 'chatbot'.length).trim();
+                    await handleChatbotCommand(sock, chatId, message, match, {
+                        isOwner: senderIsOwnerOrSudoCheck,
+                        isAdmin: chatbotAdminStatus.isSenderAdmin
+                    });
                 }
-
-                // Check if sender is admin or bot owner
-                const chatbotAdminStatus = await isAdmin(sock, chatId, senderId);
-                if (!chatbotAdminStatus.isSenderAdmin && !message.key.fromMe) {
-                    await sock.sendMessage(chatId, { text: '*Only admins or bot owner can use this command*', ...channelInfo }, { quoted: message });
-                    return;
-                }
-
-                const match = userMessage.slice(8).trim();
-                await handleChatbotCommand(sock, chatId, message, match);
                 break;
             case userMessage.startsWith('.take') || userMessage.startsWith('.steal'):
                 {
