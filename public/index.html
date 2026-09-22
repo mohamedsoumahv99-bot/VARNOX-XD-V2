@@ -10,18 +10,18 @@
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --page-bg : #0b0c12;
-      --card-bg : #12151f;
-      --card-bg2: #181c2a;
-      --g1: #e040fb;
-      --g2: #8b5cf6;
-      --g3: #3b82f6;
-      --g4: #06b6d4;
-      --t1 : #e8eeff;
-      --t2 : #7988a8;
-      --t3 : #3f4d68;
-      --b1 : rgba(255,255,255,.07);
-      --b2 : rgba(255,255,255,.10);
+      --page-bg : #0e1028;
+      --card-bg : rgba(29, 31, 70, .68);
+      --card-bg2: rgba(255,255,255,.045);
+      --g1: #7b83ff;
+      --g2: #8b63e7;
+      --g3: #a64bd7;
+      --g4: #3d83c9;
+      --t1 : #f1effb;
+      --t2 : #aaa6c1;
+      --t3 : #77728f;
+      --b1 : rgba(188,177,255,.20);
+      --b2 : rgba(204,193,255,.28);
       --green: #22d3a0;
       --red  : #f87171;
     }
@@ -33,14 +33,14 @@
       color: var(--t1);
       overflow-x: hidden;
       background-image:
-        radial-gradient(ellipse 60% 50% at 0%   0%, rgba(139,92,246,.07) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 50% at 100% 0%, rgba(59,130,246,.06)  0%, transparent 60%),
-        radial-gradient(ellipse 70% 60% at 50% 100%, rgba(6,182,212,.05)  0%, transparent 70%);
+        radial-gradient(ellipse 75% 45% at 50% 5%, rgba(117,58,179,.28) 0%, transparent 70%),
+        radial-gradient(ellipse 80% 55% at 50% 100%, rgba(20,130,171,.25) 0%, transparent 72%),
+        linear-gradient(160deg, #1b0d35 0%, #11152f 47%, #0b2a42 100%);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      padding: 24px 16px 64px;
+      padding: 44px 26px 70px;
       position: relative;
     }
 
@@ -49,17 +49,17 @@
       position: fixed;
       inset: 0;
       pointer-events: none;
-      opacity: .35;
+      opacity: .12;
       background-image:
         linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
-      background-size: 44px 44px;
+      background-size: 52px 52px;
       mask-image: linear-gradient(to bottom, black, transparent 75%);
     }
 
     .page-shell {
       width: 100%;
-      max-width: 760px;
+      max-width: 680px;
       position: relative;
       z-index: 1;
     }
@@ -67,6 +67,7 @@
     .page-intro {
       text-align: center;
       margin: 0 auto 22px;
+      display: none;
     }
 
     .eyebrow {
@@ -118,28 +119,28 @@
 
     /* ═══ VIDEO HERO ═══════════════════════════════════════ */
     .video-card {
-      padding: 1px;
-      border-radius: 22px;
-      background: linear-gradient(135deg, rgba(224,64,251,.7), rgba(139,92,246,.35) 45%, rgba(59,130,246,.7));
+      padding: 2px;
+      border-radius: 25px;
+      background: linear-gradient(135deg, rgba(155,80,255,.9), rgba(95,54,191,.55) 52%, rgba(209,66,252,.8));
       box-shadow:
-        0 0 0 1px rgba(255,255,255,.04),
-        0 18px 70px rgba(59,130,246,.14),
-        0 10px 38px rgba(139,92,246,.16);
-      margin: 0 auto 22px;
+        0 0 0 1px rgba(255,255,255,.08),
+        0 0 28px rgba(157,73,255,.48),
+        0 18px 60px rgba(9,4,26,.55);
+      margin: 0 auto 48px;
     }
 
     .video-inner {
-      background: #090a11;
-      border-radius: 21px;
+      background: #090716;
+      border-radius: 23px;
       overflow: hidden;
-      padding: 10px;
+      padding: 3px;
     }
 
     .video-frame {
       position: relative;
       overflow: hidden;
-      border-radius: 14px;
-      aspect-ratio: 16 / 9;
+      border-radius: 20px;
+      aspect-ratio: 3.65 / 1;
       background: #05060b;
     }
 
@@ -157,12 +158,12 @@
       display: block;
       width: 100%;
       height: 100%;
-      object-fit: contain;
+      object-fit: cover;
       background: #05060b;
     }
 
     .video-meta {
-      display: flex;
+      display: none;
       align-items: center;
       justify-content: space-between;
       gap: 14px;
@@ -196,21 +197,20 @@
     /* ═══ CARD ═══════════════════════════════════════════ */
     .card {
       width: 100%;
-      max-width: 520px;
+      max-width: 680px;
       background: var(--card-bg);
-      border-radius: 20px;
-      overflow: hidden;
+      border-radius: 38px;
+      overflow: visible;
       border: 1px solid var(--b1);
       margin: 0 auto;
-      box-shadow: 0 24px 80px rgba(0,0,0,.6), 0 2px 0 rgba(255,255,255,.02), 0 0 52px rgba(139,92,246,.05);
+      box-shadow: 0 28px 90px rgba(3,4,18,.58), inset 0 1px 0 rgba(255,255,255,.035), 0 0 32px rgba(125,91,255,.06);
     }
 
     .card-topline {
-      height: 3px;
-      background: linear-gradient(90deg, var(--g1) 0%, var(--g2) 35%, var(--g3) 65%, var(--g4) 100%);
+      display: none;
     }
 
-    .card-body { padding: 32px 28px 28px; }
+    .card-body { padding: 44px 48px 62px; }
 
     /* ═══ LOGO ════════════════════════════════════════════ */
     .logo-wrap {
@@ -221,57 +221,48 @@
       margin-bottom: 28px;
     }
 
-    .logo-ring { position: relative; width: 88px; height: 88px; }
+    .logo-ring { position: relative; width: 92px; height: 92px; }
     .logo-ring::before {
-      content: '';
-      position: absolute; inset: -4px;
-      border-radius: 50%;
-      background: conic-gradient(from 0deg,
-        var(--g1) 0%, var(--g2) 30%, var(--g3) 60%, var(--g4) 80%, var(--g1) 100%);
-      animation: ring-spin 5s linear infinite;
-      filter: blur(2px);
-      opacity: .8;
+      display: none;
     }
     @keyframes ring-spin { to { transform: rotate(360deg); } }
 
     .logo-circle {
       position: relative; z-index: 2;
-      width: 88px; height: 88px; border-radius: 50%;
-       background: #08090e;
-       overflow: hidden;
+      width: 82px; height: 82px; border-radius: 24px;
+      background: linear-gradient(145deg, #6d7cff 0%, #7b5bd4 52%, #a84bd7 100%);
       display: flex; align-items: center; justify-content: center;
       box-shadow:
-        0 0 30px rgba(139,92,246,.4),
-        0 0 60px rgba(59,130,246,.2),
+        0 12px 28px rgba(105,92,230,.3),
+        0 0 38px rgba(166,76,222,.22),
         inset 0 1px 0 rgba(255,255,255,.2);
     }
 
     .logo-circle img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      filter: saturate(.9) contrast(1.05);
+      display: none;
     }
 
-    .bolt { font-size: 36px; filter: brightness(0) invert(1); animation: bolt-rock 4s ease-in-out infinite; }
-    @keyframes bolt-rock {
-      0%,100% { transform: rotate(0deg)  scale(1);    }
-      25%      { transform: rotate(12deg) scale(1.08); }
-      50%      { transform: rotate(-8deg) scale(0.96); }
-      75%      { transform: rotate(5deg)  scale(1.04); }
+    .code-mark {
+      color: #fff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 2rem;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: -5px;
+      transform: translateX(-2px);
     }
 
     .logo-title {
-      font-size: 1.75rem; font-weight: 900; letter-spacing: 2.5px;
-      background: linear-gradient(90deg, var(--g1) 0%, var(--g2) 40%, var(--g3) 70%, var(--g4) 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      font-size: clamp(1.8rem, 5vw, 2.55rem);
+      font-weight: 800;
+      letter-spacing: .2px;
+      color: #9a7fe6;
     }
-    .logo-sub { font-size: .82rem; color: var(--t2); margin-top: -8px; letter-spacing: .3px; }
+    .logo-sub { font-size: clamp(1rem, 2.6vw, 1.2rem); color: #aaa6c1; margin-top: -7px; letter-spacing: .1px; }
 
     /* ═══ STEPS ═══════════════════════════════════════════ */
     .steps-row {
-      display: flex; align-items: center; justify-content: center;
+      display: none; align-items: center; justify-content: center;
       gap: 0; margin-bottom: 24px;
     }
     .step-item { display: flex; flex-direction: column; align-items: center; gap: 5px; }
@@ -291,7 +282,7 @@
 
     /* ═══ INFO CARD ═══════════════════════════════════════ */
     .info-card {
-      background: var(--card-bg2);
+      display: none;
       border: 1px solid var(--b1);
       border-radius: 14px;
       padding: 14px 16px;
@@ -308,51 +299,46 @@
     .info-body  { font-size: .74rem; color: var(--t2); line-height: 1.55; }
 
     /* ═══ INPUT ═══════════════════════════════════════════ */
-    .lbl { font-size: .72rem; font-weight: 700; color: var(--t1); letter-spacing: .3px; margin-bottom: 8px; }
+    .lbl { font-size: 1rem; font-weight: 800; color: #e7e1f5; letter-spacing: .5px; margin-bottom: 13px; text-transform: uppercase; }
 
     .input-shell {
       position: relative;
       background: var(--card-bg2);
-      border: 1px solid var(--b2);
-      border-radius: 14px;
+      border: 2px solid rgba(190,177,255,.22);
+      border-radius: 22px;
       display: flex; align-items: center;
       transition: border-color .25s, box-shadow .25s;
-      margin-bottom: 6px;
+      margin-bottom: 16px;
     }
     .input-shell:focus-within {
       border-color: rgba(139,92,246,.45);
       box-shadow: 0 0 0 3px rgba(139,92,246,.08);
     }
-    .input-ph-icon { padding: 0 6px 0 14px; font-size: 15px; color: var(--t2); flex-shrink: 0; }
-    .input-divider { width: 1px; height: 16px; background: var(--b2); flex-shrink: 0; }
+    .input-ph-icon, .input-divider { display: none; }
     .phone-field {
       flex: 1; background: none; border: none; outline: none;
-      padding: 14px 14px; font-size: .92rem; color: var(--t1);
+      padding: 19px 24px; font-size: 1.15rem; color: var(--t1);
       font-family: inherit; font-weight: 500; letter-spacing: .3px;
     }
     .phone-field::placeholder { color: var(--t3); font-weight: 400; }
 
-    .input-hint {
-      font-size: .68rem; color: var(--t2);
-      padding: 4px 2px 14px;
-      display: flex; align-items: center; gap: 5px;
-    }
+    .input-hint { display: none; }
     .input-hint svg { width: 12px; height: 12px; flex-shrink: 0; }
 
     /* ═══ BUTTON ══════════════════════════════════════════ */
     .btn-gen {
-      width: 100%; border: none; border-radius: 14px;
-      padding: 15px; cursor: pointer;
+      width: 100%; border: none; border-radius: 22px;
+      min-height: 70px; padding: 15px; cursor: pointer;
       font-family: 'Inter', sans-serif; font-weight: 700;
       font-size: .96rem; color: #fff; letter-spacing: .5px;
       display: flex; align-items: center; justify-content: center; gap: 9px;
       position: relative; overflow: hidden;
       transition: transform .15s, box-shadow .2s;
-      margin-bottom: 14px;
-      background: linear-gradient(90deg, var(--g1) 0%, var(--g2) 35%, var(--g3) 70%, var(--g4) 100%);
+      margin-bottom: 38px;
+      background: linear-gradient(100deg, #7382ff 0%, #7869e9 48%, #a844d0 100%);
       background-size: 200% 100%;
       animation: grad-shift 6s linear infinite;
-      box-shadow: 0 4px 24px rgba(139,92,246,.3), 0 2px 8px rgba(224,64,251,.2);
+      box-shadow: 0 13px 26px rgba(79,73,206,.25), 0 5px 22px rgba(174,65,217,.22);
     }
     .btn-gen::before {
       content: '';
@@ -377,17 +363,17 @@
 
     /* ═══ CODE BOX ════════════════════════════════════════ */
     .code-box {
-      background: var(--card-bg2);
-      border: 1px solid var(--b1);
-      border-radius: 14px;
-      padding: 18px;
+      background: rgba(11,22,49,.25);
+      border: 2px dashed rgba(185,174,255,.24);
+      border-radius: 22px;
+      padding: 24px 20px;
       text-align: center;
-      min-height: 58px;
+      min-height: 132px;
       display: flex; align-items: center; justify-content: center;
       margin-bottom: 8px;
       transition: all .35s;
     }
-    .code-box.idle  { color: var(--t3); font-size: .82rem; }
+    .code-box.idle  { color: #b9b5c8; font-size: 1.08rem; line-height: 1.55; }
     .code-box.active {
       border-color: rgba(59,130,246,.3);
       background: rgba(59,130,246,.04);
@@ -494,6 +480,7 @@
 
     /* ═══ FOOTER ══════════════════════════════════════════ */
     .footer {
+      display: none;
       margin-top: 18px;
       text-align: center; font-size: .65rem;
       color: rgba(255,255,255,.18); letter-spacing: .5px;
@@ -508,17 +495,25 @@
       body { padding: 18px 12px 46px; }
       .page-intro { margin-bottom: 18px; }
       .page-copy { font-size: .76rem; }
-      .video-card { border-radius: 18px; margin-bottom: 16px; }
-      .video-inner { border-radius: 17px; padding: 7px; }
-      .video-frame { border-radius: 12px; }
+      .video-card { border-radius: 18px; margin-bottom: 28px; }
+      .video-inner { border-radius: 17px; padding: 3px; }
+      .video-frame { border-radius: 14px; }
       .video-meta { padding-top: 8px; font-size: .6rem; }
-      .card { border-radius: 18px; }
-      .card-body { padding: 26px 18px 22px; }
-      .logo-wrap { margin-bottom: 22px; }
+      .card { border-radius: 24px; }
+      .card-body { padding: 30px 18px 34px; }
+      .logo-ring { width: 76px; height: 76px; }
+      .logo-circle { width: 68px; height: 68px; border-radius: 18px; }
+      .code-mark { font-size: 1.65rem; }
+      .logo-title { font-size: 1.65rem; }
+      .logo-sub { font-size: .92rem; }
+      .logo-wrap { margin-bottom: 28px; }
       .steps-row { margin-bottom: 20px; }
       .step-line { width: 32px; }
       .info-card { padding: 12px 13px; }
       .phone-field { min-width: 0; }
+      .input-shell { min-height: 58px; }
+      .btn-gen { min-height: 58px; margin-bottom: 28px; }
+      .code-box { min-height: 112px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -568,11 +563,11 @@
     <div class="logo-wrap">
       <div class="logo-ring">
         <div class="logo-circle">
-          <img src="/varnox-logo.jpg" alt="Logo VARNOX">
+          <span class="code-mark" aria-hidden="true">&lt;/&gt;</span>
         </div>
       </div>
-      <div class="logo-title" id="pairing-title">VARNOX XD V2</div>
-      <div class="logo-sub">Connecte ton WhatsApp au bot</div>
+      <div class="logo-title" id="pairing-title">VARNOX-XD V2</div>
+      <div class="logo-sub">Générateur de Code de Pairage</div>
     </div>
 
     <!-- Steps — 3 only -->
@@ -611,7 +606,7 @@
         type="tel"
         class="phone-field"
         id="phoneInput"
-        placeholder="22461083xxxxxx"
+        placeholder="+226 XX XX XX XX"
         autocomplete="off"
         inputmode="numeric"
       >
@@ -623,12 +618,12 @@
 
     <!-- Generate button -->
     <button class="btn-gen" id="btnGen" onclick="generate()">
-      🔑 Générer le code de jumelage
+      ⚡ Générer
     </button>
 
     <!-- Code display -->
     <div class="code-box idle" id="codeBox">
-      <span id="codeInner">Ton code apparaîtra ici</span>
+      <span id="codeInner">Entrez votre numéro pour<br>générer le code</span>
     </div>
     <div class="status" id="statusMsg"></div>
 
@@ -741,11 +736,11 @@ function reset() {
   document.getElementById('successPanel').style.display = 'none';
   document.getElementById('phoneInput').value = '';
   document.getElementById('codeBox').className = 'code-box idle';
-  document.getElementById('codeInner').textContent = 'Ton code apparaîtra ici';
+   document.getElementById('codeInner').innerHTML = 'Entrez votre numéro pour<br>générer le code';
   document.getElementById('statusMsg').textContent = '';
   document.getElementById('statusMsg').className   = 'status';
   document.getElementById('btnGen').disabled = false;
-  document.getElementById('btnGen').innerHTML = '🔑 Générer le code de jumelage';
+   document.getElementById('btnGen').innerHTML = '⚡ Générer';
   setStep(1);
   document.getElementById('phoneInput').focus();
 }
@@ -806,7 +801,7 @@ async function generate() {
     setStep(1);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '🔑 Générer le code de jumelage';
+     btn.innerHTML = '⚡ Générer';
   }
 }
 
