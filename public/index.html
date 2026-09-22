@@ -40,18 +40,169 @@
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      padding: 32px 16px 60px;
+      padding: 24px 16px 64px;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .35;
+      background-image:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: linear-gradient(to bottom, black, transparent 75%);
+    }
+
+    .page-shell {
+      width: 100%;
+      max-width: 760px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .page-intro {
+      text-align: center;
+      margin: 0 auto 22px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #b8a8ff;
+      font-size: .66rem;
+      font-weight: 800;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .eyebrow::before,
+    .eyebrow::after {
+      content: '';
+      width: 22px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(139,92,246,.8));
+    }
+
+    .eyebrow::after {
+      background: linear-gradient(90deg, rgba(59,130,246,.8), transparent);
+    }
+
+    .page-heading {
+      font-size: clamp(1.45rem, 4vw, 2.05rem);
+      line-height: 1.1;
+      letter-spacing: -.04em;
+      font-weight: 900;
+      margin-bottom: 9px;
+      color: #f3f4ff;
+    }
+
+    .page-heading strong {
+      background: linear-gradient(100deg, #f0a4ff 0%, #a78bfa 45%, #71d8ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .page-copy {
+      color: var(--t2);
+      font-size: .82rem;
+      line-height: 1.6;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    /* ═══ VIDEO HERO ═══════════════════════════════════════ */
+    .video-card {
+      padding: 1px;
+      border-radius: 22px;
+      background: linear-gradient(135deg, rgba(224,64,251,.7), rgba(139,92,246,.35) 45%, rgba(59,130,246,.7));
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.04),
+        0 18px 70px rgba(59,130,246,.14),
+        0 10px 38px rgba(139,92,246,.16);
+      margin: 0 auto 22px;
+    }
+
+    .video-inner {
+      background: #090a11;
+      border-radius: 21px;
+      overflow: hidden;
+      padding: 10px;
+    }
+
+    .video-frame {
+      position: relative;
+      overflow: hidden;
+      border-radius: 14px;
+      aspect-ratio: 16 / 9;
+      background: #05060b;
+    }
+
+    .video-frame::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: inherit;
+      box-shadow: inset 0 0 32px rgba(11,12,18,.2);
+    }
+
+    .video-frame video {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #05060b;
+    }
+
+    .video-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 10px 4px 2px;
+      color: var(--t2);
+      font-size: .67rem;
+      letter-spacing: .2px;
+    }
+
+    .video-meta span:first-child {
+      color: #dcd6ff;
+      font-weight: 700;
+    }
+
+    .video-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .video-live::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #a78bfa;
+      box-shadow: 0 0 10px #8b5cf6;
     }
 
     /* ═══ CARD ═══════════════════════════════════════════ */
     .card {
       width: 100%;
-      max-width: 420px;
+      max-width: 520px;
       background: var(--card-bg);
       border-radius: 20px;
       overflow: hidden;
       border: 1px solid var(--b1);
-      box-shadow: 0 24px 80px rgba(0,0,0,.6), 0 2px 0 rgba(255,255,255,.02);
+      margin: 0 auto;
+      box-shadow: 0 24px 80px rgba(0,0,0,.6), 0 2px 0 rgba(255,255,255,.02), 0 0 52px rgba(139,92,246,.05);
     }
 
     .card-topline {
@@ -59,7 +210,7 @@
       background: linear-gradient(90deg, var(--g1) 0%, var(--g2) 35%, var(--g3) 65%, var(--g4) 100%);
     }
 
-    .card-body { padding: 32px 24px 28px; }
+    .card-body { padding: 32px 28px 28px; }
 
     /* ═══ LOGO ════════════════════════════════════════════ */
     .logo-wrap {
@@ -86,12 +237,21 @@
     .logo-circle {
       position: relative; z-index: 2;
       width: 88px; height: 88px; border-radius: 50%;
-      background: linear-gradient(135deg, var(--g1) 0%, var(--g2) 45%, var(--g3) 80%, var(--g4) 100%);
+       background: #08090e;
+       overflow: hidden;
       display: flex; align-items: center; justify-content: center;
       box-shadow:
         0 0 30px rgba(139,92,246,.4),
         0 0 60px rgba(59,130,246,.2),
         inset 0 1px 0 rgba(255,255,255,.2);
+    }
+
+    .logo-circle img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      filter: saturate(.9) contrast(1.05);
     }
 
     .bolt { font-size: 36px; filter: brightness(0) invert(1); animation: bolt-rock 4s ease-in-out infinite; }
@@ -343,20 +503,75 @@
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       font-weight: 700;
     }
+
+    @media (max-width: 560px) {
+      body { padding: 18px 12px 46px; }
+      .page-intro { margin-bottom: 18px; }
+      .page-copy { font-size: .76rem; }
+      .video-card { border-radius: 18px; margin-bottom: 16px; }
+      .video-inner { border-radius: 17px; padding: 7px; }
+      .video-frame { border-radius: 12px; }
+      .video-meta { padding-top: 8px; font-size: .6rem; }
+      .card { border-radius: 18px; }
+      .card-body { padding: 26px 18px 22px; }
+      .logo-wrap { margin-bottom: 22px; }
+      .steps-row { margin-bottom: 20px; }
+      .step-line { width: 32px; }
+      .info-card { padding: 12px 13px; }
+      .phone-field { min-width: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body>
 
-<div class="card">
+<main class="page-shell">
+  <header class="page-intro">
+    <div class="eyebrow">Secure pairing portal</div>
+    <h1 class="page-heading">Bienvenue sur <strong>VARNOX-XD V2</strong></h1>
+    <p class="page-copy">Découvre l’expérience, puis connecte ton WhatsApp au bot en quelques secondes.</p>
+  </header>
+
+  <section class="video-card" aria-label="Présentation de VARNOX-XD V2">
+    <div class="video-inner">
+      <div class="video-frame">
+        <video
+          controls
+          playsinline
+          preload="metadata"
+          poster="/varnox-logo.jpg"
+          aria-label="Présentation vidéo de VARNOX-XD V2"
+        >
+          <source src="https://files.catbox.moe/7o30ye.mp4" type="video/mp4">
+          Ton navigateur ne prend pas en charge la lecture vidéo.
+        </video>
+      </div>
+      <div class="video-meta">
+        <span>VARNOX-XD V2 · Présentation</span>
+        <span class="video-live">Lecture responsive</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="pairing-title">
   <div class="card-topline"></div>
   <div class="card-body">
 
     <!-- Logo -->
     <div class="logo-wrap">
       <div class="logo-ring">
-        <div class="logo-circle"><span class="bolt">⚡</span></div>
+        <div class="logo-circle">
+          <img src="/varnox-logo.jpg" alt="Logo VARNOX">
+        </div>
       </div>
-      <div class="logo-title">VARNOX XD V2</div>
+      <div class="logo-title" id="pairing-title">VARNOX XD V2</div>
       <div class="logo-sub">Connecte ton WhatsApp au bot</div>
     </div>
 
@@ -448,7 +663,8 @@
     </div>
 
   </div><!-- .card-body -->
-</div><!-- .card -->
+  </section><!-- .card -->
+</main>
 
 <div class="footer">
   © 2026 <span>VARNOX XD V2</span> | Powered By VARNOX
