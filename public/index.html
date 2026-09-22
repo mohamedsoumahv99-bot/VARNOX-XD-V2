@@ -117,83 +117,6 @@
       margin: 0 auto;
     }
 
-    /* ═══ VIDEO HERO ═══════════════════════════════════════ */
-    .video-card {
-      padding: 2px;
-      border-radius: 25px;
-      background: linear-gradient(135deg, rgba(155,80,255,.9), rgba(95,54,191,.55) 52%, rgba(209,66,252,.8));
-      box-shadow:
-        0 0 0 1px rgba(255,255,255,.08),
-        0 0 28px rgba(157,73,255,.48),
-        0 18px 60px rgba(9,4,26,.55);
-      margin: 0 auto 48px;
-    }
-
-    .video-inner {
-      background: #090716;
-      border-radius: 23px;
-      overflow: hidden;
-      padding: 3px;
-    }
-
-    .video-frame {
-      position: relative;
-      overflow: hidden;
-      border-radius: 20px;
-      aspect-ratio: 3.65 / 1;
-      background: #05060b;
-    }
-
-    .video-frame::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: inherit;
-      box-shadow: inset 0 0 32px rgba(11,12,18,.2);
-    }
-
-    .video-frame video {
-      display: block;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      background: #05060b;
-    }
-
-    .video-meta {
-      display: none;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      padding: 10px 4px 2px;
-      color: var(--t2);
-      font-size: .67rem;
-      letter-spacing: .2px;
-    }
-
-    .video-meta span:first-child {
-      color: #dcd6ff;
-      font-weight: 700;
-    }
-
-    .video-live {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      white-space: nowrap;
-    }
-
-    .video-live::before {
-      content: '';
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #a78bfa;
-      box-shadow: 0 0 10px #8b5cf6;
-    }
-
     /* ═══ CARD ═══════════════════════════════════════════ */
     .card {
       width: 100%;
@@ -495,10 +418,6 @@
       body { padding: 18px 12px 46px; }
       .page-intro { margin-bottom: 18px; }
       .page-copy { font-size: .76rem; }
-      .video-card { border-radius: 18px; margin-bottom: 28px; }
-      .video-inner { border-radius: 17px; padding: 3px; }
-      .video-frame { border-radius: 14px; }
-      .video-meta { padding-top: 8px; font-size: .6rem; }
       .card { border-radius: 24px; }
       .card-body { padding: 30px 18px 34px; }
       .logo-ring { width: 76px; height: 76px; }
@@ -514,6 +433,199 @@
       .input-shell { min-height: 58px; }
       .btn-gen { min-height: 58px; margin-bottom: 28px; }
       .code-box { min-height: 112px; }
+    }
+
+    /* ═══ FINAL PAIRING VIEW ═══════════════════════════════ */
+    body {
+      min-height: 100svh;
+      justify-content: center;
+      padding: 36px 16px 52px;
+      background-color: #050505;
+      background-image:
+        radial-gradient(ellipse 72% 46% at 50% 0%, rgba(116, 10, 24, .18), transparent 72%),
+        radial-gradient(ellipse 90% 55% at 50% 100%, rgba(48, 4, 10, .28), transparent 74%),
+        linear-gradient(160deg, #080808 0%, #050505 58%, #0a0506 100%);
+    }
+
+    body::before {
+      opacity: .045;
+      background-image:
+        linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);
+      background-size: 64px 64px;
+      mask-image: linear-gradient(to bottom, black, transparent 82%);
+    }
+
+    .page-shell { max-width: 430px; }
+    .page-intro,
+    .steps-row,
+    .info-card,
+    .input-hint,
+    .footer { display: none !important; }
+
+    .card {
+      max-width: 430px;
+      background: rgba(15, 15, 15, .94);
+      border: 1px solid rgba(255, 49, 72, .22);
+      border-radius: 28px;
+      box-shadow:
+        0 28px 86px rgba(0,0,0,.82),
+        0 0 34px rgba(229, 25, 52, .08),
+        inset 0 1px 0 rgba(255,255,255,.045);
+    }
+
+    .card-body { padding: 38px 34px 40px; }
+
+    .logo-wrap {
+      gap: 11px;
+      margin-bottom: 34px;
+    }
+
+    .logo-ring {
+      width: 74px;
+      height: 74px;
+    }
+
+    .logo-circle {
+      width: 68px;
+      height: 68px;
+      border-radius: 20px;
+      background: linear-gradient(145deg, #300b12 0%, #17070a 54%, #0d0d0d 100%);
+      border: 1px solid rgba(255, 66, 88, .68);
+      box-shadow:
+        0 0 0 5px rgba(255, 35, 60, .045),
+        0 0 24px rgba(235, 26, 55, .22),
+        inset 0 1px 0 rgba(255,255,255,.12);
+      animation: icon-float 4.5s ease-in-out infinite;
+    }
+
+    .code-mark {
+      color: #fff;
+      font-size: 1.65rem;
+      letter-spacing: -4px;
+      text-shadow: 0 0 12px rgba(255, 46, 73, .7);
+    }
+
+    @keyframes icon-float {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-3px) rotate(-1deg); }
+    }
+
+    .logo-title {
+      color: #f2f2f2;
+      font-size: clamp(1.45rem, 5vw, 1.7rem);
+      font-weight: 800;
+      letter-spacing: .35px;
+    }
+
+    .logo-sub {
+      color: #929292;
+      font-size: .86rem;
+      margin-top: -4px;
+    }
+
+    .lbl {
+      color: #d8d8d8;
+      font-size: .74rem;
+      letter-spacing: .8px;
+      margin-bottom: 10px;
+    }
+
+    .input-shell {
+      min-height: 56px;
+      margin-bottom: 16px;
+      background: #101010;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 13px;
+    }
+
+    .input-shell:focus-within {
+      border-color: rgba(255, 51, 76, .68);
+      box-shadow: 0 0 0 3px rgba(255, 38, 63, .08), 0 0 22px rgba(255, 38, 63, .08);
+    }
+
+    .phone-field {
+      padding: 16px 18px;
+      color: #f3f3f3;
+      font-size: .98rem;
+    }
+
+    .phone-field::placeholder { color: #666; }
+
+    .btn-gen {
+      min-height: 54px;
+      margin-bottom: 26px;
+      border-radius: 13px;
+      background: linear-gradient(110deg, #8c0c22 0%, #d41d3c 55%, #8a0b1e 100%);
+      box-shadow: 0 9px 24px rgba(183, 13, 40, .2);
+      animation: none;
+    }
+
+    .btn-bolt {
+      color: #fff;
+      font-size: 1rem;
+      line-height: 1;
+    }
+
+    .btn-gen::before { display: none; }
+    .btn-gen:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 28px rgba(225, 25, 58, .28);
+    }
+
+    .code-box {
+      min-height: 108px;
+      padding: 20px 16px;
+      border: 1px dashed rgba(255, 70, 90, .3);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .018);
+    }
+
+    .code-box.idle {
+      color: #999;
+      font-size: .9rem;
+      line-height: 1.5;
+    }
+
+    .code-box.active {
+      border-color: rgba(255, 51, 76, .52);
+      background: rgba(128, 9, 28, .07);
+      box-shadow: 0 0 22px rgba(255, 35, 60, .08);
+    }
+
+    .code-val {
+      background: linear-gradient(90deg, #fff, #ff6a7d);
+      filter: drop-shadow(0 0 11px rgba(255, 47, 75, .42));
+    }
+
+    @keyframes code-breathe {
+      from { filter: drop-shadow(0 0 8px rgba(255, 47, 75, .25)); }
+      to { filter: drop-shadow(0 0 14px rgba(255, 47, 75, .48)); }
+    }
+
+    .status { color: #8e8e8e; }
+    .status.wait { color: #e85a6f; }
+    .status.err { color: #ff687c; }
+
+    .success-panel {
+      background: rgba(102, 8, 23, .08);
+      border-color: rgba(255, 55, 78, .25);
+    }
+
+    .success-title { color: #ff6b7d; }
+    .how-list { border-color: rgba(255, 55, 78, .16); }
+    .btn-reconnect {
+      border-color: rgba(255, 55, 78, .28);
+      background: rgba(255, 35, 60, .07);
+      color: #ff7180;
+    }
+
+    @media (max-width: 560px) {
+      body { padding: 22px 12px 36px; }
+      .card { border-radius: 24px; }
+      .card-body { padding: 30px 18px 34px; }
+      .logo-wrap { margin-bottom: 30px; }
+      .phone-field { min-width: 0; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -533,27 +645,6 @@
     <h1 class="page-heading">Bienvenue sur <strong>VARNOX-XD V2</strong></h1>
     <p class="page-copy">Découvre l’expérience, puis connecte ton WhatsApp au bot en quelques secondes.</p>
   </header>
-
-  <section class="video-card" aria-label="Présentation de VARNOX-XD V2">
-    <div class="video-inner">
-      <div class="video-frame">
-        <video
-          controls
-          playsinline
-          preload="metadata"
-          poster="/varnox-logo.jpg"
-          aria-label="Présentation vidéo de VARNOX-XD V2"
-        >
-          <source src="https://files.catbox.moe/7o30ye.mp4" type="video/mp4">
-          Ton navigateur ne prend pas en charge la lecture vidéo.
-        </video>
-      </div>
-      <div class="video-meta">
-        <span>VARNOX-XD V2 · Présentation</span>
-        <span class="video-live">Lecture responsive</span>
-      </div>
-    </div>
-  </section>
 
   <section class="card" aria-labelledby="pairing-title">
   <div class="card-topline"></div>
@@ -598,7 +689,7 @@
     </div>
 
     <!-- Phone input -->
-    <div class="lbl">Numéro WhatsApp</div>
+    <div class="lbl">Numéro de téléphone</div>
     <div class="input-shell">
       <span class="input-ph-icon">📞</span>
       <div class="input-divider"></div>
@@ -606,7 +697,7 @@
         type="tel"
         class="phone-field"
         id="phoneInput"
-        placeholder="+226 XX XX XX XX"
+        placeholder="+224 XX XX XX XX"
         autocomplete="off"
         inputmode="numeric"
       >
@@ -618,7 +709,7 @@
 
     <!-- Generate button -->
     <button class="btn-gen" id="btnGen" onclick="generate()">
-      ⚡ Générer
+      <span class="btn-bolt" aria-hidden="true">✦</span> Générer
     </button>
 
     <!-- Code display -->
@@ -740,7 +831,7 @@ function reset() {
   document.getElementById('statusMsg').textContent = '';
   document.getElementById('statusMsg').className   = 'status';
   document.getElementById('btnGen').disabled = false;
-   document.getElementById('btnGen').innerHTML = '⚡ Générer';
+   document.getElementById('btnGen').innerHTML = '<span class="btn-bolt" aria-hidden="true">✦</span> Générer';
   setStep(1);
   document.getElementById('phoneInput').focus();
 }
@@ -801,7 +892,7 @@ async function generate() {
     setStep(1);
   } finally {
     btn.disabled = false;
-     btn.innerHTML = '⚡ Générer';
+     btn.innerHTML = '<span class="btn-bolt" aria-hidden="true">✦</span> Générer';
   }
 }
 
