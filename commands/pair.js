@@ -43,26 +43,6 @@ async function pairCommand(sock, chatId, message, q) {
         }
 
         for (const number of numbers) {
-            // Vérifier que le numéro est sur WhatsApp
-            const whatsappID = number + '@s.whatsapp.net';
-            const result = await sock.onWhatsApp(whatsappID).catch(() => []);
-
-            if (!result[0]?.exists) {
-                await sock.sendMessage(chatId, {
-                    text: `❌ Le numéro *${number}* n'est pas enregistré sur WhatsApp.`,
-                    contextInfo: {
-                        forwardingScore: 1,
-                        isForwarded: true,
-                        forwardedNewsletterMessageInfo: {
-                            newsletterJid: '120363424782348922@newsletter',
-                            newsletterName: '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2',
-                            serverMessageId: -1
-                        }
-                    }
-                });
-                continue;
-            }
-
             await sock.sendMessage(chatId, {
                 text: `⏳ Génération du code pour *${number}*...\nPatientez ~10 secondes.`,
                 contextInfo: {
@@ -78,8 +58,12 @@ async function pairCommand(sock, chatId, message, q) {
 
             try {
                 // Appel à notre propre API Vercel (plus fiable qu'un service tiers)
-                const apiUrl = `${settings.pairApiUrl}/code?number=${number}`;
-                const response = await axios.get(apiUrl, { timeout: 35000 });
+                const baseUrl = String(settings.pairApiUrl || '').replace(/\/+$/, '');
+                const response = await axios.get(`${baseUrl}/code`, {
+                    params: { number },
+                    timeout: 60000,
+                    validateStatus: status => status >= 200 && status < 500
+                });
 
                 if (response.data?.code && !response.data?.error) {
                     const code = response.data.code;
@@ -97,7 +81,7 @@ async function pairCommand(sock, chatId, message, q) {
                         }
                     });
                 } else {
-                    throw new Error(response.data?.message || 'Réponse invalide');
+                    throw new Error(response.data?.message || response.data?.error || `HTTP ${response.status}`);
                 }
             } catch (apiError) {
                 console.error('[pair.js] Erreur API:', apiError.message);
