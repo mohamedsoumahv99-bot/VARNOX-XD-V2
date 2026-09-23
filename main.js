@@ -157,7 +157,6 @@ const { groupAntiCommand, handleGroupAnti } = require('./commands/groupanti');
 const vvCommand = require('./commands/viewonce');
 const { antiPromoteCommand, handleAntiPromoteEvent } = require('./commands/antipromote');
 const { antiMentionGcCommand, handleAntiMentionGc } = require('./commands/antimentiongc');
-const { antiDmCommand, handleAntiDm } = require('./commands/antidm');
 const { getPrefix, normalizeCommandText, setPrefix } = require('./lib/prefix');
 const { setCmdCommand, dispatchCustomCommand } = require('./commands/customcmd');
 const { GROUP_COMMANDS, handleGroupExtraCommand } = require('./commands/groupExtras');
@@ -233,10 +232,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
             return;
         }
 
-        // ── AntDM : bloquer les inconnus en PV ──────────────────────────────
-        if (!isGroup && !message.key.fromMe) {
-            await handleAntiDm(sock, chatId, message, senderId, settings.ownerNumber);
-        }
 
         // Vérification antibot : bloquer les autres bots dans le groupe
         if (isGroup && isAntibotEnabled(chatId)) {
@@ -1029,20 +1024,26 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await antibadwordCommand(sock, chatId, message, senderId, isSenderAdmin);
                 break;
             case userMessage.startsWith('.chatbot'):
-                if (!isGroup) {
-                    await sock.sendMessage(chatId, { text: 'This command can only be used in groups.', ...channelInfo }, { quoted: message });
-                    return;
+                {
+                    const chatbotAdminStatus = isGroup
+                        ? await isAdmin(sock, chatId, senderId)
+                        : { isSenderAdmin: false };
+                    const canConfigureChatbot = message.key.fromMe || senderIsOwnerOrSudo || chatbotAdminStatus.isSenderAdmin;
+                    if (!canConfigureChatbot) {
+                        await sock.sendMessage(chatId, {
+                            text: isGroup
+                                ? '*Only admins or bot owner can use this command*'
+                                : '*Only the bot owner can configure chatbot in private chat*',
+                            ...channelInfo
+                        }, { quoted: message });
+                        break;
+                    }
+                    const match = userMessage.slice('.chatbot'.length).trim();
+                    await handleChatbotCommand(sock, chatId, message, match, {
+                        isOwner: message.key.fromMe || senderIsOwnerOrSudo,
+                        isAdmin: chatbotAdminStatus.isSenderAdmin
+                    });
                 }
-
-                // Check if sender is admin or bot owner
-                const chatbotAdminStatus = await isAdmin(sock, chatId, senderId);
-                if (!chatbotAdminStatus.isSenderAdmin && !message.key.fromMe) {
-                    await sock.sendMessage(chatId, { text: '*Only admins or bot owner can use this command*', ...channelInfo }, { quoted: message });
-                    return;
-                }
-
-                const match = userMessage.slice(8).trim();
-                await handleChatbotCommand(sock, chatId, message, match);
                 break;
             case userMessage.startsWith('.take') || userMessage.startsWith('.steal'):
                 {
@@ -1485,20 +1486,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 }
                 break;
 
-            // ── ANTIDM ───────────────────────────────────────────────────────
-            case userMessage.startsWith('.antidm'):
-                {
-                    if (!message.key.fromMe && !senderIsOwnerOrSudo) {
-                        await sock.sendMessage(chatId, {
-                            text: '❌ Cette commande est réservée au propriétaire.',
-                            ...channelInfo
-                        }, { quoted: message });
-                        break;
-                    }
-                    const adArgs = userMessage.split(' ').slice(1).join(' ');
-                    await antiDmCommand(sock, chatId, senderId, message, adArgs);
-                }
-                break;
 
             default:
                 if (isGroup) {
