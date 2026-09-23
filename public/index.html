@@ -581,6 +581,38 @@
       background: rgba(255, 255, 255, .018);
     }
 
+    .code-result {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .copy-code {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 34px;
+      padding: 8px 14px;
+      border: 1px solid rgba(255, 70, 90, .34);
+      border-radius: 9px;
+      background: rgba(255, 35, 60, .08);
+      color: #ff8995;
+      font: 700 .72rem/1 'Inter', sans-serif;
+      cursor: pointer;
+      transition: background .2s, border-color .2s, transform .15s;
+    }
+
+    .copy-code:hover {
+      background: rgba(255, 35, 60, .15);
+      border-color: rgba(255, 92, 110, .6);
+      transform: translateY(-1px);
+    }
+
+    .copy-code:active { transform: translateY(0); }
+    .copy-code[hidden] { display: none; }
+
     .code-box.idle {
       color: #999;
       font-size: .9rem;
@@ -714,7 +746,12 @@
 
     <!-- Code display -->
     <div class="code-box idle" id="codeBox">
-      <span id="codeInner">Entrez votre numéro pour<br>générer le code</span>
+      <div class="code-result">
+        <span id="codeInner">Entrez votre numéro pour<br>générer le code</span>
+        <button class="copy-code" id="copyCodeBtn" type="button" onclick="copyPairingCode()" hidden>
+          ⧉ Copier le code
+        </button>
+      </div>
     </div>
     <div class="status" id="statusMsg"></div>
 
@@ -760,6 +797,47 @@
 'use strict';
 
 let polling = null;
+let currentPairingCode = '';
+let copyResetTimer = null;
+
+function setCopyButton(visible, label = '⧉ Copier le code') {
+  const button = document.getElementById('copyCodeBtn');
+  if (!button) return;
+  button.hidden = !visible;
+  button.textContent = label;
+}
+
+async function copyPairingCode() {
+  if (!currentPairingCode) return;
+
+  let copied = false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(currentPairingCode);
+      copied = true;
+    }
+  } catch (_) {}
+
+  if (!copied) {
+    const helper = document.createElement('textarea');
+    helper.value = currentPairingCode;
+    helper.setAttribute('readonly', '');
+    helper.style.position = 'fixed';
+    helper.style.opacity = '0';
+    document.body.appendChild(helper);
+    helper.select();
+    try { copied = document.execCommand('copy'); } catch (_) {}
+    helper.remove();
+  }
+
+  const button = document.getElementById('copyCodeBtn');
+  if (!button) return;
+  clearTimeout(copyResetTimer);
+  button.textContent = copied ? '✓ Code copié' : 'Copie impossible';
+  copyResetTimer = setTimeout(() => {
+    if (currentPairingCode) setCopyButton(true);
+  }, 2200);
+}
 
 /* ── Steps (3 steps) ──────────────────────────── */
 function setStep(n) {
@@ -803,6 +881,8 @@ function startPoll(num) {
         const ci = document.getElementById('codeInner');
         cb.className = 'code-box error';
         ci.innerHTML = `<span class="code-err">❌ ${d.error}</span>`;
+        currentPairingCode = '';
+        setCopyButton(false);
         sm.textContent = 'Le code précédent est expiré. Génère un nouveau code et réessaie.';
         sm.className = 'status err';
         document.getElementById('btnGen').disabled = false;
@@ -818,6 +898,8 @@ function showSuccess() {
   document.getElementById('statusMsg').className   = 'status';
   document.getElementById('codeBox').className = 'code-box idle';
   document.getElementById('codeInner').textContent = '✅ Appareil lié avec succès';
+  currentPairingCode = '';
+  setCopyButton(false);
   setStep(3);
 }
 
@@ -828,6 +910,9 @@ function reset() {
   document.getElementById('phoneInput').value = '';
   document.getElementById('codeBox').className = 'code-box idle';
    document.getElementById('codeInner').innerHTML = 'Entrez votre numéro pour<br>générer le code';
+  currentPairingCode = '';
+  clearTimeout(copyResetTimer);
+  setCopyButton(false);
   document.getElementById('statusMsg').textContent = '';
   document.getElementById('statusMsg').className   = 'status';
   document.getElementById('btnGen').disabled = false;
@@ -859,6 +944,8 @@ async function generate() {
   btn.innerHTML = '<span class="spin"></span> Connexion en cours…';
   cb.className  = 'code-box idle';
   ci.textContent = 'Connexion à WhatsApp…';
+  currentPairingCode = '';
+  setCopyButton(false);
   sm.textContent = '';
   sm.className   = 'status';
 
@@ -880,6 +967,8 @@ async function generate() {
       const code = data.code || '';
       cb.className = 'code-box active';
       ci.innerHTML = `<span class="code-val">${code}</span>`;
+      currentPairingCode = code;
+      setCopyButton(true);
       sm.textContent = '⏳ Entre ce code dans WhatsApp → Paramètres → Appareils connectés → Lier un appareil';
       sm.className   = 'status wait';
       startPoll(num);
@@ -887,6 +976,8 @@ async function generate() {
   } catch (_) {
     cb.className = 'code-box error';
     ci.innerHTML = '<span class="code-err">❌ Impossible de contacter le serveur. Réessaie.</span>';
+    currentPairingCode = '';
+    setCopyButton(false);
     sm.textContent = 'Erreur réseau. Recharge la page et réessaie.';
     sm.className   = 'status err';
     setStep(1);
