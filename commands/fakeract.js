@@ -135,7 +135,11 @@ async function handleChannelPost(sock, message) {
 
     const serverMessageId = String(
         message.key.serverMessageId ||
+        message.key.serverId ||
+        message.key.server_id ||
         message.message?.messageContextInfo?.serverMessageId ||
+        message.message?.messageContextInfo?.serverId ||
+        message.message?.newsletterMessage?.serverMessageId ||
         ''
     );
     if (!/^\d+$/.test(serverMessageId)) {
