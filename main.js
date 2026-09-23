@@ -36,7 +36,6 @@ const axios = require('axios');
 const ffmpeg = require('fluent-ffmpeg');
 const { isSudo } = require('./lib/index');
 const isOwnerOrSudo = require('./lib/isOwner');
-const { isPrimaryOwner } = isOwnerOrSudo;
 const { autotypingCommand, isAutotypingEnabled, handleAutotypingForMessage, handleAutotypingForCommand, showTypingAfterCommand } = require('./commands/autotyping');
 const { autoreadCommand, isAutoreadEnabled, handleAutoread } = require('./commands/autoread');
 
@@ -162,7 +161,6 @@ const { antiDmCommand, handleAntiDm } = require('./commands/antidm');
 const { getPrefix, normalizeCommandText, setPrefix } = require('./lib/prefix');
 const { setCmdCommand, dispatchCustomCommand } = require('./commands/customcmd');
 const { GROUP_COMMANDS, handleGroupExtraCommand } = require('./commands/groupExtras');
-const { handleFakeractChannelMessage } = require('./commands/fakeract');
 const fakeReactCommand = require('./commands/fakeract');
 
 // Global settings
@@ -217,32 +215,13 @@ async function handleMessages(sock, messageUpdate, printLog) {
         }
 
         chatId = message.key.remoteJid;
-        // Les messages WhatsApp récents peuvent exposer à la fois un LID et
-        // le numéro réel. Garder tous les identifiants permet au propriétaire
-        // configuré de rester reconnu même si le bot est connecté à un autre
-        // compte ou si WhatsApp utilise le format LID.
-        const senderCandidates = [
-            message.key.participant,
-            message.key.participantAlt,
-            message.key.remoteJidAlt,
-            message.key.senderPn,
-            message.key.senderLid,
-            message.key.remoteJid
-        ].filter(Boolean);
-        const senderId = senderCandidates[0] || message.key.remoteJid;
+        const senderId = message.key.participant || message.key.remoteJid;
         const isGroup = chatId.endsWith('@g.us');
-
-        // Une publication de chaîne ne doit pas traverser le routeur de
-        // commandes de groupe/PV. Le hook reste non bloquant pour préserver
-        // la réception temps réel des publications.
-        if (chatId.endsWith('@newsletter')) {
-            await handleFakeractChannelMessage(sock, message);
-            return;
-        }
-
         const senderIsSudo = await isSudo(senderId);
-        const senderIsOwner = await isPrimaryOwner(senderCandidates, sock, chatId);
-        const senderIsOwnerOrSudo = senderIsOwner || await isOwnerOrSudo(senderCandidates, sock, chatId);
+        const senderIsPrimaryOwner = typeof isOwnerOrSudo.isPrimaryOwner === 'function'
+            ? await isOwnerOrSudo.isPrimaryOwner(senderId, sock, chatId)
+            : false;
+        const senderIsOwnerOrSudo = await isOwnerOrSudo(senderId, sock, chatId);
 
         // Suppression des messages des utilisateurs ciblés par .mute @user.
         if (isGroup && !message.key.fromMe && isMuted(chatId, senderId)) {
@@ -256,7 +235,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
         // ── AntDM : bloquer les inconnus en PV ──────────────────────────────
         if (!isGroup && !message.key.fromMe) {
-            await handleAntiDm(sock, chatId, message, senderId, settings.ownerNumber, senderIsOwnerOrSudo);
+            await handleAntiDm(sock, chatId, message, senderId, settings.ownerNumber);
         }
 
         // Vérification antibot : bloquer les autres bots dans le groupe
@@ -294,14 +273,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         );
         // Owner-friendly diagnostic alias. It reports only the active scope
         // (this private chat or this group), never another user's chat data.
-        if (/^>\s+prefixe?\s*$/i.test(rawText)) {
-            if (!senderIsOwner) {
-                await sock.sendMessage(chatId, {
-                    text: '❌ Cette commande est réservée au propriétaire configuré.',
-                    ...channelInfo
-                }, { quoted: message });
-                return;
-            }
+        if (/^>\s+prefixe?\s*$/i.test(rawText) && senderIsPrimaryOwner) {
             await sock.sendMessage(chatId, {
                 text: `🔑 Préfixe actif pour cette discussion : ${getPrefix(chatId)}`,
                 ...channelInfo
@@ -386,7 +358,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         }
 
         // PM blocker: block non-owner DMs when activé (do not ban)
-        if (!isGroup && !message.key.fromMe && !senderIsOwnerOrSudo) {
+        if (!isGroup && !message.key.fromMe && !senderIsSudo) {
             try {
                 const pmState = readPmBlockerState();
                 if (pmState.activé) {
@@ -415,14 +387,10 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await handleTagDetection(sock, chatId, message, senderId);
                 await handleMentionDetection(sock, chatId, message);
 
-                // Le chatbot est piloté par sa propre configuration. En
-                // groupe, il répond uniquement à une mention/réponse; en
-                // privé, il répond à chaque message quand le mode DM est ON.
+                // Only run chatbot in public mode or for owner/sudo
                 if (isPublic || isOwnerOrSudoCheck) {
-                    await handleChatbotResponse(sock, chatId, message, rawText, senderId);
+                    await handleChatbotResponse(sock, chatId, message, userMessage, senderId);
                 }
-            } else if (isPublic || isOwnerOrSudoCheck) {
-                await handleChatbotResponse(sock, chatId, message, rawText, senderId);
             }
             return;
         }
@@ -794,16 +762,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 }
                 break;
             case userMessage.startsWith('.fakeract'):
-                // normalizeCommandText() lowercases command text. A channel
-                // invite code is case-sensitive, so preserve the original
-                // raw arguments when resolving the newsletter.
-                {
-                    const commandIndex = rawText.toLowerCase().indexOf('fakeract');
-                    const rawArgs = commandIndex >= 0
-                        ? rawText.slice(commandIndex + 'fakeract'.length).trim()
-                        : '';
-                    await fakeReactCommand(sock, chatId, message, rawArgs);
-                }
+                await fakeReactCommand(sock, chatId, message, userMessage.slice('.fakeract'.length).trim());
                 commandExecuted = true;
                 break;
             case userMessage.startsWith('.pmblocker'):
@@ -1070,16 +1029,20 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await antibadwordCommand(sock, chatId, message, senderId, isSenderAdmin);
                 break;
             case userMessage.startsWith('.chatbot'):
-                {
-                    const chatbotAdminStatus = isGroup
-                        ? await isAdmin(sock, chatId, senderId)
-                        : { isSenderAdmin: false };
-                    const match = rawText.slice(rawText.toLowerCase().indexOf('chatbot') + 'chatbot'.length).trim();
-                    await handleChatbotCommand(sock, chatId, message, match, {
-                        isOwner: senderIsOwnerOrSudoCheck,
-                        isAdmin: chatbotAdminStatus.isSenderAdmin
-                    });
+                if (!isGroup) {
+                    await sock.sendMessage(chatId, { text: 'This command can only be used in groups.', ...channelInfo }, { quoted: message });
+                    return;
                 }
+
+                // Check if sender is admin or bot owner
+                const chatbotAdminStatus = await isAdmin(sock, chatId, senderId);
+                if (!chatbotAdminStatus.isSenderAdmin && !message.key.fromMe) {
+                    await sock.sendMessage(chatId, { text: '*Only admins or bot owner can use this command*', ...channelInfo }, { quoted: message });
+                    return;
+                }
+
+                const match = userMessage.slice(8).trim();
+                await handleChatbotCommand(sock, chatId, message, match);
                 break;
             case userMessage.startsWith('.take') || userMessage.startsWith('.steal'):
                 {
