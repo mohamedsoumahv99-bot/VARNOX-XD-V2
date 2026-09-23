@@ -98,6 +98,9 @@ if (SELF_URL) {
 /* ─── Sockets de couplage en cours ───────────────────────── */
 // Map<string, { sock, saveCreds, sessionDir, timer }>
 const pairingSockets = new Map();
+// Une seule génération de code active par numéro. Cela évite qu'un double clic
+// ou deux onglets détruisent la session de couplage de l'autre.
+const pairingRequests = new Map();
 
 /* ─── Sessions marquées prêtes ───────────────────────────── */
 // Map<string, { ts }>
@@ -177,6 +180,8 @@ async function recoverPairingSocket(number, sessionDir) {
     pairingSockets.set(number, next);
 
     sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
+      if (pairingSockets.get(number) !== next) return;
+
       if (connection === 'open') {
         try {
           await next.activate(sock, saveCreds);
@@ -363,16 +368,45 @@ async function handleCode(req, res) {
     return res.json({ error: false, already: true, message: 'Déjà connecté.' });
   if (existing && !existing.connected) stopBotInstance(number);
 
+  // Si le code est déjà affiché, le renvoyer au lieu de recréer une session.
+  // Recréer un socket ici invaliderait le code visible dans WhatsApp.
+  const activePairing = pairingSockets.get(number);
+  if (activePairing?.code && (!activePairing.expiresAt || activePairing.expiresAt > Date.now())) {
+    return res.json({ error: false, code: activePairing.code, reused: true });
+  }
+
+  // Les requêtes concurrentes pour un même numéro partagent le même résultat.
+  // Les utilisateurs différents continuent, eux, à utiliser leurs propres
+  // sessions en parallèle.
+  const runningRequest = pairingRequests.get(number);
+  if (runningRequest) {
+    try {
+      return res.json(await runningRequest);
+    } catch (error) {
+      return res.json({ error: true, message: error.message || 'Erreur génération du code' });
+    }
+  }
+
+  let resolveRequest;
+  let rejectRequest;
+  const requestResult = new Promise((resolve, reject) => {
+    resolveRequest = resolve;
+    rejectRequest = reject;
+  });
+  pairingRequests.set(number, requestResult);
+
   const userSessionDir = path.join(SESSIONS_DIR, `user_${number}`);
   const sessionDir     = userSessionDir;
 
   // Fermer le couplage précédent pour ce numéro s'il existe
   if (pairingSockets.has(number)) {
     const old = pairingSockets.get(number);
+    // Retirer l'ancienne entrée avant de fermer le socket : son événement
+    // "close" ne doit jamais toucher la nouvelle tentative du même numéro.
+    pairingSockets.delete(number);
     clearTimeout(old.timer);
     try { old.sock?.ws?.close(); } catch {}
     try { fs.rmSync(old.sessionDir, { recursive: true, force: true }); } catch {}
-    pairingSockets.delete(number);
     await new Promise(r => setTimeout(r, 300));
   }
 
@@ -384,6 +418,7 @@ async function handleCode(req, res) {
   console.log(`[VARNOX] /code for ${number}`);
   pairingFailures.delete(number);
 
+  let sock = null;
   try {
     // ── Créer le socket directement dans la session permanente ────────────
     const logger = pino({ level: 'silent' });
@@ -392,7 +427,7 @@ async function handleCode(req, res) {
     // disponible : WhatsApp peut l'afficher puis refuser sa validation.
     const version = await getLatestVersion();
 
-    const sock = makeWASocket(pairingSocketOptions(version, logger, state));
+    sock = makeWASocket(pairingSocketOptions(version, logger, state));
 
     // ★ CRITIQUE : enregistrer creds.update dès maintenant (vers sessionDir).
     // WhatsApp envoie des mises à jour de clés en continu pendant et après
@@ -413,9 +448,9 @@ async function handleCode(req, res) {
     const hardTimer = setTimeout(() => {
       if (!codeDone) {
         codeDone = true;
-        codeReject(new Error('Timeout 60s — WhatsApp n’a pas préparé la connexion. Réessaie avec le numéro international sans +.'));
+        codeReject(new Error('Timeout 60s — WhatsApp n’a pas préparé la connexion. Réessaie dans quelques secondes.'));
       }
-    }, 45000);
+    }, 60000);
 
     async function tryGetCode() {
       if (codeDone) return;
@@ -472,8 +507,25 @@ async function handleCode(req, res) {
       console.log(`[VARNOX] ✅ Bot activated on persistent socket for ${number}`);
     }
 
+    // Enregistrer le socket avant que le code soit retourné permet à une
+    // seconde requête et aux événements 515 de retrouver la session exacte.
+    const pendingPairing = {
+      sock,
+      saveCreds,
+      sessionDir,
+      timer: null,
+      code: null,
+      expiresAt: null,
+      activate: promotePairToBot,
+      recoveryAttempts: 0,
+      recovering: false,
+    };
+    pairingSockets.set(number, pendingPairing);
+
     // ── Listener de connexion ─────────────────────────────────────────────
     sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
+      if (pairingSockets.get(number) !== pendingPairing) return;
+
       if (connection === 'connecting' && !pairStarted) {
         pairStarted = true;
         // Le socket est déjà en phase de handshake. Une courte attente évite
@@ -557,23 +609,29 @@ async function handleCode(req, res) {
       }
     }, 15 * 60 * 1000);
 
-    pairingSockets.set(number, {
-      sock,
-      saveCreds,
-      sessionDir,
-      timer,
-      activate: promotePairToBot,
-      recoveryAttempts: 0,
-      recovering: false,
-    });
+    pendingPairing.timer = timer;
+    pendingPairing.code = formatted;
+    pendingPairing.expiresAt = Date.now() + 15 * 60 * 1000;
 
-    return res.json({ error: false, code: formatted });
+    const result = { error: false, code: formatted };
+    resolveRequest(result);
+    pairingRequests.delete(number);
+    return res.json(result);
 
   } catch (err) {
     console.error(`[VARNOX] /code error ${number}:`, err.message);
+    pairingRequests.delete(number);
+    rejectRequest(err);
+    const pending = pairingSockets.get(number);
+    if (pending) {
+      clearTimeout(pending.timer);
+      pairingSockets.delete(number);
+    }
+    try { sock?.ws?.close(); } catch {}
     if (!pairedNumbers.has(number))
       try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
-    return res.json({ error: true, message: err.message || 'Erreur génération du code' });
+    const result = { error: true, message: err.message || 'Erreur génération du code' };
+    return res.json(result);
   }
 }
 
