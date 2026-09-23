@@ -27,7 +27,7 @@ const categories = [
     title: 'ᴄᴏɴғɪᴅᴇɴᴛɪᴀʟɪᴛé',
     icon: '🔐',
     aliases: ['privacy', 'securite'],
-    commands: ['antidelete', 'antidm', 'pmblocker', 'anticall', 'antibot', 'antilink']
+    commands: ['antidelete', 'pmblocker', 'anticall', 'antibot', 'antilink']
   },
   {
     key: 'conversion',
