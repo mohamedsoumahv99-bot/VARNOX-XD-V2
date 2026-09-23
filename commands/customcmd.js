@@ -29,8 +29,22 @@ function writeStore(data) {
     fs.renameSync(temp, STORE_FILE);
 }
 
+function unwrapQuotedMessage(value) {
+    if (!value || typeof value !== 'object') return value;
+    if (value.ephemeralMessage?.message) return unwrapQuotedMessage(value.ephemeralMessage.message);
+    if (value.viewOnceMessage?.message) return unwrapQuotedMessage(value.viewOnceMessage.message);
+    if (value.viewOnceMessageV2?.message) return unwrapQuotedMessage(value.viewOnceMessageV2.message);
+    if (value.documentWithCaptionMessage?.message) return unwrapQuotedMessage(value.documentWithCaptionMessage.message);
+    return value;
+}
+
 function getQuotedMessage(message) {
-    return message.message?.extendedTextMessage?.contextInfo?.quotedMessage || null;
+    const source = message?.message || {};
+    const context = source.extendedTextMessage?.contextInfo ||
+        source.imageMessage?.contextInfo ||
+        source.videoMessage?.contextInfo ||
+        source.documentMessage?.contextInfo || {};
+    return unwrapQuotedMessage(context.quotedMessage || null);
 }
 
 function commandName(value) {
@@ -41,14 +55,17 @@ function commandName(value) {
 }
 
 async function readStickerBuffer(stickerMessage) {
+    if (!stickerMessage || typeof stickerMessage !== 'object') {
+        throw new Error('Sticker introuvable.');
+    }
     const stream = await downloadContentFromMessage(stickerMessage, 'sticker');
     const chunks = [];
-    for await (const chunk of stream) chunks.push(chunk);
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
     return Buffer.concat(chunks);
 }
 
 async function setCmdCommand(sock, chatId, message, args) {
-    const name = commandName(args[0]);
+    const name = commandName(Array.isArray(args) ? args[0] : args);
     if (!/^[a-z0-9_-]{2,32}$/.test(name)) {
         await sock.sendMessage(chatId, {
             text: '❌ Utilise `.setcmd nomcommande` en répondant à un sticker.'
