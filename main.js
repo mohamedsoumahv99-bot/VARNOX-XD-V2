@@ -245,6 +245,21 @@ async function handleMessages(sock, messageUpdate, printLog) {
             if (isBot) return; // Ignorer silencieusement les messages des autres bots
         }
 
+        // Handle URL copy buttons from url.js. The URL stays hidden until the user presses Copy Link.
+        const templateButtonId = message.message?.templateButtonReplyMessage?.selectedId?.trim();
+        if (templateButtonId?.startsWith('url_copy:')) {
+            if (!readBotMode() && !senderIsOwnerOrSudo) return;
+            try {
+                const encodedUrl = templateButtonId.slice('url_copy:'.length);
+                const copiedUrl = Buffer.from(encodedUrl, 'base64url').toString('utf8');
+                new URL(copiedUrl);
+                await sock.sendMessage(message.key.remoteJid, { text: copiedUrl }, { quoted: message });
+            } catch {
+                await sock.sendMessage(message.key.remoteJid, { text: '❌ Le lien à copier est invalide.' }, { quoted: message });
+            }
+            return;
+        }
+
         // Handle button responses
         if (message.message?.buttonsResponseMessage) {
             // Private mode also blocks interactive menu actions for non-owners.
