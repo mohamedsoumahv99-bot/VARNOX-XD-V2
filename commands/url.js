@@ -6,8 +6,22 @@ const path = require('path');
 const { UploadFileUgu, TelegraPh } = require('../lib/uploader');
 const { sendInteractiveMessage } = require('../lib/interactiveButtons');
 
-async function getMediaBufferAndExt(message) {
-    const m = message.message || {};
+function unwrapMessageContent(content) {
+      let current = content;
+      for (let index = 0; index < 8; index += 1) {
+          const next = current?.ephemeralMessage?.message
+              || current?.viewOnceMessage?.message
+              || current?.viewOnceMessageV2?.message
+              || current?.viewOnceMessageV2Extension?.message
+              || current?.documentWithCaptionMessage?.message;
+          if (!next || next === current) break;
+          current = next;
+      }
+      return current;
+    }
+
+    async function getMediaBufferAndExt(message) {
+      const m = unwrapMessageContent(message?.message || message) || {};
     const mediaTypes = [
         ['imageMessage', 'image', '.jpg'],
         ['videoMessage', 'video', '.mp4'],
@@ -31,10 +45,14 @@ async function getMediaBufferAndExt(message) {
 }
 
 async function getQuotedMediaBufferAndExt(message) {
-    const quoted = message.message?.extendedTextMessage?.contextInfo?.quotedMessage || null;
-    return quoted ? getMediaBufferAndExt({ message: quoted }) : null;
-}
-
+      const current = unwrapMessageContent(message?.message || message) || {};
+      const quoted = current.extendedTextMessage?.contextInfo?.quotedMessage
+          || current.imageMessage?.contextInfo?.quotedMessage
+          || current.videoMessage?.contextInfo?.quotedMessage
+          || null;
+      return quoted ? getMediaBufferAndExt({ message: quoted }) : null;
+    }
+    
 function formatBytes(bytes) {
     if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
     if (bytes < 1024) return bytes + ' B';
