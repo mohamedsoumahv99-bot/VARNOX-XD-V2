@@ -4,6 +4,7 @@ const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const path = require('path');
 const { UploadFileUgu, TelegraPh } = require('../lib/uploader');
+const { sendInteractiveMessage } = require('../lib/interactiveButtons');
 
 async function getMediaBufferAndExt(message) {
     const m = message.message || {};
@@ -46,24 +47,23 @@ function encodeButtonValue(value) {
 }
 
 function uploadButtons(url) {
-    return {
-        templateButtons: [
-            {
-                index: 1,
-                urlButton: {
-                    displayText: '↗️ Open Link',
-                    url
-                }
-            },
-            {
-                index: 2,
-                quickReplyButton: {
-                    displayText: '📋 Copy Link',
-                    id: 'url_copy:' + encodeButtonValue(url)
-                }
+    return [
+        {
+            name: 'cta_url',
+            params: {
+                display_text: '↗️ Open Link',
+                url,
+                merchant_url: url
             }
-        ]
-    };
+        },
+        {
+            name: 'copy_code',
+            params: {
+                display_text: '📋 Copy Link',
+                copy_code: url
+            }
+        }
+    ];
 }
 
 async function urlCommand(sock, chatId, message) {
@@ -122,10 +122,12 @@ async function urlCommand(sock, chatId, message) {
             '│ POWERED BY VARNOX-XD©'
         ].join('\n');
 
-        await sock.sendMessage(chatId, {
-            text: caption,
-            ...uploadButtons(url)
-        }, { quoted: message });
+        await sendInteractiveMessage(sock, chatId, {
+            body: caption,
+            footer: '│ POWERED BY VARNOX-XD©',
+            buttons: uploadButtons(url),
+            quoted: message
+        });
     } catch (error) {
         if (tempPath) {
             try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
