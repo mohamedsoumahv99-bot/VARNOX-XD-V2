@@ -1,3 +1,5 @@
+'use strict';
+
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const path = require('path');
@@ -5,97 +7,134 @@ const { UploadFileUgu, TelegraPh } = require('../lib/uploader');
 
 async function getMediaBufferAndExt(message) {
     const m = message.message || {};
-    if (m.imageMessage) {
-        const stream = await downloadContentFromMessage(m.imageMessage, 'image');
+    const mediaTypes = [
+        ['imageMessage', 'image', '.jpg'],
+        ['videoMessage', 'video', '.mp4'],
+        ['audioMessage', 'audio', '.mp3'],
+        ['documentMessage', 'document', null],
+        ['stickerMessage', 'sticker', '.webp']
+    ];
+
+    for (const [key, type, defaultExt] of mediaTypes) {
+        if (!m[key]) continue;
+        const stream = await downloadContentFromMessage(m[key], type);
         const chunks = [];
         for await (const chunk of stream) chunks.push(chunk);
-        return { buffer: Buffer.concat(chunks), ext: '.jpg' };
-    }
-    if (m.videoMessage) {
-        const stream = await downloadContentFromMessage(m.videoMessage, 'video');
-        const chunks = [];
-        for await (const chunk of stream) chunks.push(chunk);
-        return { buffer: Buffer.concat(chunks), ext: '.mp4' };
-    }
-    if (m.audioMessage) {
-        const stream = await downloadContentFromMessage(m.audioMessage, 'audio');
-        const chunks = [];
-        for await (const chunk of stream) chunks.push(chunk);
-        // default mp3 for voice/ptt may be opus; still use .mp3 generically
-        return { buffer: Buffer.concat(chunks), ext: '.mp3' };
-    }
-    if (m.documentMessage) {
-        const stream = await downloadContentFromMessage(m.documentMessage, 'document');
-        const chunks = [];
-        for await (const chunk of stream) chunks.push(chunk);
-        const fileName = m.documentMessage.fileName || 'file.bin';
-        const ext = path.extname(fileName) || '.bin';
-        return { buffer: Buffer.concat(chunks), ext };
-    }
-    if (m.stickerMessage) {
-        const stream = await downloadContentFromMessage(m.stickerMessage, 'sticker');
-        const chunks = [];
-        for await (const chunk of stream) chunks.push(chunk);
-        return { buffer: Buffer.concat(chunks), ext: '.webp' };
+        const fileName = m[key].fileName || '';
+        return {
+            buffer: Buffer.concat(chunks),
+            ext: defaultExt || path.extname(fileName) || '.bin'
+        };
     }
     return null;
 }
 
 async function getQuotedMediaBufferAndExt(message) {
     const quoted = message.message?.extendedTextMessage?.contextInfo?.quotedMessage || null;
-    if (!quoted) return null;
-    return getMediaBufferAndExt({ message: quoted });
+    return quoted ? getMediaBufferAndExt({ message: quoted }) : null;
+}
+
+function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function encodeButtonValue(value) {
+    return Buffer.from(String(value), 'utf8').toString('base64url');
+}
+
+function uploadButtons(url) {
+    return {
+        templateButtons: [
+            {
+                index: 1,
+                urlButton: {
+                    displayText: '↗️ Open Link',
+                    url
+                }
+            },
+            {
+                index: 2,
+                quickReplyButton: {
+                    displayText: '📋 Copy Link',
+                    id: 'url_copy:' + encodeButtonValue(url)
+                }
+            }
+        ]
+    };
 }
 
 async function urlCommand(sock, chatId, message) {
+    let tempPath = '';
     try {
-        // Prefer current message media, else quoted media
         let media = await getMediaBufferAndExt(message);
         if (!media) media = await getQuotedMediaBufferAndExt(message);
 
         if (!media) {
-            await sock.sendMessage(chatId, { text: 'Send or reply to a media (image, video, audio, sticker, document) to get a URL.' }, { quoted: message });
+            await sock.sendMessage(chatId, {
+                text: '📎 Envoie ou réponds à une image, vidéo, audio, sticker ou document pour générer son lien.'
+            }, { quoted: message });
             return;
         }
 
         const tempDir = path.join(__dirname, '../temp');
         if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-        const tempPath = path.join(tempDir, `${Date.now()}${media.ext}`);
+        tempPath = path.join(tempDir, Date.now() + media.ext);
         fs.writeFileSync(tempPath, media.buffer);
 
         let url = '';
         try {
-            if (media.ext === '.jpg' || media.ext === '.png' || media.ext === '.webp') {
-                // Try TelegraPh for images/webp first (fast, simple)
+            if (['.jpg', '.png', '.webp'].includes(media.ext.toLowerCase())) {
                 try {
                     url = await TelegraPh(tempPath);
                 } catch {
-                    // Fallback to Uguu for any file type
-                    const res = await UploadFileUgu(tempPath);
-                    url = typeof res === 'string' ? res : (res.url || res.url_full || JSON.stringify(res));
+                    const result = await UploadFileUgu(tempPath);
+                    url = typeof result === 'string'
+                        ? result
+                        : (result.url || result.url_full || '');
                 }
             } else {
-                const res = await UploadFileUgu(tempPath);
-                url = typeof res === 'string' ? res : (res.url || res.url_full || JSON.stringify(res));
+                const result = await UploadFileUgu(tempPath);
+                url = typeof result === 'string'
+                    ? result
+                    : (result.url || result.url_full || '');
             }
         } finally {
-            setTimeout(() => {
-                try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
-            }, 2000);
+            try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
+            tempPath = '';
         }
 
-        if (!url) {
-            await sock.sendMessage(chatId, { text: 'Failed to upload media.' }, { quoted: message });
-            return;
-        }
+        url = String(url || '').trim();
+        if (!url) throw new Error('Le service d’upload n’a renvoyé aucun lien.');
+        try { new URL(url); } catch { throw new Error('Le lien généré est invalide.'); }
 
-        await sock.sendMessage(chatId, { text: `URL: ${url}` }, { quoted: message });
+        const caption = [
+            'Media Uploaded Successfully',
+            '✅',
+            '',
+            'Media Link:',
+            url,
+            '',
+            '💾 Size: ' + formatBytes(media.buffer.length),
+            '',
+            '│ POWERED BY VARNOX-XD©'
+        ].join('\n');
+
+        await sock.sendMessage(chatId, {
+            text: caption,
+            ...uploadButtons(url)
+        }, { quoted: message });
     } catch (error) {
+        if (tempPath) {
+            try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
+        }
         console.error('[URL] error:', error?.message || error);
-        await sock.sendMessage(chatId, { text: 'Failed to convert media to URL.' }, { quoted: message });
+        await sock.sendMessage(chatId, {
+            text: '❌ Impossible de générer le lien du média : ' + (error?.message || 'erreur inconnue')
+        }, { quoted: message });
     }
 }
 
 module.exports = urlCommand;
-
-
