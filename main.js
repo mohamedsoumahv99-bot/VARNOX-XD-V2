@@ -145,6 +145,8 @@ const { igsCommand } = require('./commands/igs');
 const { anticallCommand, readState: readAnticallState } = require('./commands/anticall');
 const { pmblockerCommand, readState: readPmBlockerState } = require('./commands/pmblocker');
 const settingsCommand = require('./commands/settings');
+const statsCommand = require('./commands/stats');
+const { isCommandEnabled } = require('./lib/sessionSettings');
 const soraCommand = require('./commands/sora');
 const { antibotCommand, isAntibotEnabled } = require('./commands/antibot');
 const { promoteTimeCommand } = require('./commands/promotetime');
@@ -221,6 +223,10 @@ async function handleMessages(sock, messageUpdate, printLog) {
             ? await isOwnerOrSudo.isPrimaryOwner(senderId, sock, chatId)
             : false;
         const senderIsOwnerOrSudo = await isOwnerOrSudo(senderId, sock, chatId);
+        const configuredOwner = String(settings.ownerNumber || '').replace(/\D/g, '');
+        const senderNumbers = [senderId, message.key.participantAlt, message.key.remoteJid].filter(Boolean).map(value => String(value).split('@')[0].split(':')[0].replace(/\D/g, ''));
+        const botNumberForOwner = String(sock.user?.id || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+        const isConfiguredOwner = senderNumbers.includes(configuredOwner) || (message.key.fromMe && botNumberForOwner === configuredOwner);
 
         // Suppression des messages des utilisateurs ciblés par .mute @user.
         if (isGroup && !message.key.fromMe && isMuted(chatId, senderId)) {
@@ -389,6 +395,14 @@ async function handleMessages(sock, messageUpdate, printLog) {
             }
             return;
         }
+        const sessionNumber = String(sock.user?.id || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+        const commandToken = userMessage.split(/\s+/)[0].toLowerCase();
+        const sessionExempt = ['.settings', '.stats', '.menu', '.help', '.allmenu'];
+        if (!sessionExempt.includes(commandToken) && !isCommandEnabled(sessionNumber, commandToken)) {
+            await sock.sendMessage(chatId, { text: '⛔ La commande ' + commandToken + ' est désactivée pour cette session.' }, { quoted: message });
+            return;
+        }
+
         // List of admin commands
         const commandMatches = cmd => userMessage === cmd || userMessage.startsWith(`${cmd} `);
         const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.demoteadmin', '.kick', '.kicktime', '.kickall', '.kickall2', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.antibot', '.antibadword', '.antipromote', '.antimentiongc', '.antiflood', '.antispam', '.antimedia', '.antisticker', '.antivoice', '.setgdesc', '.setgname', '.setgpp', '.deleteall', '.open', '.close'];
@@ -448,8 +462,9 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
         // Check owner status for owner commands
         if (isOwnerCommand) {
-            if (!message.key.fromMe && !senderIsOwnerOrSudo) {
-                await sock.sendMessage(chatId, { text: '❌ Cette commande est réservée au propriétaire ʋαɾɳσx ❍ғғɪᴄɪᴀʟ !' }, { quoted: message });
+            const ownerAllowed = userMessage.startsWith('.fakeract') ? isConfiguredOwner : (message.key.fromMe || senderIsOwnerOrSudo);
+            if (!ownerAllowed) {
+                await sock.sendMessage(chatId, { text: '❌ Cette commande est réservée au numéro propriétaire configuré.' }, { quoted: message });
                 return;
             }
         }
@@ -655,7 +670,10 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
 
             case userMessage === '.settings':
-                await settingsCommand(sock, chatId, message);
+                await settingsCommand(sock, chatId, message, userMessage.slice('.settings'.length).trim());
+                break;
+            case userMessage === '.stats':
+                await statsCommand(sock, chatId, message);
                 break;
             case userMessage.startsWith('.mode'):
                 // Check if sender is the owner
