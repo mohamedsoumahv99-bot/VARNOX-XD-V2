@@ -354,7 +354,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
             // Antilink checks message text internally, so run it even if userMessage is empty
             await Antilink(message, sock);
             // Anti-mention-gc : supprime les messages mentionnant le groupe
-            await handleAntiMentionGc(sock, chatId, message, senderId);
+            if (await handleAntiMentionGc(sock, chatId, message, senderId)) return;
             if (await handleGroupAnti(sock, chatId, message, senderId)) return;
         }
 
@@ -670,6 +670,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
 
             case userMessage === '.settings':
+            case userMessage.startsWith('.settings '):
                 await settingsCommand(sock, chatId, message, userMessage.slice('.settings'.length).trim());
                 break;
             case userMessage === '.stats':
