@@ -8,6 +8,9 @@ const isOwnerOrSudo = require('../lib/isOwner');
 const USER_GROUP_DATA = path.join(__dirname, '../data/userGroupData.json');
 const CHATBOT_API_URL = process.env.CHATBOT_API_URL || 'https://zellapi.autos/ai/chatbot';
 const CHATBOT_API_KEY = process.env.CHATBOT_API_KEY || '';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_API_URL = process.env.OPENAI_API_URL || 'https://api.openai.com/v1/chat/completions';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const MAX_HISTORY = 10;
 const MAX_RESPONSE_LENGTH = 600;
 
@@ -256,19 +259,44 @@ async function getAIResponse(userMessage, userContext) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-        const headers = { accept: 'application/json' };
-        if (CHATBOT_API_KEY) {
-            headers.authorization = `Bearer ${CHATBOT_API_KEY}`;
-            headers['x-api-key'] = CHATBOT_API_KEY;
-            headers.apikey = CHATBOT_API_KEY;
+        let result;
+        if (OPENAI_API_KEY) {
+            const response = await fetch(OPENAI_API_URL, {
+                method: 'POST',
+                headers: {
+                    accept: 'application/json',
+                    'content-type': 'application/json',
+                    authorization: 'Bearer ' + OPENAI_API_KEY
+                },
+                body: JSON.stringify({
+                    model: OPENAI_MODEL,
+                    temperature: 0.7,
+                    max_tokens: 220,
+                    messages: [
+                        { role: 'system', content: 'Tu es VARNOX, un assistant WhatsApp professionnel, concis et naturel. Réponds dans la langue de l’utilisateur en 1 à 3 phrases courtes.' },
+                        { role: 'user', content: prompt }
+                    ]
+                }),
+                signal: controller.signal
+            });
+            if (!response.ok) throw new Error('OpenAI HTTP ' + response.status);
+            const data = await response.json();
+            result = data?.choices?.[0]?.message?.content;
+        } else {
+            const headers = { accept: 'application/json' };
+            if (CHATBOT_API_KEY) {
+                headers.authorization = 'Bearer ' + CHATBOT_API_KEY;
+                headers['x-api-key'] = CHATBOT_API_KEY;
+                headers.apikey = CHATBOT_API_KEY;
+            }
+            const response = await fetch(CHATBOT_API_URL + '?text=' + encodeURIComponent(prompt), {
+                headers,
+                signal: controller.signal
+            });
+            if (!response.ok) throw new Error('Chatbot API HTTP ' + response.status);
+            const data = await response.json();
+            result = data?.result ?? data?.data?.result ?? data?.response ?? data?.text;
         }
-        const response = await fetch(`${CHATBOT_API_URL}?text=${encodeURIComponent(prompt)}`, {
-            headers,
-            signal: controller.signal
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        const result = data?.result ?? data?.data?.result ?? data?.response ?? data?.text;
         const cleaned = cleanResponse(result);
         if (!cleaned) throw new Error('Réponse API vide');
         return cleaned;
