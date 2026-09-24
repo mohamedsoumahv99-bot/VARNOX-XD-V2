@@ -9,15 +9,38 @@ function readJsonSafe(path, fallback) {
     }
 }
 
-const isOwnerOrSudo = require('../lib/isOwner');
+const settings = require('../settings');
+const { getSessionSettings, setCommandEnabled } = require('../lib/sessionSettings');
 
-async function settingsCommand(sock, chatId, message) {
+async function settingsCommand(sock, chatId, message, args = '') {
     try {
-        const senderId = message.key.participant || message.key.remoteJid;
-        const isOwner = await isOwnerOrSudo(senderId, sock, chatId);
-        
-        if (!message.key.fromMe && !isOwner) {
-            await sock.sendMessage(chatId, { text: 'Seul le propriétaire du bot peut utiliser cette commande !' }, { quoted: message });
+        const ownerNumber = String(settings.ownerNumber || '').replace(/\D/g, '');
+        const senderIds = [message.key.participant, message.key.participantAlt, message.key.remoteJid].filter(Boolean);
+        const botNumber = String(sock.user?.id || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+        const isOwner = senderIds.some(value => String(value).split('@')[0].split(':')[0].replace(/\D/g, '') === ownerNumber)
+            || (message.key.fromMe && botNumber === ownerNumber);
+        if (!isOwner) {
+            await sock.sendMessage(chatId, { text: 'Seul le numéro propriétaire configuré peut utiliser cette commande.' }, { quoted: message });
+            return;
+        }
+
+        const sessionNumber = botNumber || ownerNumber;
+        const settingArgs = String(args || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+        if (settingArgs[0] === 'on' || settingArgs[0] === 'off') {
+            const command = settingArgs[1] || '';
+            if (!/^[a-z0-9_-]{2,32}$/.test(command)) {
+                await sock.sendMessage(chatId, { text: 'Usage : .settings on|off <commande>\nExemple : .settings off chatbot' }, { quoted: message });
+                return;
+            }
+            const enabled = settingArgs[0] === 'on';
+            setCommandEnabled(sessionNumber, command, enabled);
+            await sock.sendMessage(chatId, { text: '✅ .' + command + (enabled ? ' est activée' : ' est désactivée') + ' pour la session ' + sessionNumber + '.' }, { quoted: message });
+            return;
+        }
+        if (settingArgs[0] === 'reset') {
+            const currentSettings = getSessionSettings(sessionNumber);
+            for (const command of currentSettings.disabledCommands) setCommandEnabled(sessionNumber, command, true);
+            await sock.sendMessage(chatId, { text: '✅ Les restrictions de la session ' + sessionNumber + ' ont été réinitialisées.' }, { quoted: message });
             return;
         }
 
@@ -54,6 +77,10 @@ async function settingsCommand(sock, chatId, message) {
         lines.push(`• PM Blocker: ${pmblocker.activé ? 'ON' : 'OFF'}`);
         lines.push(`• Anticall: ${anticall.activé ? 'ON' : 'OFF'}`);
         lines.push(`• Auto Reaction: ${autoReaction ? 'ON' : 'OFF'}`);
+        const sessionSettings = getSessionSettings(sessionNumber);
+        lines.push(`• Session: ${sessionNumber}`);
+        lines.push(`• Commandes désactivées: ${sessionSettings.disabledCommands.length ? sessionSettings.disabledCommands.map(command => '.' + command).join(', ') : 'aucune'}`);
+        lines.push('• Modifier: .settings off <commande> / .settings on <commande>');
         if (groupId) {
             lines.push('');
             lines.push(`Group: ${groupId}`);
