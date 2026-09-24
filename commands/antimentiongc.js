@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('fs');
 const { channelInfo } = require('../lib/messageConfig');
+const isAdmin = require('../lib/isAdmin');
 
 const DATA_FILE = './data/antimentiongc.json';
 
@@ -91,11 +92,15 @@ async function antiMentionGcCommand(sock, chatId, senderId, message, args) {
  * ou un JID @g.us dans mentionedJid).
  */
 async function handleAntiMentionGc(sock, chatId, message, senderId) {
-    if (!chatId.endsWith('@g.us')) return;
-    if (!isAntiMentionGcEnabled(chatId)) return;
-    if (message.key.fromMe) return;
-
-    const msg = message.message || {};
+    if (!chatId.endsWith('@g.us')) return false;
+    if (!isAntiMentionGcEnabled(chatId)) return false;
+    if (message.key.fromMe) return false;
+    try {
+        const adminStatus = await isAdmin(sock, chatId, senderId);
+        if (adminStatus?.isSenderAdmin) return false;
+    } catch (_) {}
+    const unwrap = value => value?.ephemeralMessage?.message || value?.viewOnceMessage?.message || value;
+    const msg = unwrap(message.message || {});
 
     // Collect all mentionedJid lists from known message types
     const contexts = [
@@ -105,12 +110,17 @@ async function handleAntiMentionGc(sock, chatId, message, senderId) {
         msg.documentMessage?.contextInfo,
         msg.stickerMessage?.contextInfo,
         msg.buttonsResponseMessage?.contextInfo,
+        msg.messageContextInfo,
         msg.listResponseMessage?.contextInfo,
     ].filter(Boolean);
 
     let mentionsGroup = false;
 
     for (const c of contexts) {
+        if (Array.isArray(c.groupMentions) && c.groupMentions.length) {
+            mentionsGroup = true;
+            break;
+        }
         if (Array.isArray(c.mentionedJid)) {
             // A @g.us JID in mentionedJid = group mention
             if (c.mentionedJid.some(j => j && j.endsWith('@g.us'))) {
@@ -134,7 +144,7 @@ async function handleAntiMentionGc(sock, chatId, message, senderId) {
         }
     }
 
-    if (!mentionsGroup) return;
+    if (!mentionsGroup) return false;
 
     try {
         await sock.sendMessage(chatId, { delete: message.key });
@@ -158,6 +168,7 @@ async function handleAntiMentionGc(sock, chatId, message, senderId) {
     } catch (err) {
         console.error('[antimentiongc] error:', err.message);
     }
+    return true;
 }
 
 module.exports = { antiMentionGcCommand, handleAntiMentionGc, isAntiMentionGcEnabled };
