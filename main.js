@@ -192,15 +192,35 @@ function readBotMode() {
     }
 }
 
-async function handleMessages(sock, messageUpdate, printLog) {
+function unwrapMessageContent(content) {
+      let current = content;
+      for (let index = 0; index < 8; index += 1) {
+          const next = current?.ephemeralMessage?.message
+              || current?.viewOnceMessage?.message
+              || current?.viewOnceMessageV2?.message
+              || current?.viewOnceMessageV2Extension?.message
+              || current?.documentWithCaptionMessage?.message
+              || current?.editedMessage?.message;
+          if (!next || next === current) break;
+          current = next;
+      }
+      return current;
+    }
+
+    async function handleMessages(sock, messageUpdate, printLog) {
     let chatId = '';
     try {
         const { messages, type } = messageUpdate;
         if (type !== 'notify') return;
 
-        const message = messages[0];
-        if (!message?.message) return;
-
+        let message = messages[0];
+          if (!message?.message) return;
+          message = {
+              ...message,
+              message: unwrapMessageContent(message.message)
+          };
+          if (!message.message) return;
+    
         // Handle autoread functionality
         await handleAutoread(sock, message);
 
