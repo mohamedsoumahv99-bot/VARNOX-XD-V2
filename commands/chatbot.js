@@ -257,7 +257,11 @@ async function getAIResponse(userMessage, userContext) {
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
         const headers = { accept: 'application/json' };
-        if (CHATBOT_API_KEY) headers.authorization = `Bearer ${CHATBOT_API_KEY}`;
+        if (CHATBOT_API_KEY) {
+            headers.authorization = `Bearer ${CHATBOT_API_KEY}`;
+            headers['x-api-key'] = CHATBOT_API_KEY;
+            headers.apikey = CHATBOT_API_KEY;
+        }
         const response = await fetch(`${CHATBOT_API_URL}?text=${encodeURIComponent(prompt)}`, {
             headers,
             signal: controller.signal
