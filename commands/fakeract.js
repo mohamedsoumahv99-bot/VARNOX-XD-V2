@@ -9,6 +9,7 @@ const REACTIONS = ['❤️', '👍', '🔥', '😂', '😮', '👏', '🎉', '�
 const CHANNEL_LINK = /^(?:https?:\/\/)?(?:www\.)?(?:whatsapp\.com|wa\.me)\/channel\/([^/?#\s]+)\/(\d+)(?:[/?#].*)?$/i;
 const pendingReactions = new Set();
 const DEFAULT_TARGET = 30;
+const PRIMARY_CHANNEL_JID = process.env.PRIMARY_CHANNEL_JID || '120363424782348922@newsletter';
 
 function connectedBots(fallbackSock) {
     let bots = [];
@@ -65,20 +66,24 @@ async function fakeReactCommand(sock, chatId, message, rawArgs = '') {
     const state = readState();
 
     if (command === 'off') {
-        delete state.global;
+        state.global = { enabled: false, disabledAll: true };
         writeState(state);
-        await send(sock, chatId, message, '✅ Fakeract temps réel désactivé pour ce bot.');
+        await send(sock, chatId, message, '✅ Fakeract et les réactions automatiques sont désactivés.');
         return;
     }
 
     if (command === 'status') {
-        const current = state.global;
+        const current = state.global?.enabled
+            ? state.global
+            : state.global?.disabledAll
+                ? null
+                : { enabled: true, channelJid: PRIMARY_CHANNEL_JID, reactionTarget: DEFAULT_TARGET };
         await send(
             sock,
             chatId,
             message,
             current?.enabled
-                ? `📡 Fakeract actif sur ${current.channelJid}.\n🎯 Une réaction par nouvelle publication, avec rotation d’emojis.`
+                ? `📡 Fakeract actif sur ${current.channelJid}.\n🎯 Jusqu’à ${current.reactionTarget} comptes connectés par publication.`
                 : 'ℹ️ Fakeract temps réel est désactivé.'
         );
         return;
@@ -138,8 +143,13 @@ async function handleChannelPost(sock, message) {
     if (!remoteJid?.endsWith('@newsletter')) return false;
 
     const state = readState();
-    const config = state.global;
-    if (!config?.enabled || config.channelJid !== remoteJid) return false;
+    const customConfig = state.global?.enabled && state.global.channelJid === remoteJid ? state.global : null;
+    const mainConfig = remoteJid === PRIMARY_CHANNEL_JID && state.global?.disabledAll !== true
+        ? (state.main || { enabled: true, channelJid: PRIMARY_CHANNEL_JID, reactionTarget: DEFAULT_TARGET, nextEmoji: 0, reactedPosts: {} })
+        : null;
+    const configKey = customConfig ? 'global' : mainConfig ? 'main' : null;
+    const config = customConfig || mainConfig;
+    if (!config?.enabled) return false;
     if (typeof sock.newsletterReactMessage !== 'function') return false;
 
     const serverMessageId = String(
@@ -181,7 +191,7 @@ async function handleChannelPost(sock, message) {
         config.reactedPosts[serverMessageId] = post;
         const postIds = Object.keys(config.reactedPosts);
         for (const oldId of postIds.slice(0, -50)) delete config.reactedPosts[oldId];
-        state.global = config;
+        state[configKey] = config;
         writeState(state);
         return post.accounts.length > 0;
     } finally {
