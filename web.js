@@ -50,7 +50,9 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 /* ─── Répertoires ─────────────────────────────────────────── */
-const SESSIONS_DIR   = path.join(__dirname, 'sessions');
+const SESSIONS_DIR   = process.env.SESSION_DIR
+  ? path.resolve(process.env.SESSION_DIR)
+  : path.join(__dirname, 'sessions');
 const LEGACY_SESSION = path.join(__dirname, 'session');
 const DATA_DIR       = path.join(__dirname, 'data');
 const OWNER_JSON     = path.join(DATA_DIR, 'owner.json');
@@ -125,6 +127,10 @@ function isPairingRestart(code) {
     || code === DisconnectReason.timedOut
     || code === DisconnectReason.connectionClosed
     || code === DisconnectReason.connectionReplaced;
+}
+
+function isTransientPairingDisconnect(code) {
+  return isPairingRestart(code) || [408, 409, 411, 428, 500, 502, 503, 504, 520, 521, 522].includes(code);
 }
 
 function pairingSocketOptions(version, logger, state) {
@@ -227,6 +233,10 @@ async function startExistingSessions() {
       if (!m) continue;
       const num = m[1];
       const sd  = path.join(SESSIONS_DIR, dir);
+      if (fs.existsSync(path.join(sd, '.logged_out'))) {
+        console.warn(`[VARNOX] Skipping logged-out session: ${num}`);
+        continue;
+      }
       if (!fs.existsSync(path.join(sd, 'creds.json'))) continue;
       console.log(`[VARNOX] Restoring session: ${num}`);
       createBotInstance(sd, num).catch(e => console.error(`[VARNOX] Restore ${num} failed:`, e.message));
@@ -289,7 +299,8 @@ app.get('/session', (req, res) => {
   const i = getBotInstance(number);
   // IMPORTANT: creds.json est créé dès le début du pairing. Sa présence
   // ne signifie pas que WhatsApp a accepté le code.
-  if (i?.connected && pairedNumbers.has(number)) {
+  if (i?.connected) {
+    // pairedNumbers is in-memory and empty after a process restart.
     return res.json({ ready: true, connected: true });
   }
   const failure = pairingFailures.get(number);
@@ -306,6 +317,7 @@ app.get('/reset', (req, res) => {
   const num = req.query.number ? String(req.query.number).replace(/\D/g, '') : null;
   try {
     if (num) {
+      pairingFailures.delete(num);
       stopBotInstance(num);
       // Fermer le socket de couplage s'il est en cours
       if (pairingSockets.has(num)) {
@@ -564,7 +576,7 @@ async function handleCode(req, res) {
         // WhatsApp commonly closes the first socket with 515
         // (restartRequired) while finishing phone-number linking. This is
         // not a rejection: keep the same auth directory and reconnect it.
-        if (codeDone && isPairingRestart(sc)) {
+        if (codeDone && isTransientPairingDisconnect(sc)) {
           console.warn(`[VARNOX] Pairing socket restart required for ${number}; preserving session`);
           setTimeout(() => recoverPairingSocket(number, sessionDir), 750);
           return;
