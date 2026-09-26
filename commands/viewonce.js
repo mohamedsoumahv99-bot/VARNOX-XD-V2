@@ -1,22 +1,23 @@
 'use strict';
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage, jidNormalizedUser } = require('@whiskeysockets/baileys');
 const { channelInfo } = require('../lib/messageConfig');
 
 /**
  * vvCommand — ouvre un média vue-unique
  * @param {boolean} sendToPv
  *   false (défaut) → renvoie dans la discussion actuelle (.vv)
- *   true           → envoie au PV de l'expéditeur         (.vv2)
+ *   true           → envoie au PV du compte qui a connecté le bot (.vv2)
  */
 async function vvCommand(sock, chatId, message, sendToPv = false) {
     // Chercher le message cité (vue-unique ou normal)
     const ctx    = message.message?.extendedTextMessage?.contextInfo;
     const quoted = ctx?.quotedMessage;
     const senderJid = message.key.participant || message.key.remoteJid;
-    // In a group, the private destination for vv2 is the author of the
-    // quoted view-once message, not the person who typed .vv2.
     const quotedSenderJid = ctx?.participant || ctx?.remoteJid || senderJid;
-    const targetJid = sendToPv ? (quotedSenderJid || senderJid) : chatId;
+    // vv2 always opens in the private chat of the WhatsApp account that
+    // connected the bot, even when the command was run from a group.
+    const connectedAccountJid = sock.user?.id ? jidNormalizedUser(sock.user.id) : null;
+    const targetJid = sendToPv ? (connectedAccountJid || senderJid) : chatId;
 
     const quotedImage =
         quoted?.imageMessage ||
@@ -70,7 +71,7 @@ async function vvCommand(sock, chatId, message, sendToPv = false) {
             await sock.sendMessage(targetJid, { video: buffer, caption, ...channelInfo });
         }
 
-        // Confirmer dans le chat source si vv2 (envoi en PV de l'expéditeur)
+        // Confirmer dans le chat source si vv2
         if (sendToPv && targetJid !== chatId) {
             await sock.sendMessage(chatId, {
                 text:
