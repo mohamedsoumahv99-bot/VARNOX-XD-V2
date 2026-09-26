@@ -16,7 +16,7 @@
  */
 'use strict';
 
-require('./settings');
+const settings = require('./settings');
 
 const express  = require('express');
 const cors     = require('cors');
@@ -56,28 +56,29 @@ const SESSIONS_DIR   = process.env.SESSION_DIR
 const LEGACY_SESSION = path.join(__dirname, 'session');
 const DATA_DIR       = path.join(__dirname, 'data');
 const OWNER_JSON     = path.join(DATA_DIR, 'owner.json');
+const CONFIGURED_OWNER_NUMBER = String(process.env.OWNER_NUMBER || settings.ownerNumber || '').replace(/\D/g, '');
+const DEFAULT_BOT_NUMBER = String(process.env.BOT_NUMBER || '').replace(/\D/g, '');
 
 [SESSIONS_DIR, LEGACY_SESSION, DATA_DIR].forEach(d => {
   try { fs.mkdirSync(d, { recursive: true }); } catch {}
 });
 
 /* ─── owner.json ──────────────────────────────────────────── */
-function initOwnerJson(number) {
+function initOwnerJson() {
   let cur = {};
   try { if (fs.existsSync(OWNER_JSON)) cur = JSON.parse(fs.readFileSync(OWNER_JSON, 'utf8')); } catch {}
-  const empty = !cur.ownerNumber || cur.ownerNumber === 'TON_NUMERO_ICI';
-  if (number || empty) {
-    try {
-      fs.writeFileSync(OWNER_JSON, JSON.stringify({
-        ownerNumber : number || cur.ownerNumber || process.env.OWNER_NUMBER || '',
-        ownerName   : cur.ownerName || 'Owner',
-        botName     : cur.botName   || 'VARNOX XD V2',
-        prefix      : cur.prefix    || process.env.PREFIX || '.',
-        version     : '2.0.0',
-        mess        : cur.mess      || 'Owner',
-      }, null, 2));
-    } catch {}
-  }
+  const ownerNumber = CONFIGURED_OWNER_NUMBER || cur.ownerNumber || '';
+  if (!ownerNumber && !cur.ownerNumber) return;
+  try {
+    fs.writeFileSync(OWNER_JSON, JSON.stringify({
+      ownerNumber,
+      ownerName   : cur.ownerName || 'Owner',
+      botName     : cur.botName   || 'VARNOX XD V2',
+      prefix      : cur.prefix    || process.env.PREFIX || '.',
+      version     : '2.0.0',
+      mess        : cur.mess      || 'Owner',
+    }, null, 2));
+  } catch {}
 }
 initOwnerJson();
 
@@ -369,7 +370,7 @@ app.get('/debug', (_q, r) => r.json({
 async function handleCode(req, res) {
   res.setHeader('Content-Type', 'application/json');
 
-  let number = (req.query.number || req.body?.number || '').toString().replace(/\D/g, '');
+  let number = (req.query.number || req.body?.number || DEFAULT_BOT_NUMBER).toString().replace(/\D/g, '');
   if (!number) return res.json({ error: true, message: 'Numéro requis' });
   if (number.length < 7 || number.length > 15)
     return res.json({ error: true, message: 'Numéro invalide (7–15 chiffres, sans +)' });
@@ -506,8 +507,9 @@ async function handleCode(req, res) {
         throw new Error('creds.json absent après authentification');
       }
 
-      // Mettre à jour owner.json (premier utilisateur)
-      if (getAllInstances().length === 0) initOwnerJson(number);
+      // The paired WhatsApp account is the bot identity. Never write it
+      // into owner.json: OWNER_NUMBER remains the permanent administrator.
+      if (getAllInstances().length === 0) initOwnerJson();
       pairedNumbers.set(number, { ts: Date.now() });
 
       // Le socket actuel devient le socket du bot : aucun deuxième handshake.
