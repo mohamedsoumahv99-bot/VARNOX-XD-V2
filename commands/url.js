@@ -75,7 +75,7 @@ function uploadButtons(url) {
             }
         },
         {
-            name: 'copy_code',
+            name: 'cta_copy',
             params: {
                 display_text: '📋 Copy Link',
                 copy_code: url
@@ -140,12 +140,18 @@ async function urlCommand(sock, chatId, message) {
             '│ POWERED BY VARNOX-XD©'
         ].join('\n');
 
-        await sendInteractiveMessage(sock, chatId, {
-            body: caption,
-            footer: '│ POWERED BY VARNOX-XD©',
-            buttons: uploadButtons(url),
-            quoted: message
-        });
+        try {
+            await sendInteractiveMessage(sock, chatId, {
+                body: caption,
+                footer: '│ POWERED BY VARNOX-XD©',
+                buttons: uploadButtons(url),
+                quoted: message
+            });
+        } catch (buttonError) {
+            // Never lose the generated URL if a client rejects native-flow.
+            console.warn('[URL] interactive buttons unavailable:', buttonError.message);
+            await sock.sendMessage(chatId, { text: caption }, { quoted: message });
+        }
     } catch (error) {
         if (tempPath) {
             try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
