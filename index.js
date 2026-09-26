@@ -68,6 +68,8 @@ setInterval(() => {
 }, 30_000) // check every 30 seconds
 
 let phoneNumber = settings.ownerNumber
+let legacyReconnectPending = false
+let legacyReconnectAttempts = 0
 let owner = (() => { try { return JSON.parse(fs.readFileSync("./data/owner.json", "utf8")); } catch { return { ownerNumber: settings.ownerNumber, ownerName: settings.botOwner, botName: settings.botName, prefix: process.env.PREFIX || ".", version: settings.version, mess: settings.botOwner }; } })()
 
 global.botname = "𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2"
@@ -128,7 +130,9 @@ async function startXeonBotInc() {
             msgRetryCounterCache,
             defaultQueryTimeoutMs: 60000,
             connectTimeoutMs: 60000,
-            keepAliveIntervalMs: 10000,
+            keepAliveIntervalMs: 20000,
+            markOnlineOnConnect: false,
+            syncFullHistory: false,
         })
 
         // Save credentials when they update
@@ -270,6 +274,8 @@ async function startXeonBotInc() {
         }
         
         if (connection == "open") {
+            legacyReconnectAttempts = 0
+            legacyReconnectPending = false
             restoreHijackTimers(XeonBotInc);
             console.log(chalk.magenta(` `))
             console.log(chalk.yellow(`🤩Connected to => ` + JSON.stringify(XeonBotInc.user, null, 2)))
@@ -290,25 +296,28 @@ async function startXeonBotInc() {
         }
         
         if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut
-            const statusCode = lastDisconnect?.error?.output?.statusCode
+            const disconnectError = lastDisconnect?.error
+            const statusCode = disconnectError?.output?.statusCode
+                ?? disconnectError?.data?.statusCode
+                ?? disconnectError?.statusCode
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut && statusCode !== 401
             
             console.log(chalk.red(`Connection closed due to ${lastDisconnect?.error}, reconnecting ${shouldReconnect}`))
             
             if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
-                try {
-                    rmSync(SESSION_DIR, { recursive: true, force: true })
-                    console.log(chalk.yellow('Session folder deleted. Please re-authenticate.'))
-                } catch (error) {
-                    console.error('Error deleting session:', error)
-                }
-                console.log(chalk.red('Session logged out. Please re-authenticate.'))
+                console.log(chalk.red('Session logged out by WhatsApp. Credentials preserved; re-pair explicitly.'))
+                try { fs.writeFileSync(path.join(SESSION_DIR, '.logged_out'), JSON.stringify({ statusCode, at: new Date().toISOString() }, null, 2)) } catch {}
             }
-            
-            if (shouldReconnect) {
-                console.log(chalk.yellow('Reconnecting...'))
-                await delay(3000)
-                await startXeonBotInc()
+
+            if (shouldReconnect && !legacyReconnectPending) {
+                legacyReconnectPending = true
+                legacyReconnectAttempts += 1
+                const reconnectDelay = Math.min(60000, 5000 * (2 ** Math.min(legacyReconnectAttempts - 1, 4)))
+                console.log(chalk.yellow(`Reconnecting in ${reconnectDelay}ms...`))
+                setTimeout(async () => {
+                    legacyReconnectPending = false
+                    try { await startXeonBotInc() } catch (error) { console.error('Reconnect failed:', error) }
+                }, reconnectDelay)
             }
         }
     })
