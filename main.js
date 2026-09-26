@@ -539,16 +539,9 @@ function unwrapMessageContent(content) {
 
         if (userMessage === '.setprefix' || userMessage.startsWith('.setprefix ')) {
             const requestedPrefix = userMessage.slice('.setprefix'.length).trim();
-            if (isGroup) {
-                const prefixStatus = await isAdmin(sock, chatId, senderId);
-                if (!prefixStatus.isSenderAdmin && !senderIsOwnerOrSudo) {
-                    await sock.sendMessage(chatId, { text: '❌ Seuls les admins peuvent changer le préfixe.', ...channelInfo }, { quoted: message });
-                    return;
-                }
-            } else if (!senderIsOwnerOrSudo) {
-                await sock.sendMessage(chatId, { text: '❌ Cette commande est réservée au propriétaire en privé.', ...channelInfo }, { quoted: message });
-                return;
-            }
+            // Prefixes are scoped to this chat, so every user can configure
+            // their own private chat without changing other conversations.
+            // In groups, the chosen prefix only affects this group.
             if (!requestedPrefix) {
                 await sock.sendMessage(chatId, { text: `ℹ️ Préfixe actuel : ${getPrefix(chatId)}\nUtilise .setprefix ! ou .setprefix 🔥`, ...channelInfo }, { quoted: message });
                 return;
