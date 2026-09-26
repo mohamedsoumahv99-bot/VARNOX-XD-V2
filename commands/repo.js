@@ -26,11 +26,10 @@ async function repoCommand(sock, chatId, message) {
         const imagePath = path.join(__dirname, '../assets/bot_image.jpg');
         const image = fs.existsSync(imagePath) ? fs.readFileSync(imagePath) : null;
 
-        await sendInteractiveMessage(sock, chatId, {
+        const interactiveOptions = {
             body: repoCaption(),
             footer: '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2',
             title: '𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2',
-            image,
             contextInfo: channelInfo.contextInfo,
             buttons: [
                 {
@@ -43,7 +42,14 @@ async function repoCommand(sock, chatId, message) {
                 }
             ],
             quoted: message
-        });
+        };
+        try {
+            await sendInteractiveMessage(sock, chatId, { ...interactiveOptions, image });
+        } catch (mediaError) {
+            // Keep the native-flow button even if media upload is unavailable.
+            console.warn('[repo] Image upload skipped:', mediaError.message);
+            await sendInteractiveMessage(sock, chatId, interactiveOptions);
+        }
     } catch (error) {
         console.error('[repo] Erreur :', error.message);
         await sock.sendMessage(chatId, {
