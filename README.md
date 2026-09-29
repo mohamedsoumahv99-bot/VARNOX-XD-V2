@@ -50,7 +50,7 @@
 
 ---
 
-## 🚀 Deploy on Render (Free, 24/7)
+## 🚀 Deploy on Render
 
 ### Step 1 — Fork the Repository
 ```
@@ -75,6 +75,9 @@ Click **Fork** (top right) to copy the repo to your account.
 6. Click **Create Web Service** ✅
 
 > Render will automatically detect `render.yaml` in the repo and pre-fill the settings.
+> The default blueprint uses a persistent disk on the Starter plan. Render Free
+> does not provide the persistent shared storage or multiple free workers needed
+> for reliable multi-session production.
 
 ### Step 3 — Get Your Pairing Link
 Your panel will be live at:
@@ -173,6 +176,26 @@ Enter your WhatsApp number → Get the 8-digit pairing code → Link your bot!
 | `PORT` | Auto-set by Render (default `10000`) | Auto |
 | `PREFIX` | Command prefix (default `.`) | No |
 | `BOT_NAME` | Bot display name | No |
+| `WORKER_MAX_SESSIONS` | Real session slots per worker (default `100`) | No |
+| `MAX_WORKERS` | In-process worker pool size (default `1`) | No |
+| `WORKER_ID` | Stable worker identifier | No |
+| `SESSION_REGISTRY_FILE` | Persistent metadata registry path | No |
+| `ADMIN_TOKEN` | Protects worker/session administration routes | Recommended |
+| `MAX_RECONNECT_ATTEMPTS` | Per-session reconnect ceiling | No |
+
+### Multi-session runtime
+
+`web.js` is the production entry point. A new `/pair` request is assigned a
+stable `sessionId` and the least-loaded online worker. Each session has its own
+Baileys auth directory, socket, message queue, reconnect lock and status record.
+The default Render configuration deliberately uses one worker and a persistent
+disk; setting `MAX_WORKERS` does not create extra Render services by itself.
+
+Public runtime routes are `/health`, `/ready`, `/status` and `/pair` (with the
+legacy `/code` alias preserved). The administrative `/workers`, `/sessions`,
+`/session/:id`, `/session/:id/status`, `/debug` and `/reset` routes require
+`ADMIN_TOKEN` in production. The registry stores metadata only, never Baileys
+credentials.
 
 ---
 

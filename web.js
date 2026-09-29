@@ -35,6 +35,7 @@ const {
 
 const pino      = require('pino');
 const NodeCache = require('node-cache');
+const PhoneNumber = require('awesome-phonenumber');
 
 const {
   attachBotHandlers,
@@ -48,6 +49,12 @@ const {
   shutdownBotInstances,
   getRuntimeStats,
 } = require('./lib/botInstance');
+const {
+  sessionManager,
+  SessionCapacityError,
+  normalizePhoneNumber,
+  maskPhoneNumber,
+} = require('./lib/session-manager');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -117,6 +124,8 @@ const STARTED_AT = Date.now();
 const PAIRING_RATE_WINDOW_MS = Math.max(60_000, Number(process.env.PAIRING_RATE_WINDOW_MS || 10 * 60 * 1000));
 const PAIRING_RATE_MAX = Math.max(1, Number(process.env.PAIRING_RATE_MAX || 5));
 const MAX_PAIRING_RECOVERY_ATTEMPTS = Math.max(1, Number(process.env.MAX_PAIRING_RECOVERY_ATTEMPTS || 10));
+const ADMIN_TOKEN = String(process.env.ADMIN_TOKEN || '');
+const RESTORE_STATE = { started: false, complete: false, restored: 0, failed: 0 };
 
 app.set('trust proxy', true);
 app.use((req, res, next) => {
@@ -136,6 +145,23 @@ const pairingRateCleanupTimer = setInterval(() => {
   }
 }, PAIRING_RATE_WINDOW_MS);
 pairingRateCleanupTimer.unref?.();
+
+function adminAuthorized(req) {
+  if (!ADMIN_TOKEN) return process.env.NODE_ENV !== 'production' && (
+    req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1'
+  );
+  const supplied = String(req.get('authorization') || '').replace(/^Bearer\s+/i, '')
+    || String(req.get('x-admin-token') || '');
+  return supplied === ADMIN_TOKEN;
+}
+
+function requireAdmin(req, res, next) {
+  if (adminAuthorized(req)) return next();
+  return res.status(401).json({
+    error: true,
+    message: 'Route administrative protégée. Configure ADMIN_TOKEN.',
+  });
+}
 
 /* ─── Sessions marquées prêtes ───────────────────────────── */
 // Map<string, { ts }>
@@ -243,6 +269,10 @@ async function recoverPairingSocket(number, sessionDir) {
   pairingRecoveryInProgress.add(number);
   pending.recovering = true;
   pending.recoveryAttempts = (pending.recoveryAttempts || 0) + 1;
+  sessionManager.updateSession(pending.sessionId || number, {
+    status: 'RECONNECTING',
+    reconnectAttempts: pending.recoveryAttempts,
+  });
   if (pending.recoveryAttempts > MAX_PAIRING_RECOVERY_ATTEMPTS) {
     const message = 'WhatsApp a fermé la connexion de jumelage. La session est conservée ; génère un nouveau code si nécessaire.';
     pairingFailures.set(number, { code: 515, message, ts: Date.now() });
@@ -250,6 +280,7 @@ async function recoverPairingSocket(number, sessionDir) {
     clearTimeout(pending.recoveryTimer);
     closeSocket(pending.sock, 'pairing recovery limit');
     pairingSockets.delete(number);
+    sessionManager.releaseSession(pending.sessionId || number);
     pairingRecoveryInProgress.delete(number);
     return;
   }
@@ -316,8 +347,37 @@ async function recoverPairingSocket(number, sessionDir) {
  *  Démarrage des sessions existantes (au boot)
  * ═══════════════════════════════════════════════════════════ */
 async function startExistingSessions() {
+  RESTORE_STATE.started = true;
   // Restore every persisted session without deleting or replacing credentials.
   const restoreJobs = [];
+  const restoredSessionIds = new Set();
+
+  // The registry is authoritative for new sessionId-based directories. It
+  // contains metadata only; Baileys credentials remain in each sessionDir.
+  for (const record of sessionManager.listSessions()) {
+    const sd = record.sessionDir || path.join(SESSIONS_DIR, record.sessionId);
+    if (!fs.existsSync(path.join(sd, 'creds.json'))) continue;
+    if (fs.existsSync(path.join(sd, '.logged_out'))) {
+      sessionManager.releaseSession(record.sessionId);
+      continue;
+    }
+    restoredSessionIds.add(record.sessionId);
+    sessionManager.updateSession(record.sessionId, { status: 'CONNECTING', sessionDir: sd });
+    console.log(`[VARNOX] Restoring session ${record.phoneMasked} on ${record.workerId}`);
+    restoreJobs.push(() => createBotInstance(sd, record.phoneNumber, {
+      sessionId: record.sessionId,
+      workerId: record.workerId,
+    }).then(() => { RESTORE_STATE.restored += 1; })
+      .catch(error => {
+        RESTORE_STATE.failed += 1;
+        sessionManager.updateSession(record.sessionId, {
+          status: 'DISCONNECTED',
+          lastDisconnect: { reason: error.message, at: new Date().toISOString() },
+        });
+        console.error(`[VARNOX] Restore ${record.phoneMasked} failed:`, error.message);
+      }));
+  }
+
   // Sessions multi-user ./sessions/user_<number>/
   try {
     const dirs = fs.readdirSync(SESSIONS_DIR);
@@ -331,6 +391,8 @@ async function startExistingSessions() {
         continue;
       }
       if (!fs.existsSync(path.join(sd, 'creds.json'))) continue;
+      const existingRecord = sessionManager.getByPhone(num);
+      if (existingRecord && restoredSessionIds.has(existingRecord.sessionId)) continue;
       if (fs.existsSync(path.join(sd, '.pairing_pending'))) {
         let registered = false;
         try {
@@ -344,8 +406,21 @@ async function startExistingSessions() {
         // marker is cleared. Registered credentials are safe to restore.
         clearPairingPending(sd);
       }
+      const allocation = sessionManager.ensureSession(num, {
+        status: 'CONNECTING',
+        sessionDir: sd,
+      });
+      restoredSessionIds.add(allocation.session.sessionId);
       console.log(`[VARNOX] Restoring session: ${num}`);
-      restoreJobs.push(() => createBotInstance(sd, num).catch(e => console.error(`[VARNOX] Restore ${num} failed:`, e.message)));
+      restoreJobs.push(() => createBotInstance(sd, num, {
+        sessionId: allocation.session.sessionId,
+        workerId: allocation.session.workerId,
+      }).then(() => { RESTORE_STATE.restored += 1; })
+        .catch(e => {
+          RESTORE_STATE.failed += 1;
+          sessionManager.updateSession(num, { status: 'DISCONNECTED', lastDisconnect: { reason: e.message, at: new Date().toISOString() } });
+          console.error(`[VARNOX] Restore ${maskPhoneNumber(num)} failed:`, e.message);
+        }));
     }
   } catch (e) { console.error('[VARNOX] startExistingSessions:', e.message); }
 
@@ -355,13 +430,25 @@ async function startExistingSessions() {
     try { ownerNum = JSON.parse(fs.readFileSync(OWNER_JSON, 'utf8')).ownerNumber || 'legacy'; } catch {}
     if (!getBotInstance(ownerNum)) {
       console.log(`[VARNOX] Legacy session → ${ownerNum}`);
-      restoreJobs.push(() => createBotInstance(LEGACY_SESSION, ownerNum).catch(e => console.error('[VARNOX] Legacy restore:', e.message)));
+      const allocation = sessionManager.ensureSession(ownerNum, {
+        status: 'CONNECTING',
+        sessionDir: LEGACY_SESSION,
+      });
+      restoreJobs.push(() => createBotInstance(LEGACY_SESSION, ownerNum, {
+        sessionId: allocation.session.sessionId,
+        workerId: allocation.session.workerId,
+      }).then(() => { RESTORE_STATE.restored += 1; })
+        .catch(e => {
+          RESTORE_STATE.failed += 1;
+          console.error('[VARNOX] Legacy restore:', e.message);
+        }));
     }
   }
   const restoreConcurrency = Math.max(1, Number(process.env.RESTORE_CONCURRENCY || 2));
   for (let index = 0; index < restoreJobs.length; index += restoreConcurrency) {
     await Promise.allSettled(restoreJobs.slice(index, index + restoreConcurrency).map(start => start()));
   }
+  RESTORE_STATE.complete = true;
   console.log(`[VARNOX] Persistent session restore scheduled: ${restoreJobs.length}`);
 }
 
@@ -376,7 +463,7 @@ app.get('/health', (_q, r) => {
   const insts = getAllInstances();
   r.json({
     status: 'ok',
-    ready: true,
+    ready: RESTORE_STATE.complete,
     bot: 'VARNOX XD V2',
     v: '19.4.0',
     build: 'pairing-baileys7-ubuntu',
@@ -385,6 +472,7 @@ app.get('/health', (_q, r) => {
     instances: insts,
     total: insts.length,
     runtime: getRuntimeStats(),
+    manager: sessionManager.getStatus(),
     http: HTTP_METRICS,
     pairing: {
       active: pairingSockets.size,
@@ -394,6 +482,18 @@ app.get('/health', (_q, r) => {
     },
     memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
   });
+});
+
+app.get('/ready', (_q, r) => {
+  const ready = sessionManager.ready && RESTORE_STATE.complete;
+  const payload = {
+    ready,
+    status: ready ? 'ready' : 'starting',
+    restore: RESTORE_STATE,
+    manager: sessionManager.getStatus(),
+    uptime: Math.floor(process.uptime()),
+  };
+  return r.status(ready ? 200 : 503).json(payload);
 });
 
 app.get('/botStatus', (req, res) => {
@@ -407,9 +507,73 @@ app.get('/botStatus', (req, res) => {
 
 app.get('/status', (req, res) => {
   const num = req.query.number ? String(req.query.number).replace(/\D/g, '') : null;
-  if (!num) return res.json({ instances: getAllInstances() });
+  if (!num) return res.json({
+    status: 'ok',
+    totalSessions: sessionManager.summary().totalSessions,
+    workersActive: sessionManager.summary().workersActive,
+  });
   const i = getBotInstance(num);
-  res.json({ number: num, connected: !!i?.connected, running: !!i, pairing: pairingSockets.has(num) });
+  const session = sessionManager.getByPhone(num);
+  res.json({
+    number: maskPhoneNumber(num),
+    sessionId: session?.sessionId || null,
+    workerId: session?.workerId || null,
+    status: session?.status || (i?.connected ? 'CONNECTED' : 'DISCONNECTED'),
+    connected: !!i?.connected,
+    running: !!i,
+    pairing: pairingSockets.has(num),
+    lastSeen: session?.lastSeen || null,
+    lastDisconnect: session?.lastDisconnect || null,
+    reconnectAttempts: session?.reconnectAttempts || 0,
+  });
+});
+
+app.get('/workers', requireAdmin, (_req, res) => {
+  res.json({
+    workers: sessionManager.listWorkers(),
+    summary: sessionManager.summary(),
+  });
+});
+
+app.get('/sessions', requireAdmin, (_req, res) => {
+  res.json({
+    sessions: sessionManager.listSessions().map(session => ({
+      ...session,
+      active: Boolean(getBotInstance(session.phoneNumber)?.sock),
+      pairing: pairingSockets.has(session.phoneNumber),
+    })),
+    summary: sessionManager.summary(),
+  });
+});
+
+app.get('/session/:id', requireAdmin, (req, res) => {
+  const session = sessionManager.getBySessionId(req.params.id);
+  if (!session) return res.status(404).json({ error: true, message: 'Session introuvable.' });
+  const instance = getBotInstance(session.phoneNumber);
+  return res.json({
+    ...session,
+    active: Boolean(instance?.sock),
+    connected: Boolean(instance?.connected),
+    pairing: pairingSockets.has(session.phoneNumber),
+  });
+});
+
+app.get('/session/:id/status', requireAdmin, (req, res) => {
+  const session = sessionManager.getBySessionId(req.params.id);
+  if (!session) return res.status(404).json({ error: true, message: 'Session introuvable.' });
+  const instance = getBotInstance(session.phoneNumber);
+  return res.json({
+    sessionId: session.sessionId,
+    workerId: session.workerId,
+    phoneNumber: session.phoneMasked,
+    status: session.status,
+    connected: Boolean(instance?.connected),
+    active: Boolean(instance?.sock),
+    pairing: pairingSockets.has(session.phoneNumber),
+    lastSeen: session.lastSeen,
+    lastDisconnect: session.lastDisconnect,
+    reconnectAttempts: session.reconnectAttempts,
+  });
 });
 
 app.get('/session', (req, res) => {
@@ -434,11 +598,12 @@ app.get('/session', (req, res) => {
   });
 });
 
-app.get('/reset', (req, res) => {
+app.get('/reset', requireAdmin, (req, res) => {
   const num = req.query.number ? String(req.query.number).replace(/\D/g, '') : null;
   try {
     if (num) {
       pairingFailures.delete(num);
+      const registeredSession = sessionManager.getByPhone(num);
       stopBotInstance(num);
       // Fermer le socket de couplage s'il est en cours
       if (pairingSockets.has(num)) {
@@ -450,6 +615,10 @@ app.get('/reset', (req, res) => {
         pairingSockets.delete(num);
       }
       pairedNumbers.delete(num);
+      if (registeredSession?.sessionDir) {
+        try { fs.rmSync(registeredSession.sessionDir, { recursive: true, force: true }); } catch {}
+      }
+      sessionManager.releaseSession(num);
       const ud = path.join(SESSIONS_DIR, `user_${num}`);
       try { fs.rmSync(ud, { recursive: true, force: true }); } catch {}
       fs.mkdirSync(ud, { recursive: true });
@@ -463,11 +632,12 @@ app.get('/reset', (req, res) => {
     });
     pairingSockets.clear();
     pairedNumbers.clear();
+    for (const session of sessionManager.listSessions()) sessionManager.releaseSession(session.sessionId);
     res.json({ ok: true, message: 'All sessions cleared.' });
   } catch (e) { res.json({ ok: false, error: e.message }); }
 });
 
-app.get('/debug', (_q, r) => r.json({
+app.get('/debug', requireAdmin, (_q, r) => r.json({
   SESSIONS_DIR,
   instances    : getAllInstances(),
   pairing      : [...pairingSockets.keys()],
@@ -475,6 +645,7 @@ app.get('/debug', (_q, r) => r.json({
   failures     : [...pairingFailures.entries()],
   memMB        : Math.round(process.memoryUsage().rss / 1024 / 1024),
   runtime      : getRuntimeStats(),
+  manager      : sessionManager.getStatus(),
   http         : HTTP_METRICS,
 }));
 
@@ -496,10 +667,11 @@ async function handleCode(req, res) {
   req.setTimeout?.(65000);
   PAIRING_METRICS.requests += 1;
 
-  let number = (req.query.number || req.body?.number || DEFAULT_BOT_NUMBER).toString().replace(/\D/g, '');
-  if (!number) return res.json({ error: true, message: 'Numéro requis' });
-  if (number.length < 7 || number.length > 15)
-    return res.json({ error: true, message: 'Numéro invalide (7–15 chiffres, sans +)' });
+  const rawNumber = (req.query.number || req.body?.number || DEFAULT_BOT_NUMBER).toString();
+  const number = normalizePhoneNumber(rawNumber);
+  if (!rawNumber.trim()) return res.status(400).json({ error: true, message: 'Numéro requis' });
+  if (!number || !/^\+?[\d\s().-]+$/.test(rawNumber) || !PhoneNumber(`+${number}`).isValid())
+    return res.status(400).json({ error: true, message: 'Numéro invalide (7–15 chiffres).' });
   if (!allowPairingRequest(req, number)) {
     PAIRING_METRICS.rejected += 1;
     return res.status(429).json({
@@ -512,12 +684,27 @@ async function handleCode(req, res) {
   // Déjà connecté ?
   const existing = getBotInstance(number);
   if (existing?.connected)
-    return res.json({ error: false, already: true, message: 'Déjà connecté.' });
-  if (existing && !existing.connected) {
     return res.json({
+      error: false,
+      already: true,
+      sessionId: sessionManager.getByPhone(number)?.sessionId || existing.sessionId || null,
+      message: 'Déjà connecté.',
+    });
+  if (existing && !existing.connected) {
+    return res.status(409).json({
       error: true,
       preserving: true,
       message: 'Cette session est momentanément en reconnexion. Elle est préservée ; attends sa reprise ou utilise /reset uniquement pour un nouveau jumelage.'
+    });
+  }
+  const registered = sessionManager.getByPhone(number);
+  if (registered && registered.status !== 'PAIRING' && !pairingSockets.has(number)) {
+    return res.status(409).json({
+      error: true,
+      preserving: true,
+      sessionId: registered.sessionId,
+      status: registered.status,
+      message: 'Une session existe déjà pour ce numéro. Elle sera réutilisée ; supprime-la explicitement avant un nouveau jumelage.',
     });
   }
 
@@ -550,8 +737,30 @@ async function handleCode(req, res) {
   pairingRequests.set(number, requestResult);
   PAIRING_METRICS.inFlight += 1;
 
-  const userSessionDir = path.join(SESSIONS_DIR, `user_${number}`);
-  const sessionDir     = userSessionDir;
+  let allocation;
+  try {
+    if (registered?.status === 'PAIRING' && !pairingSockets.has(number)) {
+      sessionManager.releaseSession(registered.sessionId);
+    }
+    allocation = sessionManager.reserveSession(number, { status: 'PAIRING' });
+  } catch (error) {
+    if (error instanceof SessionCapacityError || error.code === 'WORKERS_FULL') {
+      return res.status(503).json({
+        error: true,
+        code: 'WORKERS_FULL',
+        message: 'Tous les workers sont pleins. Réessaie plus tard.',
+        workers: sessionManager.listWorkers(),
+      });
+    }
+    return res.status(error.statusCode || 400).json({ error: true, message: error.message });
+  }
+  const session = allocation.session;
+  const userSessionDir = session.sessionDir || path.join(SESSIONS_DIR, session.sessionId);
+  const sessionDir = userSessionDir;
+  sessionManager.updateSession(session.sessionId, {
+    status: 'PAIRING',
+    sessionDir,
+  });
 
   // Fermer le couplage précédent pour ce numéro s'il existe
   if (pairingSockets.has(number)) {
@@ -572,7 +781,7 @@ async function handleCode(req, res) {
   fs.mkdirSync(sessionDir, { recursive: true });
   markPairingPending(sessionDir);
 
-  console.log(`[VARNOX] /code for ${number}`);
+  console.log(`[VARNOX] /pair for ${maskPhoneNumber(number)} on ${session.workerId}`);
   pairingFailures.delete(number);
 
   let sock = null;
@@ -656,13 +865,21 @@ async function handleCode(req, res) {
       // into owner.json: OWNER_NUMBER remains the permanent administrator.
       if (getAllInstances().length === 0) initOwnerJson();
       pairedNumbers.set(number, { ts: Date.now() });
+      sessionManager.updateSession(session.sessionId, {
+        status: 'CONNECTED',
+        lastSeen: new Date().toISOString(),
+        reconnectAttempts: 0,
+      });
       clearPairingPending(sessionDir);
 
       // Le socket actuel devient le socket du bot : aucun deuxième handshake.
       const p = pairingSockets.get(number);
       if (p) { clearTimeout(p.timer); pairingSockets.delete(number); }
 
-      attachBotHandlers(activeSock, sessionDir, number, activeSaveCreds);
+      attachBotHandlers(activeSock, sessionDir, number, activeSaveCreds, {
+        sessionId: session.sessionId,
+        workerId: session.workerId,
+      });
       markConnected(number);
       console.log(`[VARNOX] ✅ Bot activated on persistent socket for ${number}`);
     }
@@ -680,6 +897,8 @@ async function handleCode(req, res) {
       recoveryAttempts: 0,
       recovering: false,
       recoveryTimer: null,
+      sessionId: session.sessionId,
+      workerId: session.workerId,
     };
     pairingSockets.set(number, pendingPairing);
 
@@ -714,7 +933,11 @@ async function handleCode(req, res) {
         const info      = disconnectInfo(lastDisconnect?.error);
         const sc        = info.code;
         const loggedOut = sc === DisconnectReason.loggedOut || sc === 401;
-        console.error(`[VARNOX] Pairing socket closed for ${number}; code=${sc ?? 'unknown'}; reason=${info.message}`);
+        sessionManager.updateSession(session.sessionId, {
+          status: loggedOut ? 'DISCONNECTED' : 'RECONNECTING',
+          lastDisconnect: { code: sc, reason: info.message, at: new Date().toISOString() },
+        });
+        console.error(`[VARNOX] Pairing socket closed for ${maskPhoneNumber(number)}; code=${sc ?? 'unknown'}; reason=${info.message}`);
 
         if (!codeDone) {
           // Le code n'a pas encore été émis — signaler l'erreur
@@ -766,13 +989,14 @@ async function handleCode(req, res) {
     const raw       = await codePromise;
     const formatted = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').match(/.{1,4}/g)?.join('-') || raw;
 
-    console.log(`[VARNOX] Code for ${number}: ${formatted}`);
+    console.log(`[VARNOX] Code generated for ${maskPhoneNumber(number)} on ${session.workerId}`);
 
     // Garder le socket vivant jusqu'à 15 min
     const timer = setTimeout(() => {
       if (pairingSockets.has(number)) {
         closeSocket(pairingSockets.get(number).sock, 'pairing expiry');
         pairingSockets.delete(number);
+        sessionManager.releaseSession(session.sessionId);
          // Keep the directory so a temporary timeout cannot destroy auth data.
       }
     }, 15 * 60 * 1000);
@@ -788,7 +1012,7 @@ async function handleCode(req, res) {
     return res.json(result);
 
   } catch (err) {
-    console.error(`[VARNOX] /code error ${number}:`, err.message);
+    console.error(`[VARNOX] /pair error ${maskPhoneNumber(number)}:`, err.message);
     pairingRequests.delete(number);
     PAIRING_METRICS.inFlight = Math.max(0, PAIRING_METRICS.inFlight - 1);
     rejectRequest(err);
@@ -798,11 +1022,14 @@ async function handleCode(req, res) {
       pairingSockets.delete(number);
     }
     closeSocket(sock, 'pairing request failure');
+    if (allocation?.session?.sessionId) sessionManager.releaseSession(allocation.session.sessionId);
     const result = { error: true, message: err.message || 'Erreur génération du code' };
     return res.json(result);
   }
 }
 
+app.get('/pair',  handleCode);
+app.post('/pair', handleCode);
 app.get('/code',  handleCode);
 app.post('/code', handleCode);
 

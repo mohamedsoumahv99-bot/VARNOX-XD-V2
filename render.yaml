@@ -38,6 +38,24 @@ services:
         value: "600000"
       - key: MAX_PAIRING_RECOVERY_ATTEMPTS
         value: "10"
+      - key: MAX_RECONNECT_ATTEMPTS
+        value: "10"
+      - key: WORKER_ID
+        value: worker-1
+      - key: MAX_WORKERS
+        value: "1"
+      - key: WORKER_MAX_SESSIONS
+        value: "100"
+      - key: STORAGE
+        value: local
+      - key: SESSION_REGISTRY_FILE
+        value: /opt/render/project/src/sessions/registry.json
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
       - key: RENDER_EXTERNAL_URL
         fromService:
           type: web
