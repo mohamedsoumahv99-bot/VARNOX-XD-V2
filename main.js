@@ -163,6 +163,7 @@ const { getPrefix, normalizeCommandText, setPrefix } = require('./lib/prefix');
 const { setCmdCommand, dispatchCustomCommand } = require('./commands/customcmd');
 const { GROUP_COMMANDS, handleGroupExtraCommand } = require('./commands/groupExtras');
 const fakeReactCommand = require('./commands/fakeract');
+const { parseMenuCommand } = require('./lib/menu-command');
 
 // Global settings
 global.packname = settings.packname;
@@ -181,6 +182,9 @@ const channelInfo = {
         }
     }
 };
+const SESSION_EXEMPT_COMMANDS = new Set([
+    '.settings', '.stats', '.menu', '.help', '.allmenu', '.list', '.bot'
+]);
 
 function readBotMode() {
     try {
@@ -372,14 +376,25 @@ function unwrapMessageContent(content) {
         // commands, games, chatbot responses and plain-text menu aliases.
         if (!isPublic && !isOwnerOrSudoCheck) return;
 
-        // Accept "menu 5", "menu groupe", "help outils" and "allmenu".
-        if (userMessage === 'allmenu') {
-            await helpCommand(sock, chatId, message, 'allmenu');
-            return;
-        }
-        const plainMenuMatch = userMessage.match(/^(?:menu|help)(?:\s+(.+))?$/);
-        if (plainMenuMatch) {
-            await helpCommand(sock, chatId, message, plainMenuMatch[1] || '');
+        // Route bare and prefixed menu aliases through one parser before
+        // moderation/non-command handling; this avoids duplicate menu routes.
+        const hasActivePrefix = rawText.startsWith(activePrefix);
+        const menuRequest = parseMenuCommand(userMessage, { prefixed: hasActivePrefix });
+        if (menuRequest) {
+            if (hasActivePrefix) {
+                const sessionNumber = String(sock.user?.id || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+                const menuCommandToken = userMessage.split(/\s+/)[0].toLowerCase();
+                if (
+                    !SESSION_EXEMPT_COMMANDS.has(menuCommandToken) &&
+                    !isCommandEnabled(sessionNumber, menuCommandToken)
+                ) {
+                    await sock.sendMessage(chatId, {
+                        text: `⛔ La commande ${menuCommandToken} est désactivée pour cette session.`
+                    }, { quoted: message });
+                    return;
+                }
+            }
+            await helpCommand(sock, chatId, message, menuRequest.query);
             return;
         }
 
@@ -452,8 +467,7 @@ function unwrapMessageContent(content) {
         }
         const sessionNumber = String(sock.user?.id || '').split(':')[0].split('@')[0].replace(/\D/g, '');
         const commandToken = userMessage.split(/\s+/)[0].toLowerCase();
-        const sessionExempt = ['.settings', '.stats', '.menu', '.help', '.allmenu'];
-        if (!sessionExempt.includes(commandToken) && !isCommandEnabled(sessionNumber, commandToken)) {
+        if (!SESSION_EXEMPT_COMMANDS.has(commandToken) && !isCommandEnabled(sessionNumber, commandToken)) {
             await sock.sendMessage(chatId, { text: '⛔ La commande ' + commandToken + ' est désactivée pour cette session.' }, { quoted: message });
             return;
         }
@@ -676,20 +690,6 @@ function unwrapMessageContent(content) {
                 }
                 await unbanCommand(sock, chatId, message);
                 break;
-            case userMessage === '.allmenu':
-            case userMessage === '.help':
-            case userMessage === '.menu':
-            case userMessage === '.bot':
-            case userMessage === '.list':
-            case userMessage.startsWith('.menu '):
-            case userMessage.startsWith('.help '): {
-                const menuQuery = userMessage === '.allmenu' || userMessage === '.list'
-                    ? 'allmenu'
-                    : userMessage.split(/\s+/).slice(1).join(' ');
-                await helpCommand(sock, chatId, message, menuQuery);
-                commandExecuted = true;
-                break;
-            }
             case userMessage === '.sticker' || userMessage === '.s':
                 await stickerCommand(sock, chatId, message);
                 commandExecuted = true;
