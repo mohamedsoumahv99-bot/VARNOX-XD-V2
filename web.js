@@ -67,12 +67,21 @@ const SESSIONS_DIR   = process.env.SESSION_DIR
 const LEGACY_SESSION = path.join(__dirname, 'session');
 const DATA_DIR       = path.join(__dirname, 'data');
 const OWNER_JSON     = path.join(DATA_DIR, 'owner.json');
-const CONFIGURED_OWNER_NUMBER = String(process.env.OWNER_NUMBER || settings.ownerNumber || '').replace(/\D/g, '');
+const CONFIGURED_OWNER_NUMBER = String(settings.ownerNumber || '').replace(/\D/g, '');
 const DEFAULT_BOT_NUMBER = String(process.env.BOT_NUMBER || '').replace(/\D/g, '');
 
-[SESSIONS_DIR, LEGACY_SESSION, DATA_DIR].forEach(d => {
-  try { fs.mkdirSync(d, { recursive: true }); } catch {}
-});
+try {
+  fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+  fs.accessSync(SESSIONS_DIR, fs.constants.R_OK | fs.constants.W_OK);
+  fs.mkdirSync(LEGACY_SESSION, { recursive: true });
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+} catch (error) {
+  throw new Error(`[VARNOX] Session/data directory is not writable (${SESSIONS_DIR}): ${error.message}`);
+}
+
+if (process.env.NODE_ENV === 'production' && !process.env.SESSION_DIR) {
+  console.warn('[VARNOX] SESSION_DIR is unset: sessions use the app filesystem, which may be ephemeral on Railway. Attach a persistent volume and set SESSION_DIR to its mount path.');
+}
 
 /* ─── owner.json ──────────────────────────────────────────── */
 function initOwnerJson() {
@@ -360,6 +369,22 @@ async function startExistingSessions() {
     if (fs.existsSync(path.join(sd, '.logged_out'))) {
       sessionManager.releaseSession(record.sessionId);
       continue;
+    }
+    if (fs.existsSync(path.join(sd, '.pairing_pending'))) {
+      let registered = false;
+      try {
+        registered = !!JSON.parse(fs.readFileSync(path.join(sd, 'creds.json'), 'utf8')).registered;
+      } catch {}
+      if (!registered) {
+        // A pairing interrupted before WhatsApp accepted the code is not a
+        // bot session. Leave its metadata for a clean retry via /code.
+        sessionManager.updateSession(record.sessionId, { status: 'PAIRING', sessionDir: sd });
+        console.warn(`[VARNOX] Skipping unfinished pairing session ${record.phoneMasked}`);
+        continue;
+      }
+      // Authentication may succeed immediately before a process restart.
+      // Registered credentials can be restored as a normal active session.
+      clearPairingPending(sd);
     }
     restoredSessionIds.add(record.sessionId);
     sessionManager.updateSession(record.sessionId, { status: 'CONNECTING', sessionDir: sd });
@@ -803,6 +828,7 @@ async function handleCode(req, res) {
     // Le saveCreds() manuel dans promotePairToBot ne suffit pas car certaines
     // mises à jour arrivent APRÈS connection:'open' — race condition.
     sock.ev.on('creds.update', serializedSaveCreds);
+    sock._credsHandlerAttached = true;
 
     // ── Promesse du code de couplage ──────────────────────────────────────
     let codeResolve, codeReject;

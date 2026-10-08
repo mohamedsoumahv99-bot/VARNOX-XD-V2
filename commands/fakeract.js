@@ -4,27 +4,57 @@ const fs = require('fs');
 const path = require('path');
 const { channelInfo } = require('../lib/messageConfig');
 
-const STATE_FILE = path.join(__dirname, '../data/fakeract.json');
+const STATE_FILE = process.env.FAKERACT_STATE_FILE ||
+    path.join(process.env.SESSION_DIR || path.join(__dirname, '../sessions'), 'fakeract.json');
 const REACTIONS = ['❤️', '👍', '🔥', '😂', '😮', '👏', '🎉', '💯', '😍', '🤯', '🙏', '✨'];
 const CHANNEL_LINK = /^(?:https?:\/\/)?(?:www\.)?(?:whatsapp\.com|wa\.me)\/channel\/([^/?#\s]+)\/(\d+)(?:[/?#].*)?$/i;
 const pendingReactions = new Set();
-const DEFAULT_TARGET = 30;
-const PRIMARY_CHANNEL_JID = process.env.PRIMARY_CHANNEL_JID || '120363424782348922@newsletter';
+const subscriptionTimers = new Map();
 
-function connectedBots(fallbackSock) {
-    let bots = [];
-    try { bots = require('../lib/botInstance').getConnectedBots(); } catch (_) {}
-    const result = bots.filter(item => item?.sock).map(item => ({ number: String(item.number || botKey(item.sock)), sock: item.sock }));
-    if (fallbackSock && !result.some(item => item.sock === fallbackSock)) result.unshift({ number: botKey(fallbackSock), sock: fallbackSock });
-    return result;
+function subscriptionKey(accountNumber, newsletterJid) {
+    return `${accountNumber}:${newsletterJid}`;
 }
 
-async function followChannel(sock, newsletterJid) {
-    if (!sock || !newsletterJid) return;
-    try {
-        if (typeof sock.subscribeNewsletterUpdates === 'function') await sock.subscribeNewsletterUpdates(newsletterJid);
-        else if (typeof sock.newsletterFollow === 'function') await sock.newsletterFollow(newsletterJid);
-    } catch (error) { console.warn('[fakeract] abonnement impossible :', error.message); }
+function scheduleSubscriptionRenewal(sock, accountNumber, newsletterJid, durationSeconds) {
+    const key = subscriptionKey(accountNumber, newsletterJid);
+    const previous = subscriptionTimers.get(key);
+    if (previous) clearTimeout(previous);
+
+    const delay = Number.isFinite(durationSeconds) && durationSeconds > 0
+        ? Math.max(60_000, Math.floor(durationSeconds * 1000 * 0.8))
+        : 10 * 60_000;
+    const timer = setTimeout(async () => {
+        subscriptionTimers.delete(key);
+        const config = readState().global;
+        if (!config?.enabled ||
+            config.channelJid !== newsletterJid ||
+            String(config.accountNumber) !== String(accountNumber)) return;
+        try {
+            await followChannel(sock, newsletterJid, accountNumber);
+        } catch (error) {
+            console.warn('[fakeract] renouvellement de l’abonnement impossible :', error.message);
+            scheduleSubscriptionRenewal(sock, accountNumber, newsletterJid, 60);
+        }
+    }, delay);
+    timer.unref?.();
+    subscriptionTimers.set(key, timer);
+}
+
+async function followChannel(sock, newsletterJid, accountNumber = botKey(sock)) {
+    if (!sock || !newsletterJid) throw new Error('Socket ou identifiant de chaîne absent.');
+    if (typeof sock.newsletterFollow !== 'function' ||
+        typeof sock.subscribeNewsletterUpdates !== 'function') {
+        throw new Error('Cette version de Baileys ne sait pas suivre les mises à jour en direct des chaînes.');
+    }
+    await sock.newsletterFollow(newsletterJid);
+    const result = await sock.subscribeNewsletterUpdates(newsletterJid);
+    const durationSeconds = Number(result?.duration);
+    scheduleSubscriptionRenewal(sock, accountNumber, newsletterJid, durationSeconds);
+}
+
+function clearSubscriptionTimers() {
+    for (const timer of subscriptionTimers.values()) clearTimeout(timer);
+    subscriptionTimers.clear();
 }
 
 function parseChannelLink(value) {
@@ -50,6 +80,18 @@ function writeState(state) {
     fs.renameSync(temp, STATE_FILE);
 }
 
+async function resumeChannelSubscription(sock, accountNumber = botKey(sock)) {
+    const config = readState().global;
+    if (!config?.enabled || !config.channelJid || String(config.accountNumber) !== String(accountNumber)) return false;
+    try {
+        await followChannel(sock, config.channelJid);
+        return true;
+    } catch (error) {
+        console.warn('[fakeract] reprise de l’abonnement impossible :', error.message);
+        return false;
+    }
+}
+
 function botKey(sock) {
     return String(sock.user?.id || sock.user?.jid || 'default')
         .split(':')[0]
@@ -67,23 +109,20 @@ async function fakeReactCommand(sock, chatId, message, rawArgs = '') {
 
     if (command === 'off') {
         state.global = { enabled: false, disabledAll: true };
+        clearSubscriptionTimers();
         writeState(state);
-        await send(sock, chatId, message, '✅ Fakeract et les réactions automatiques sont désactivés.');
+        await send(sock, chatId, message, '✅ Fakeract désactivé.');
         return;
     }
 
     if (command === 'status') {
-        const current = state.global?.enabled
-            ? state.global
-            : state.global?.disabledAll
-                ? null
-                : { enabled: true, channelJid: PRIMARY_CHANNEL_JID, reactionTarget: DEFAULT_TARGET };
+        const current = state.global?.enabled ? state.global : null;
         await send(
             sock,
             chatId,
             message,
             current?.enabled
-                ? `📡 Fakeract actif sur ${current.channelJid}.\n🎯 Jusqu’à ${current.reactionTarget} comptes connectés par publication.`
+                ? `📡 Fakeract actif sur ${current.channelJid}.\n🤖 Compte configuré : ${current.accountNumber}.\n✅ Une réaction par nouvelle publication.`
                 : 'ℹ️ Fakeract temps réel est désactivé.'
         );
         return;
@@ -92,11 +131,9 @@ async function fakeReactCommand(sock, chatId, message, rawArgs = '') {
     const pieces = value.split(/\s+/).filter(Boolean);
     const link = pieces.find(piece => parseChannelLink(piece));
     const target = parseChannelLink(link);
-    const requested = Number(pieces.find(piece => /^(?:30|50)$/.test(piece)));
-    const reactionTarget = requested === 50 ? 50 : DEFAULT_TARGET;
     if (!target) {
         await sock.sendMessage(chatId, {
-            text: '❌ Utilise .fakeract avec un lien de publication de chaîne WhatsApp.\nExemple : .fakeract https://whatsapp.com/channel/XXXX/123\n\nAjoute .fakeract off pour arrêter le suivi.',
+            text: '❌ Utilise .fakeract avec un lien de publication de chaîne WhatsApp.\nExemple : .fakeract https://whatsapp.com/channel/XXXX/123\n\nUne seule réaction est envoyée par publication. Ajoute .fakeract off pour arrêter le suivi.',
             ...channelInfo
         }, { quoted: message });
         return;
@@ -113,14 +150,14 @@ async function fakeReactCommand(sock, chatId, message, rawArgs = '') {
         const newsletterJid = metadata?.id || metadata?.jid;
         if (!newsletterJid) throw new Error('Chaîne introuvable');
 
-        const bots = connectedBots(sock);
-        await Promise.all(bots.map(bot => followChannel(bot.sock, newsletterJid)));
+        clearSubscriptionTimers();
+        await followChannel(sock, newsletterJid, botKey(sock));
 
         state.global = {
             enabled: true,
             inviteCode: target.inviteCode,
             channelJid: newsletterJid,
-            reactionTarget,
+            accountNumber: botKey(sock),
             nextEmoji: 0,
             reactedPosts: {},
             configuredAt: Date.now()
@@ -130,7 +167,7 @@ async function fakeReactCommand(sock, chatId, message, rawArgs = '') {
             sock,
             chatId,
             message,
-            `✅ Fakeract activé sur ${newsletterJid}.\n📡 Chaque nouvelle publication sera traitée une seule fois.\n🎯 Jusqu’à ${reactionTarget} comptes connectés réagiront par publication.`
+            `✅ Fakeract activé sur ${newsletterJid}.\n📡 Le compte ${botKey(sock)} suivra les nouvelles publications en temps réel.\n✅ Une réaction avec un emoji varié par publication.`
         );
     } catch (error) {
         console.error('[fakeract] réaction impossible :', error.message);
@@ -143,19 +180,15 @@ async function handleChannelPost(sock, message) {
     if (!remoteJid?.endsWith('@newsletter')) return false;
 
     const state = readState();
-    const customConfig = state.global?.enabled && state.global.channelJid === remoteJid ? state.global : null;
-    const mainConfig = remoteJid === PRIMARY_CHANNEL_JID && state.global?.disabledAll !== true
-        ? (state.main || { enabled: true, channelJid: PRIMARY_CHANNEL_JID, reactionTarget: DEFAULT_TARGET, nextEmoji: 0, reactedPosts: {} })
-        : null;
-    const configKey = customConfig ? 'global' : mainConfig ? 'main' : null;
-    const config = customConfig || mainConfig;
-    if (!config?.enabled) return false;
+    const config = state.global;
+    if (!config?.enabled || config.channelJid !== remoteJid || String(config.accountNumber) !== botKey(sock)) return false;
     if (typeof sock.newsletterReactMessage !== 'function') return false;
 
     const serverMessageId = String(
+        message.key.server_id ||
         message.key.serverMessageId ||
         message.key.serverId ||
-        message.key.server_id ||
+        message.key.id ||
         message.message?.messageContextInfo?.serverMessageId ||
         message.message?.messageContextInfo?.serverId ||
         message.message?.newsletterMessage?.serverMessageId ||
@@ -171,29 +204,19 @@ async function handleChannelPost(sock, message) {
     pendingReactions.add(eventKey);
     try {
         if (!config.reactedPosts || typeof config.reactedPosts !== 'object') config.reactedPosts = {};
-        const post = config.reactedPosts[serverMessageId] || { accounts: [] };
-        const alreadyReacted = new Set(post.accounts || []);
-        const bots = connectedBots(sock)
-            .filter(bot => !alreadyReacted.has(bot.number))
-            .slice(0, Math.max(1, Number(config.reactionTarget) || DEFAULT_TARGET));
-        if (!bots.length) return false;
-        for (const bot of bots) {
-            const emoji = REACTIONS[Number(config.nextEmoji || 0) % REACTIONS.length];
-            try {
-                if (typeof bot.sock.newsletterReactMessage !== 'function') continue;
-                await bot.sock.newsletterReactMessage(remoteJid, serverMessageId, emoji);
-                post.accounts.push(bot.number);
-                config.nextEmoji = (Number(config.nextEmoji || 0) + 1) % REACTIONS.length;
-            } catch (error) {
-                console.error('[fakeract] réaction impossible pour ' + bot.number + ' :', error.message);
-            }
-        }
-        config.reactedPosts[serverMessageId] = post;
+        if (config.reactedPosts[serverMessageId]) return false;
+        const emoji = REACTIONS[Number(config.nextEmoji || 0) % REACTIONS.length];
+        await sock.newsletterReactMessage(remoteJid, serverMessageId, emoji);
+        config.reactedPosts[serverMessageId] = { emoji, accountNumber: botKey(sock), reactedAt: Date.now() };
+        config.nextEmoji = (Number(config.nextEmoji || 0) + 1) % REACTIONS.length;
         const postIds = Object.keys(config.reactedPosts);
         for (const oldId of postIds.slice(0, -50)) delete config.reactedPosts[oldId];
-        state[configKey] = config;
+        state.global = config;
         writeState(state);
-        return post.accounts.length > 0;
+        return true;
+    } catch (error) {
+        console.error('[fakeract] réaction impossible :', error.message);
+        return false;
     } finally {
         pendingReactions.delete(eventKey);
     }
@@ -202,3 +225,4 @@ async function handleChannelPost(sock, message) {
 module.exports = fakeReactCommand;
 module.exports.handleChannelPost = handleChannelPost;
 module.exports.parseChannelLink = parseChannelLink;
+module.exports.resumeChannelSubscription = resumeChannelSubscription;

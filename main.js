@@ -241,16 +241,25 @@ function unwrapMessageContent(content) {
 
         chatId = message.key.remoteJid;
         const senderId = message.key.participant || message.key.remoteJid;
+        const senderIdentities = [
+            senderId,
+            message.key.participantAlt,
+            message.key.remoteJidAlt,
+            message.key.senderPn,
+            message.key.senderLid
+        ].filter(Boolean);
         const isGroup = chatId.endsWith('@g.us');
         const senderIsSudo = await isSudo(senderId);
         const senderIsPrimaryOwner = typeof isOwnerOrSudo.isPrimaryOwner === 'function'
-            ? await isOwnerOrSudo.isPrimaryOwner(senderId, sock, chatId)
+            ? await isOwnerOrSudo.isPrimaryOwner(senderIdentities, sock, chatId)
             : false;
-        const senderIsOwnerOrSudo = await isOwnerOrSudo(senderId, sock, chatId);
+        const senderIsOwnerOrSudo = await isOwnerOrSudo(senderIdentities, sock, chatId);
         const configuredOwner = String(settings.ownerNumber || '').replace(/\D/g, '');
         const senderNumbers = [senderId, message.key.participantAlt, message.key.remoteJid].filter(Boolean).map(value => String(value).split('@')[0].split(':')[0].replace(/\D/g, ''));
         const botNumberForOwner = String(sock.user?.id || '').split(':')[0].split('@')[0].replace(/\D/g, '');
-        const isConfiguredOwner = senderNumbers.includes(configuredOwner) || (message.key.fromMe && botNumberForOwner === configuredOwner);
+        const isConfiguredOwner = senderIsPrimaryOwner ||
+            senderNumbers.includes(configuredOwner) ||
+            (message.key.fromMe && botNumberForOwner === configuredOwner);
 
         // Suppression des messages des utilisateurs ciblés par .mute @user.
         if (isGroup && !message.key.fromMe && isMuted(chatId, senderId)) {
@@ -385,6 +394,7 @@ function unwrapMessageContent(content) {
                 const sessionNumber = String(sock.user?.id || '').split(':')[0].split('@')[0].replace(/\D/g, '');
                 const menuCommandToken = userMessage.split(/\s+/)[0].toLowerCase();
                 if (
+                    !isOwnerOrSudoCheck &&
                     !SESSION_EXEMPT_COMMANDS.has(menuCommandToken) &&
                     !isCommandEnabled(sessionNumber, menuCommandToken)
                 ) {
@@ -457,17 +467,17 @@ function unwrapMessageContent(content) {
                 // Always run moderation features (antitag) regardless of mode
                 await handleTagDetection(sock, chatId, message, senderId);
                 await handleMentionDetection(sock, chatId, message);
-
-                // Only run chatbot in public mode or for owner/sudo
-                if (isPublic || isOwnerOrSudoCheck) {
-                    await handleChatbotResponse(sock, chatId, message, userMessage, senderId);
-                }
+            }
+            // Chatbot handles both direct messages and groups (groups require
+            // a mention/quote inside handleChatbotResponse).
+            if (isPublic || isOwnerOrSudoCheck) {
+                await handleChatbotResponse(sock, chatId, message, userMessage, senderId);
             }
             return;
         }
         const sessionNumber = String(sock.user?.id || '').split(':')[0].split('@')[0].replace(/\D/g, '');
         const commandToken = userMessage.split(/\s+/)[0].toLowerCase();
-        if (!SESSION_EXEMPT_COMMANDS.has(commandToken) && !isCommandEnabled(sessionNumber, commandToken)) {
+        if (!isOwnerOrSudoCheck && !SESSION_EXEMPT_COMMANDS.has(commandToken) && !isCommandEnabled(sessionNumber, commandToken)) {
             await sock.sendMessage(chatId, { text: '⛔ La commande ' + commandToken + ' est désactivée pour cette session.' }, { quoted: message });
             return;
         }

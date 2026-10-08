@@ -68,7 +68,7 @@ const memoryTimer = setInterval(() => {
 }, 30_000) // check every 30 seconds
 memoryTimer.unref?.()
 
-const configuredOwnerNumber = String(process.env.OWNER_NUMBER || settings.ownerNumber || '').replace(/\D/g, '')
+const configuredOwnerNumber = String(settings.ownerNumber || '').replace(/\D/g, '')
 const configuredBotNumber = String(process.env.BOT_NUMBER || '').replace(/\D/g, '')
 let phoneNumber = configuredBotNumber
 let legacyReconnectPending = false
