@@ -466,20 +466,9 @@ app.get('/health', (_q, r) => {
     ready: RESTORE_STATE.complete,
     bot: 'VARNOX XD V2',
     v: '19.4.0',
-    build: 'pairing-baileys7-ubuntu',
-    waFallback: '2.3000.1043857760',
     uptime: Math.floor(process.uptime()),
-    instances: insts,
     total: insts.length,
-    runtime: getRuntimeStats(),
-    manager: sessionManager.getStatus(),
-    http: HTTP_METRICS,
-    pairing: {
-      active: pairingSockets.size,
-      inFlight: pairingRequests.size,
-      rateKeys: pairingRate.size,
-      metrics: PAIRING_METRICS,
-    },
+    connected: insts.filter(instance => instance.connected).length,
     memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
   });
 });
@@ -489,8 +478,6 @@ app.get('/ready', (_q, r) => {
   const payload = {
     ready,
     status: ready ? 'ready' : 'starting',
-    restore: RESTORE_STATE,
-    manager: sessionManager.getStatus(),
     uptime: Math.floor(process.uptime()),
   };
   return r.status(ready ? 200 : 503).json(payload);
@@ -500,9 +487,13 @@ app.get('/botStatus', (req, res) => {
   const num = req.query.number ? String(req.query.number).replace(/\D/g, '') : null;
   if (num) {
     const i = getBotInstance(num);
-    return res.json({ number: num, running: !!i, connected: !!i?.connected });
+    return res.json({ number: maskPhoneNumber(num), running: !!i, connected: !!i?.connected });
   }
-  res.json({ instances: getAllInstances() });
+  const instances = getAllInstances();
+  res.json({
+    total: instances.length,
+    connected: instances.filter(instance => instance.connected).length,
+  });
 });
 
 app.get('/status', (req, res) => {
@@ -516,14 +507,11 @@ app.get('/status', (req, res) => {
   const session = sessionManager.getByPhone(num);
   res.json({
     number: maskPhoneNumber(num),
-    sessionId: session?.sessionId || null,
-    workerId: session?.workerId || null,
     status: session?.status || (i?.connected ? 'CONNECTED' : 'DISCONNECTED'),
     connected: !!i?.connected,
     running: !!i,
     pairing: pairingSockets.has(num),
     lastSeen: session?.lastSeen || null,
-    lastDisconnect: session?.lastDisconnect || null,
     reconnectAttempts: session?.reconnectAttempts || 0,
   });
 });
