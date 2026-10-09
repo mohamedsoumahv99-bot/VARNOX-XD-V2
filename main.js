@@ -483,8 +483,9 @@ function unwrapMessageContent(content) {
         const isBotAdminRequired = botAdminCommands.some(commandMatches);
 
         // List of owner commands
-        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.areact', '.autoreact', '.autotyping', '.autoread', '.pmblocker', '.update', '.fakeract'];
+        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.areact', '.autoreact', '.autotyping', '.autoread', '.pmblocker', '.update'];
         const isOwnerCommand = ownerCommands.some(commandMatches);
+        const isChannelAlertCommand = commandMatches('.fakeract') || commandMatches('.channelalert');
 
         let isSenderAdmin = false;
         let isBotAdmin = false;
@@ -531,11 +532,17 @@ function unwrapMessageContent(content) {
 
         // Check owner status for owner commands
         if (isOwnerCommand) {
-            const ownerAllowed = userMessage.startsWith('.fakeract') ? isConfiguredOwner : (message.key.fromMe || senderIsOwnerOrSudo);
-            if (!ownerAllowed) {
+            if (!message.key.fromMe && !senderIsOwnerOrSudo) {
                 await sock.sendMessage(chatId, { text: '❌ Cette commande est réservée au numéro propriétaire configuré.' }, { quoted: message });
                 return;
             }
+        }
+        if (isChannelAlertCommand && !message.key.fromMe) {
+            await sock.sendMessage(chatId, {
+                text: '❌ Active les notifications depuis le compte WhatsApp connecté auquel tu veux les appliquer.',
+                ...channelInfo
+            }, { quoted: message });
+            return;
         }
 
         // Command handlers - Execute commands immediately without waiting for typing indicator
@@ -823,8 +830,11 @@ function unwrapMessageContent(content) {
                     await anticallCommand(sock, chatId, message, args);
                 }
                 break;
-            case userMessage.startsWith('.fakeract'):
-                await fakeReactCommand(sock, chatId, message, userMessage.slice('.fakeract'.length).trim());
+            case isChannelAlertCommand:
+                {
+                    const commandName = userMessage.toLowerCase().startsWith('.channelalert') ? '.channelalert' : '.fakeract';
+                    await fakeReactCommand(sock, chatId, message, userMessage.slice(commandName.length).trim());
+                }
                 commandExecuted = true;
                 break;
             case userMessage.startsWith('.pmblocker'):
