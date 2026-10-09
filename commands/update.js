@@ -197,7 +197,7 @@ async function updateCommand(sock, chatId, message, zipOverride) {
         let summary = '';
         if (await hasGitRepo()) {
             const result = await updateViaGit();
-            if (!result.alreadyUpToDate) await run('npm install --no-audit --no-fund');
+            if (!result.alreadyUpToDate) await run('pnpm install --frozen-lockfile');
             summary = result.alreadyUpToDate ? '✅ VARNOX est déjà à jour.' : '✅ Mise à jour téléchargée : ' + result.newRev.slice(0, 12);
         } else {
             const result = await updateViaZip(sock, chatId, message, zipOverride);

@@ -323,24 +323,25 @@ async function handleChatbotResponse(sock, chatId, message, userMessage, senderI
     if (botNumber) cleanedMessage = cleanedMessage.replace(new RegExp(`@${botNumber}\\b`, 'g'), '').trim();
     if (!cleanedMessage) cleanedMessage = 'Bonjour';
 
-    if (!chatMemory.messages.has(senderId)) {
-        chatMemory.messages.set(senderId, []);
-        chatMemory.userInfo.set(senderId, {});
+    const memoryKey = `${botNumber}:${chatId}:${senderId}`;
+    if (!chatMemory.messages.has(memoryKey)) {
+        chatMemory.messages.set(memoryKey, []);
+        chatMemory.userInfo.set(memoryKey, {});
     }
     const info = extractUserInfo(cleanedMessage);
     if (Object.keys(info).length) {
-        chatMemory.userInfo.set(senderId, {
-            ...chatMemory.userInfo.get(senderId),
+        chatMemory.userInfo.set(memoryKey, {
+            ...chatMemory.userInfo.get(memoryKey),
             ...info
         });
     }
 
-    const history = chatMemory.messages.get(senderId);
+    const history = chatMemory.messages.get(memoryKey);
     history.push(cleanedMessage);
     while (history.length > MAX_HISTORY) history.shift();
     const response = await getAIResponse(cleanedMessage, {
         messages: history,
-        userInfo: chatMemory.userInfo.get(senderId)
+        userInfo: chatMemory.userInfo.get(memoryKey)
     });
 
     if (!response) {

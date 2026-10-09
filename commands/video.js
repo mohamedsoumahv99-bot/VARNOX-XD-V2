@@ -1,6 +1,6 @@
 const axios = require('axios');
 const yts = require('yt-search');
-const { commandInput, isHttpUrl, safeFileName } = require('../lib/downloadUtils');
+const { commandInput, isHttpUrl, normalizeYouTubeUrl, safeFileName } = require('../lib/downloadUtils');
 
 const AXIOS_DEFAULTS = {
     timeout: 60000,
@@ -76,7 +76,11 @@ async function videoCommand(sock, chatId, message) {
         let videoTitle = '';
         let videoThumbnail = '';
         if (isHttpUrl(searchQuery)) {
-            videoUrl = searchQuery;
+            videoUrl = normalizeYouTubeUrl(searchQuery);
+            if (!videoUrl) {
+                await sock.sendMessage(chatId, { text: 'This is not a valid YouTube video link.' }, { quoted: message });
+                return;
+            }
         } else {
             // Search YouTube for the video
             const { videos } = await yts(searchQuery);
@@ -103,13 +107,6 @@ async function videoCommand(sock, chatId, message) {
         } catch (e) { console.error('[VIDEO] thumb error:', e?.message || e); }
         
 
-        // Validate YouTube URL
-        let urls = videoUrl.match(/(?:https?:\/\/)?(?:youtu\.be\/|(?:www\.|m\.)?youtube\.com\/(?:watch\?v=|v\/|embed\/|shorts\/|playlist\?list=)?)([a-zA-Z0-9_-]{11})/gi);
-        if (!urls) {
-            await sock.sendMessage(chatId, { text: 'This is not a valid YouTube link!' }, { quoted: message });
-            return;
-        }
-
         // Try multiple APIs with fallback chain: EliteProTech -> Yupra -> Okatsu
         let videoData;
         let downloadSuccess = false;
@@ -127,7 +124,7 @@ async function videoCommand(sock, chatId, message) {
                 videoData = await apiMethod.method();
                 const videoUrl_check = videoData.download || videoData.dl || videoData.url;
                 
-                if (!videoUrl_check) {
+                if (!videoUrl_check || !isHttpUrl(videoUrl_check)) {
                     console.log(`${apiMethod.name} returned no download URL, trying next API...`);
                     continue; // Try next API
                 }

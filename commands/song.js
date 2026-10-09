@@ -3,7 +3,7 @@ const yts = require('yt-search');
 const fs = require('fs');
 const path = require('path');
 const { toAudio } = require('../lib/converter');
-const { commandInput, isHttpUrl, safeFileName } = require('../lib/downloadUtils');
+const { commandInput, isHttpUrl, normalizeYouTubeUrl, safeFileName } = require('../lib/downloadUtils');
 
 const AXIOS_DEFAULTS = {
 	timeout: 60000,
@@ -77,8 +77,13 @@ async function songCommand(sock, chatId, message) {
         }
 
         let video;
-        if (isHttpUrl(query) && /(?:youtube\.com|youtu\.be)/i.test(query)) {
-			video = { url: query };
+        if (isHttpUrl(query)) {
+            const youtubeUrl = normalizeYouTubeUrl(query);
+            if (!youtubeUrl) {
+                await sock.sendMessage(chatId, { text: 'Please provide a valid YouTube video link.' }, { quoted: message });
+                return;
+            }
+            video = { url: youtubeUrl };
         } else {
 			const search = await yts(query);
 			if (!search || !search.videos.length) {
@@ -118,7 +123,7 @@ async function songCommand(sock, chatId, message) {
 				audioData = await apiMethod.method();
 				const audioUrl = audioData.download || audioData.dl || audioData.url;
 				
-				if (!audioUrl) {
+if (!audioUrl || !isHttpUrl(audioUrl)) {
 					console.log(`${apiMethod.name} returned no download URL, trying next API...`);
 					continue; // Try next API
 				}

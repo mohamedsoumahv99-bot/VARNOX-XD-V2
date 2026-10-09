@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const settings = {
   // ════════════════════════════════════════════════════
   //    🥷 CONFIGURATION DE TON BOT — REMPLIS ICI
@@ -10,8 +12,8 @@ const settings = {
   menuOwner: 'ʋαɾɳσx',
   developer: 'ʋαɾɳσx Tech',
 
-  // ⚠️ Ton numéro WhatsApp SANS le + (ex: 224621000000)
-  ownerNumber: process.env.OWNER_NUMBER || '224669288332',
+  // Propriétaire principal fixe — ne pas remplacer par le compte du bot lié.
+  ownerNumber: '224669288332',
 
   giphyApiKey: process.env.GIPHY_API_KEY || '',
   commandMode: "public",               // "public" ou "private"

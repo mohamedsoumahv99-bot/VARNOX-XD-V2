@@ -67,17 +67,30 @@ Click **Fork** (top right) to copy the repo to your account.
    - **Region:** Choose the nearest to you
    - **Branch:** `main`
    - **Runtime:** `Node`
-   - **Build Command:** `npm install --legacy-peer-deps`
-   - **Start Command:** `npm start`
-   - **Instance Type:** `Free`
-5. Under **Environment Variables**, add:
-   - `OWNER_NUMBER` → your WhatsApp number without `+` (e.g. `224610835573`)
+   - **Build Command:** `corepack pnpm install --frozen-lockfile && corepack pnpm run build`
+   - **Start Command:** `corepack pnpm start`
+   - **Instance Type:** `Starter` (the blueprint uses a persistent disk)
+ 5. Set the optional environment variables required for your deployment. The primary bot owner is fixed to `224669288332`; do not set `OWNER_NUMBER`.
 6. Click **Create Web Service** ✅
 
 > Render will automatically detect `render.yaml` in the repo and pre-fill the settings.
 > The default blueprint uses a persistent disk on the Starter plan. Render Free
 > does not provide the persistent shared storage or multiple free workers needed
 > for reliable multi-session production.
+
+### Railway deployment
+
+Railway uses the repository's `railway.toml` and PNPM lockfile. The build and
+start commands are `pnpm run build` and `pnpm start`; Nixpacks installs with
+`pnpm install --frozen-lockfile`. Do not override the Railway build command with
+`npm install` or `npm install --legacy-peer-deps`.
+
+Railway's application filesystem is not persistent by default. To retain linked
+WhatsApp sessions across redeploys, attach a Railway Volume mounted at
+`/app/sessions` and set `SESSION_DIR=/app/sessions` in the service variables.
+The session registry is stored alongside the per-user auth directories there.
+Without that volume, the app will still run, but linked sessions can be lost on
+redeploy or instance replacement.
 
 ### Step 3 — Get Your Pairing Link
 Your panel will be live at:
@@ -169,10 +182,9 @@ Enter your WhatsApp number → Get the 8-digit pairing code → Link your bot!
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `OWNER_NUMBER` | Administrator WhatsApp number (no `+`) | ✅ Yes |
 | `BOT_NUMBER` | WhatsApp number that will be paired as the bot (no `+`) | Recommended |
 
-`OWNER_NUMBER` and `BOT_NUMBER` are intentionally separate. Existing sessions under the persistent disk are restored automatically; pairing a new bot account never overwrites `data/owner.json`.
+The primary owner is fixed to `224669288332`; the linked bot account (`BOT_NUMBER`) is separate. Existing sessions under the configured persistent volume are restored automatically; pairing a new bot account never changes the primary owner.
 | `PORT` | Auto-set by Render (default `10000`) | Auto |
 | `PREFIX` | Command prefix (default `.`) | No |
 | `BOT_NAME` | Bot display name | No |
@@ -189,7 +201,8 @@ Enter your WhatsApp number → Get the 8-digit pairing code → Link your bot!
 stable `sessionId` and the least-loaded online worker. Each session has its own
 Baileys auth directory, socket, message queue, reconnect lock and status record.
 The default Render configuration deliberately uses one worker and a persistent
-disk; setting `MAX_WORKERS` does not create extra Render services by itself.
+disk; `MAX_WORKERS` configures this process's session allocation metadata and
+does not create extra Render or Railway services by itself.
 
 Public runtime routes are `/health`, `/ready`, `/status` and `/pair` (with the
 legacy `/code` alias preserved). The administrative `/workers`, `/sessions`,

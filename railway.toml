@@ -1,9 +1,9 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm install --legacy-peer-deps"
+buildCommand = "pnpm run build"
 
 [deploy]
-startCommand = "node web.js"
+startCommand = "pnpm start"
 healthcheckPath = "/health"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
