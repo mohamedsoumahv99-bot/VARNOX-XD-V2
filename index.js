@@ -146,33 +146,39 @@ async function startXeonBotInc() {
     // Message handling
     XeonBotInc.ev.on('messages.upsert', async chatUpdate => {
         try {
-            const mek = chatUpdate.messages[0]
-            if (!mek.message) return
+            const incoming = Array.isArray(chatUpdate?.messages) ? chatUpdate.messages : []
+            if (!incoming.length) return
+
+            const { handleChannelMessages } = require('./commands/fakeract')
+            await handleChannelMessages(XeonBotInc, incoming, chatUpdate?.type)
+
+            const normalMessages = incoming.filter(message =>
+                message?.key?.remoteJid &&
+                !message.key.remoteJid.endsWith('@newsletter') &&
+                message.message &&
+                !(message.key?.id?.startsWith('BAE5') && message.key.id.length === 16)
+            )
+            if (!normalMessages.length) return
+            const normalUpdate = normalMessages.length === incoming.length
+                ? chatUpdate
+                : { ...chatUpdate, messages: normalMessages }
+            const mek = normalMessages[0]
             mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
-            if (mek.key && mek.key.remoteJid === 'status@broadcast') {
-                await handleStatus(XeonBotInc, chatUpdate);
-                return;
+            if (mek.key?.remoteJid === 'status@broadcast') {
+                await handleStatus(XeonBotInc, normalUpdate)
+                return
             }
-            // In private mode, only block non-group messages (allow groups for moderation)
-            // Note: XeonBotInc.public is not synced, so we check mode in main.js instead
-            // This check is kept for backward compatibility but mainly blocks DMs
             if (!XeonBotInc.public && !mek.key.fromMe && chatUpdate.type === 'notify') {
                 const isGroup = mek.key?.remoteJid?.endsWith('@g.us')
-                if (!isGroup) return // Block DMs in private mode, but allow group messages
+                if (!isGroup) return
             }
-            if (mek.key.id.startsWith('BAE5') && mek.key.id.length === 16) return
-
-            // Clear message retry cache to prevent memory bloat
-            if (XeonBotInc?.msgRetryCounterCache) {
-                XeonBotInc.msgRetryCounterCache.clear()
-            }
+            if (XeonBotInc?.msgRetryCounterCache) XeonBotInc.msgRetryCounterCache.clear()
 
             try {
-                await handleMessages(XeonBotInc, chatUpdate, true)
+                await handleMessages(XeonBotInc, normalUpdate, true)
             } catch (err) {
                 console.error("Error in handleMessages:", err)
-                // Only try to send error message if we have a valid chatId
-                if (mek.key && mek.key.remoteJid) {
+                if (mek.key?.remoteJid) {
                     await XeonBotInc.sendMessage(mek.key.remoteJid, {
                         text: '❌ An error occurred while processing your message.',
                         contextInfo: {
@@ -184,7 +190,7 @@ async function startXeonBotInc() {
                                 serverMessageId: -1
                             }
                         }
-                    }).catch(console.error);
+                    }).catch(console.error)
                 }
             }
         } catch (err) {
@@ -280,8 +286,12 @@ async function startXeonBotInc() {
             legacyReconnectAttempts = 0
             legacyReconnectPending = false
             restoreHijackTimers(XeonBotInc);
+            Promise.resolve()
+                .then(() => require('./commands/fakeract').restoreChannelAlerts(XeonBotInc))
+                .then(active => { if (active) console.info('[channel-alert] live updates restored for legacy session') })
+                .catch(error => console.error('[channel-alert] legacy session restore failed:', error.message));
             console.log(chalk.magenta(` `))
-            console.log(chalk.yellow(`🤩Connected to => ` + JSON.stringify(XeonBotInc.user, null, 2)))
+            console.log(chalk.yellow('🤩 Connected to WhatsApp successfully.'))
 
             // NE PAS envoyer de message automatique au numéro connecté —
             // cela enverrait le lien de la chaîne à n'importe quel utilisateur
@@ -292,7 +302,7 @@ async function startXeonBotInc() {
             console.log(chalk.cyan(`< ================================================== >`))
             console.log(chalk.magenta(`\n${global.themeemoji || '•'} YT CHANNEL:𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2`))
             console.log(chalk.magenta(`${global.themeemoji || '•'} GITHUB: VARNOX-XD-V2`))
-            console.log(chalk.magenta(`${global.themeemoji || '•'} OWNER NUMBER: ${owner.ownerNumber || configuredOwnerNumber || owner.ownerName || 'Owner'}\n${global.themeemoji || '•'} BOT NUMBER: ${configuredBotNumber || phoneNumber || 'configured at pairing'}`))
+            console.log(chalk.magenta(`${global.themeemoji || '•'} OWNER: configured\n${global.themeemoji || '•'} BOT: connected`))
             console.log(chalk.magenta(`${global.themeemoji || '•'} CREDIT: Central-Hex`))
             console.log(chalk.green(`${global.themeemoji || '•'} 🤖 Bot Connected Successfully! ✅`))
             console.log(chalk.blue(`Bot Version: ${settings.version}`))

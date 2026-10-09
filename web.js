@@ -256,7 +256,7 @@ function schedulePairingRecovery(number, sessionDir, delayMs = 750) {
   pending.recoveryTimer = setTimeout(() => {
     pending.recoveryTimer = null;
     recoverPairingSocket(number, sessionDir).catch(error => {
-      console.error(`[VARNOX] Pairing recovery task failed for ${number}:`, error.message);
+      console.error(`[VARNOX] Pairing recovery task failed for ${maskPhoneNumber(number)}:`, error.message);
     });
   }, delayMs);
   pending.recoveryTimer.unref?.();
@@ -313,7 +313,7 @@ async function recoverPairingSocket(number, sessionDir) {
         try {
           await next.activate(sock, serializedSaveCreds);
         } catch (e) {
-          console.error(`[VARNOX] Pairing recovery activation failed for ${number}:`, e.message);
+          console.error(`[VARNOX] Pairing recovery activation failed for ${maskPhoneNumber(number)}:`, e.message);
           pairingFailures.set(number, { code: 500, message: e.message, ts: Date.now() });
           clearTimeout(next.timer);
           pairingSockets.delete(number);
@@ -336,7 +336,7 @@ async function recoverPairingSocket(number, sessionDir) {
     });
   } catch (e) {
     pending.recovering = false;
-    console.error(`[VARNOX] Pairing recovery failed for ${number}:`, e.message);
+    console.error(`[VARNOX] Pairing recovery failed for ${maskPhoneNumber(number)}:`, e.message);
     schedulePairingRecovery(number, sessionDir, 1500);
   } finally {
     pairingRecoveryInProgress.delete(number);
@@ -358,7 +358,7 @@ async function startExistingSessions() {
     const sd = record.sessionDir || path.join(SESSIONS_DIR, record.sessionId);
     if (!fs.existsSync(path.join(sd, 'creds.json'))) continue;
     if (fs.existsSync(path.join(sd, '.logged_out'))) {
-      sessionManager.releaseSession(record.sessionId);
+      console.warn(`[VARNOX] Skipping logged-out session ${record.phoneMasked}; credentials retained; use /reset before explicit re-pairing.`);
       continue;
     }
     restoredSessionIds.add(record.sessionId);
@@ -387,7 +387,7 @@ async function startExistingSessions() {
       const num = m[1];
       const sd  = path.join(SESSIONS_DIR, dir);
       if (fs.existsSync(path.join(sd, '.logged_out'))) {
-        console.warn(`[VARNOX] Skipping logged-out session: ${num}`);
+        console.warn(`[VARNOX] Skipping logged-out session: ${maskPhoneNumber(num)}`);
         continue;
       }
       if (!fs.existsSync(path.join(sd, 'creds.json'))) continue;
@@ -399,7 +399,7 @@ async function startExistingSessions() {
           registered = !!JSON.parse(fs.readFileSync(path.join(sd, 'creds.json'), 'utf8')).registered;
         } catch {}
         if (!registered) {
-          console.warn(`[VARNOX] Skipping unfinished pairing session: ${num}`);
+          console.warn(`[VARNOX] Skipping unfinished pairing session: ${maskPhoneNumber(num)}`);
           continue;
         }
         // A crash can happen after WhatsApp authenticates but before the
@@ -411,7 +411,7 @@ async function startExistingSessions() {
         sessionDir: sd,
       });
       restoredSessionIds.add(allocation.session.sessionId);
-      console.log(`[VARNOX] Restoring session: ${num}`);
+      console.log(`[VARNOX] Restoring session: ${maskPhoneNumber(num)}`);
       restoreJobs.push(() => createBotInstance(sd, num, {
         sessionId: allocation.session.sessionId,
         workerId: allocation.session.workerId,
@@ -429,7 +429,7 @@ async function startExistingSessions() {
     let ownerNum = 'legacy';
     try { ownerNum = JSON.parse(fs.readFileSync(OWNER_JSON, 'utf8')).ownerNumber || 'legacy'; } catch {}
     if (!getBotInstance(ownerNum)) {
-      console.log(`[VARNOX] Legacy session → ${ownerNum}`);
+      console.log(`[VARNOX] Legacy session → ${maskPhoneNumber(ownerNum)}`);
       const allocation = sessionManager.ensureSession(ownerNum, {
         status: 'CONNECTING',
         sessionDir: LEGACY_SESSION,
@@ -869,7 +869,7 @@ async function handleCode(req, res) {
         workerId: session.workerId,
       });
       markConnected(number);
-      console.log(`[VARNOX] ✅ Bot activated on persistent socket for ${number}`);
+      console.log(`[VARNOX] ✅ Bot activated on persistent socket for ${maskPhoneNumber(number)}`);
     }
 
     // Enregistrer le socket avant que le code soit retourné permet à une
@@ -903,11 +903,11 @@ async function handleCode(req, res) {
       }
 
       if (connection === 'open') {
-        console.log(`[VARNOX] ✅ WA authenticated for ${number}`);
+        console.log(`[VARNOX] ✅ WA authenticated for ${maskPhoneNumber(number)}`);
         try {
           await promotePairToBot(sock, serializedSaveCreds);
         } catch (error) {
-          console.error(`[VARNOX] Pairing activation failed for ${number}:`, error.message);
+          console.error(`[VARNOX] Pairing activation failed for ${maskPhoneNumber(number)}:`, error.message);
           pairingFailures.set(number, { code: 500, message: error.message, ts: Date.now() });
           clearTimeout(pendingPairing.timer);
           pairingSockets.delete(number);
@@ -944,7 +944,7 @@ async function handleCode(req, res) {
         // (restartRequired) while finishing phone-number linking. This is
         // not a rejection: keep the same auth directory and reconnect it.
         if (codeDone && isTransientPairingDisconnect(sc)) {
-          console.warn(`[VARNOX] Pairing socket restart required for ${number}; preserving session`);
+          console.warn(`[VARNOX] Pairing socket restart required for ${maskPhoneNumber(number)}; preserving session`);
           schedulePairingRecovery(number, sessionDir, 750);
           return;
         }

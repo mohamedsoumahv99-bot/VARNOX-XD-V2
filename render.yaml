@@ -8,8 +8,8 @@ services:
       mountPath: /opt/render/project/src/sessions
       sizeGB: 1
     autoDeploy: true
-    buildCommand: npm install --legacy-peer-deps
-    startCommand: npm start
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
+    startCommand: pnpm start
     healthCheckPath: /health
     envVars:
       - key: PORT

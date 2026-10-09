@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm install --legacy-peer-deps"
+buildCommand = "corepack enable && pnpm install --frozen-lockfile"
 
 [deploy]
 startCommand = "node web.js"

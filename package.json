@@ -3,11 +3,12 @@
   "version": "2.0.0",
   "description": "𝗩𝗔𝗥𝗡𝗢𝗫 𝗫𝗗 𝗩2 — WhatsApp Multi-Function Bot with Web Pairing Panel",
   "main": "web.js",
+  "packageManager": "pnpm@10.26.1",
   "scripts": {
     "start": "node web.js",
     "start:bot": "node index.js",
     "start:optimized": "node --max-old-space-size=512 --optimize-for-size --gc-interval=100 index.js",
-    "build": "echo 'Build complete'",
+    "build": "node --check web.js && node --check index.js && node --check main.js && node --check lib/botInstance.js && node --check commands/fakeract.js",
     "test": "node --test test/*.test.js"
   },
   "keywords": ["whatsapp-bot", "baileys", "pairing", "varnox", "render"],
@@ -72,6 +73,6 @@
     }
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": "20.x"
   }
 }
