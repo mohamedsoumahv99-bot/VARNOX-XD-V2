@@ -55,10 +55,11 @@ const {
   normalizePhoneNumber,
   maskPhoneNumber,
 } = require('./lib/session-manager');
+const { normalizeListenHost } = require('./lib/server-config');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = normalizeListenHost(process.env.HOST);
 
 /* ─── Répertoires ─────────────────────────────────────────── */
 const SESSIONS_DIR   = process.env.SESSION_DIR
