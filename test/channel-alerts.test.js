@@ -77,6 +77,7 @@ test('off disables channel alerts and reconnect subscription for that account', 
    const sock = mockSocket('224600000006');
    await fakeReactCommand(sock, 'group', null, 'https://whatsapp.com/channel/INVITECODE');
    await fakeReactCommand(sock, 'group', null, 'off');
+   assert.match(sock.calls.sent.at(-1).message.text, /désactivées/i);
    sock.calls.sent.length = 0;
 
    const result = await fakeReactCommand.handleChannelMessages(sock, [{
@@ -84,8 +85,20 @@ test('off disables channel alerts and reconnect subscription for that account', 
    }], 'append');
    assert.deepEqual(result, { received: 1, notified: 0, failed: 0 });
    assert.equal(await fakeReactCommand.restoreChannelAlerts(sock), false);
-   assert.equal(sock.calls.sent.length, 1);
+   assert.equal(sock.calls.sent.length, 0);
    assert.equal(sock.calls.reactions, 0);
+});
+
+test('does not claim live notifications when Baileys gives no subscription confirmation', async () => {
+   const sock = mockSocket('224600000007');
+   sock.subscribeNewsletterUpdates = async jid => { sock.calls.liveUpdates.push(jid); return null; };
+
+   await fakeReactCommand(sock, 'group', null, 'https://whatsapp.com/channel/INVITECODE');
+
+   assert.deepEqual(sock.calls.follow, [channelJid]);
+   assert.deepEqual(sock.calls.liveUpdates, [channelJid]);
+   assert.match(sock.calls.sent.at(-1).message.text, /pas confirmé/i);
+   assert.doesNotMatch(sock.calls.sent.at(-1).message.text, /réception en direct confirmée/i);
 });
 
 test.after(() => {
