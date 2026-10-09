@@ -76,6 +76,9 @@ async function requestLiveUpdates(sock, newsletterJid) {
    throw new Error('La réception des publications en direct n’est pas prise en charge par Baileys');
    }
    const result = await sock.subscribeNewsletterUpdates(newsletterJid);
+   if (result?.duration == null) {
+       throw new Error('WhatsApp n’a pas confirmé la souscription aux publications en direct');
+   }
    const duration = result?.duration ? ' duration=' + result.duration : '';
    console.info('[channel-alert] live updates subscription returned account=' + maskedAccount(sock) +
    ' channel=' + newsletterJid + duration);
