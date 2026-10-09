@@ -20,4 +20,3 @@
     ## Build
 
     The deployment build uses the checked-in pnpm-lock.yaml in frozen mode, the application declares Node 20, and the start command remains node web.js (or pnpm start on Render).
-    
