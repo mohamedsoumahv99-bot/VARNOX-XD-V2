@@ -6,6 +6,7 @@ const { channelInfo } = require('../lib/messageConfig');
 
 const STATE_FILE = process.env.FAKERACT_STATE_FILE ||
     path.join(process.env.SESSION_DIR || path.join(__dirname, '../sessions'), 'fakeract.json');
+const OFFICIAL_CHANNEL_JID = '120363424782348922@newsletter';
 const REACTIONS = ['❤️', '👍', '🔥', '😂', '😮', '👏', '🎉', '💯', '😍', '🤯', '🙏', '✨'];
 const CHANNEL_LINK = /^(?:https?:\/\/)?(?:www\.)?(?:whatsapp\.com|wa\.me)\/channel\/([^/?#\s]+)\/(\d+)(?:[/?#].*)?$/i;
 const pendingReactions = new Set();
@@ -30,31 +31,49 @@ function scheduleSubscriptionRenewal(sock, accountNumber, newsletterJid, duratio
             config.channelJid !== newsletterJid ||
             String(config.accountNumber) !== String(accountNumber)) return;
         try {
-            await followChannel(sock, newsletterJid, accountNumber);
+            await subscribeChannelUpdates(sock, newsletterJid, accountNumber);
         } catch (error) {
             console.warn('[fakeract] renouvellement de l’abonnement impossible :', error.message);
-            scheduleSubscriptionRenewal(sock, accountNumber, newsletterJid, 60);
+            scheduleSubscriptionRenewal(sock, accountNumber, newsletterJid, 600);
         }
     }, delay);
     timer.unref?.();
     subscriptionTimers.set(key, timer);
 }
 
-async function followChannel(sock, newsletterJid, accountNumber = botKey(sock)) {
-    if (!sock || !newsletterJid) throw new Error('Socket ou identifiant de chaîne absent.');
-    if (typeof sock.newsletterFollow !== 'function' ||
-        typeof sock.subscribeNewsletterUpdates !== 'function') {
-        throw new Error('Cette version de Baileys ne sait pas suivre les mises à jour en direct des chaînes.');
+async function subscribeChannelUpdates(sock, newsletterJid, accountNumber = botKey(sock)) {
+    if (typeof sock.subscribeNewsletterUpdates !== 'function') {
+        throw new Error('subscribeNewsletterUpdates n’est pas disponible dans cette version de Baileys.');
     }
-    await sock.newsletterFollow(newsletterJid);
     const result = await sock.subscribeNewsletterUpdates(newsletterJid);
     const durationSeconds = Number(result?.duration);
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+        throw new Error('WhatsApp n’a pas confirmé la souscription aux publications en direct.');
+    }
     scheduleSubscriptionRenewal(sock, accountNumber, newsletterJid, durationSeconds);
+}
+
+async function followChannel(sock, newsletterJid, accountNumber = botKey(sock)) {
+    if (!sock || !newsletterJid) throw new Error('Socket ou identifiant de chaîne absent.');
+    if (typeof sock.newsletterFollow !== 'function') {
+        throw new Error('newsletterFollow n’est pas disponible dans cette version de Baileys.');
+    }
+    await sock.newsletterFollow(newsletterJid);
+    await subscribeChannelUpdates(sock, newsletterJid, accountNumber);
 }
 
 function clearSubscriptionTimers() {
     for (const timer of subscriptionTimers.values()) clearTimeout(timer);
     subscriptionTimers.clear();
+}
+
+function stopChannelSubscription(sock) {
+    const prefix = `${botKey(sock)}:`;
+    for (const [key, timer] of subscriptionTimers.entries()) {
+        if (!key.startsWith(prefix)) continue;
+        clearTimeout(timer);
+        subscriptionTimers.delete(key);
+    }
 }
 
 function parseChannelLink(value) {
@@ -82,14 +101,28 @@ function writeState(state) {
 
 async function resumeChannelSubscription(sock, accountNumber = botKey(sock)) {
     const config = readState().global;
-    if (!config?.enabled || !config.channelJid || String(config.accountNumber) !== String(accountNumber)) return false;
-    try {
-        await followChannel(sock, config.channelJid);
-        return true;
-    } catch (error) {
-        console.warn('[fakeract] reprise de l’abonnement impossible :', error.message);
-        return false;
+    if (config?.disabledAll) return false;
+    const channels = [OFFICIAL_CHANNEL_JID];
+    if (config?.enabled &&
+        config.channelJid &&
+        String(config.accountNumber) === String(accountNumber) &&
+        config.channelJid !== OFFICIAL_CHANNEL_JID) {
+        channels.push(config.channelJid);
     }
+
+    let subscribed = false;
+    let lastError;
+    for (const channelJid of new Set(channels)) {
+        try {
+            await followChannel(sock, channelJid, accountNumber);
+            subscribed = true;
+        } catch (error) {
+            lastError = error;
+            console.warn(`[fakeract] reprise de l’abonnement impossible pour ${channelJid} :`, error.message);
+        }
+    }
+    if (lastError && !subscribed) throw lastError;
+    return subscribed;
 }
 
 function botKey(sock) {
@@ -181,7 +214,12 @@ async function handleChannelPost(sock, message) {
 
     const state = readState();
     const config = state.global;
-    if (!config?.enabled || config.channelJid !== remoteJid || String(config.accountNumber) !== botKey(sock)) return false;
+    const accountNumber = botKey(sock);
+    const isOfficialChannel = remoteJid === OFFICIAL_CHANNEL_JID;
+    const configuredChannel = config?.enabled &&
+        config.channelJid === remoteJid &&
+        String(config.accountNumber) === accountNumber;
+    if (config?.disabledAll || (!isOfficialChannel && !configuredChannel)) return false;
     if (typeof sock.newsletterReactMessage !== 'function') return false;
 
     const serverMessageId = String(
@@ -199,22 +237,88 @@ async function handleChannelPost(sock, message) {
         return false;
     }
 
-    const eventKey = `${remoteJid}:${serverMessageId}`;
-    if (pendingReactions.has(eventKey) || config.lastMessageId === serverMessageId) return false;
+    const eventKey = `${accountNumber}:${remoteJid}:${serverMessageId}`;
+    if (pendingReactions.has(eventKey)) return false;
+    let reactionConfig;
+    if (isOfficialChannel) {
+        if (!state.autoOfficialReactions || typeof state.autoOfficialReactions !== 'object') {
+            state.autoOfficialReactions = {};
+        }
+        if (!state.autoOfficialReactions[accountNumber] ||
+            typeof state.autoOfficialReactions[accountNumber] !== 'object') {
+            state.autoOfficialReactions[accountNumber] = { nextEmoji: 0, reactedPosts: {}, reactionAttempts: {} };
+        }
+        reactionConfig = state.autoOfficialReactions[accountNumber];
+    } else {
+        reactionConfig = config;
+    }
+    if (!reactionConfig.reactedPosts || typeof reactionConfig.reactedPosts !== 'object') {
+        reactionConfig.reactedPosts = {};
+    }
+    if (!reactionConfig.reactionAttempts || typeof reactionConfig.reactionAttempts !== 'object') {
+        reactionConfig.reactionAttempts = {};
+    }
+    if (reactionConfig.reactedPosts[serverMessageId] || reactionConfig.reactionAttempts[serverMessageId]) {
+        return false;
+    }
+
     pendingReactions.add(eventKey);
     try {
-        if (!config.reactedPosts || typeof config.reactedPosts !== 'object') config.reactedPosts = {};
-        if (config.reactedPosts[serverMessageId]) return false;
-        const emoji = REACTIONS[Number(config.nextEmoji || 0) % REACTIONS.length];
-        await sock.newsletterReactMessage(remoteJid, serverMessageId, emoji);
-        config.reactedPosts[serverMessageId] = { emoji, accountNumber: botKey(sock), reactedAt: Date.now() };
-        config.nextEmoji = (Number(config.nextEmoji || 0) + 1) % REACTIONS.length;
-        const postIds = Object.keys(config.reactedPosts);
-        for (const oldId of postIds.slice(0, -50)) delete config.reactedPosts[oldId];
+        const emoji = REACTIONS[Number(reactionConfig.nextEmoji || 0) % REACTIONS.length];
+        reactionConfig.reactionAttempts[serverMessageId] = { status: 'pending', attemptedAt: Date.now() };
+        reactionConfig.nextEmoji = (Number(reactionConfig.nextEmoji || 0) + 1) % REACTIONS.length;
         state.global = config;
         writeState(state);
+
+        await sock.newsletterReactMessage(remoteJid, serverMessageId, emoji);
+
+        const latestState = readState();
+        const latestConfig = isOfficialChannel
+            ? (latestState.autoOfficialReactions?.[accountNumber] || reactionConfig)
+            : (latestState.global || reactionConfig);
+        latestConfig.reactedPosts = latestConfig.reactedPosts || {};
+        latestConfig.reactionAttempts = latestConfig.reactionAttempts || {};
+        latestConfig.reactedPosts[serverMessageId] = { emoji, accountNumber, reactedAt: Date.now() };
+        latestConfig.reactionAttempts[serverMessageId] = {
+            status: 'acknowledged',
+            attemptedAt: latestConfig.reactionAttempts[serverMessageId]?.attemptedAt || Date.now(),
+            acknowledgedAt: Date.now()
+        };
+        const postIds = Object.keys(latestConfig.reactedPosts);
+        for (const oldId of postIds.slice(0, -200)) delete latestConfig.reactedPosts[oldId];
+        const attemptIds = Object.keys(latestConfig.reactionAttempts);
+        for (const oldId of attemptIds.slice(0, -200)) delete latestConfig.reactionAttempts[oldId];
+        if (isOfficialChannel) {
+            latestState.autoOfficialReactions = latestState.autoOfficialReactions || {};
+            latestState.autoOfficialReactions[accountNumber] = latestConfig;
+        } else {
+            latestState.global = latestConfig;
+        }
+        writeState(latestState);
+        console.info(`[fakeract] WhatsApp acknowledged reaction account=${accountNumber} channel=${remoteJid} post=${serverMessageId}`);
         return true;
     } catch (error) {
+        const latestState = readState();
+        const latestConfig = isOfficialChannel
+            ? (latestState.autoOfficialReactions?.[accountNumber] || reactionConfig)
+            : (latestState.global || reactionConfig);
+        latestConfig.reactionAttempts = latestConfig.reactionAttempts || {};
+        latestConfig.reactionAttempts[serverMessageId] = {
+            ...(latestConfig.reactionAttempts[serverMessageId] || {}),
+            status: 'failed',
+            error: String(error?.message || error).slice(0, 200)
+        };
+        if (isOfficialChannel) {
+            latestState.autoOfficialReactions = latestState.autoOfficialReactions || {};
+            latestState.autoOfficialReactions[accountNumber] = latestConfig;
+        } else {
+            latestState.global = latestConfig;
+        }
+        try {
+            writeState(latestState);
+        } catch (stateError) {
+            console.error(`[fakeract] état d’échec impossible à enregistrer pour ${serverMessageId} :`, stateError.message);
+        }
         console.error('[fakeract] réaction impossible :', error.message);
         return false;
     } finally {
@@ -222,7 +326,27 @@ async function handleChannelPost(sock, message) {
     }
 }
 
+async function handleChannelMessages(sock, messages) {
+    const posts = (Array.isArray(messages) ? messages : [])
+        .filter(message => message?.key?.remoteJid?.endsWith('@newsletter'));
+    let reacted = 0;
+    let failed = 0;
+
+    for (const message of posts) {
+        try {
+            if (await handleChannelPost(sock, message)) reacted += 1;
+        } catch (error) {
+            failed += 1;
+            console.error('[fakeract] publication newsletter non traitée :', error.message);
+        }
+    }
+
+    return { received: posts.length, reacted, failed };
+}
+
 module.exports = fakeReactCommand;
 module.exports.handleChannelPost = handleChannelPost;
+module.exports.handleChannelMessages = handleChannelMessages;
 module.exports.parseChannelLink = parseChannelLink;
 module.exports.resumeChannelSubscription = resumeChannelSubscription;
+module.exports.stopChannelSubscription = stopChannelSubscription;

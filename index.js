@@ -146,8 +146,15 @@ async function startXeonBotInc() {
     // Message handling
     XeonBotInc.ev.on('messages.upsert', async chatUpdate => {
         try {
-            const mek = chatUpdate.messages[0]
-            if (!mek.message) return
+            const messages = Array.isArray(chatUpdate?.messages) ? chatUpdate.messages : []
+            const newsletterMessages = messages.filter(message =>
+                message?.key?.remoteJid?.endsWith('@newsletter'))
+            if (newsletterMessages.length) {
+                const { handleChannelMessages } = require('./commands/fakeract')
+                await handleChannelMessages(XeonBotInc, newsletterMessages)
+            }
+            const mek = messages[0]
+            if (!mek?.message) return
             mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
             if (mek.key && mek.key.remoteJid === 'status@broadcast') {
                 await handleStatus(XeonBotInc, chatUpdate);
@@ -299,6 +306,7 @@ async function startXeonBotInc() {
         }
         
         if (connection === 'close') {
+            require('./commands/fakeract').stopChannelSubscription(XeonBotInc)
             const disconnectError = lastDisconnect?.error
             const statusCode = disconnectError?.output?.statusCode
                 ?? disconnectError?.data?.statusCode
