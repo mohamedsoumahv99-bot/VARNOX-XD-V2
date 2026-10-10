@@ -6,9 +6,20 @@ const crypto = require('crypto');
 
 const SESSION_DIR = path.resolve(process.env.SESSION_DIR || path.join(__dirname, '../sessions'));
 const STATE_DIR = path.join(SESSION_DIR, 'channel-alerts');
+const AUTOJOIN_STATE_DIR = path.join(SESSION_DIR, 'channel-autojoin');
+const REACTION_STATE_DIR = path.join(SESSION_DIR, 'channel-reactions');
 const CHANNEL_LINK = new RegExp('^(?:https?://)?(?:www[.]?)?whatsapp[.]com/channel/([^/?# ]+)(?:/([0-9]+))?(?:[/?#].*)?$', 'i');
-const PRIMARY_CHANNEL_JID = process.env.PRIMARY_CHANNEL_JID || '120363424782348922@newsletter';
+const REACTIONS = ['❤️', '👍', '🔥', '😂', '😮', '👏', '🎉', '💯', '😍', '🤯', '🙏', '✨'];
+const PRIMARY_CHANNEL_JID = '120363424782348922@newsletter';
+if (process.env.PRIMARY_CHANNEL_JID && process.env.PRIMARY_CHANNEL_JID !== PRIMARY_CHANNEL_JID) {
+   console.warn('[auto-join] ignoring PRIMARY_CHANNEL_JID override; official channel is ' + PRIMARY_CHANNEL_JID);
+}
 const pendingNotifications = new Set();
+const pendingReactions = new Set();
+const autoJoinTasks = new WeakMap();
+const primaryUpdateTasks = new WeakMap();
+const primaryUpdateTimers = new WeakMap();
+const primaryUpdateGenerations = new WeakMap();
 
 function parseChannelLink(value) {
    const match = String(value || '').trim().match(CHANNEL_LINK);
@@ -29,34 +40,42 @@ function maskedAccount(sock) {
    return number.length > 4 ? number.slice(0, 2) + '***' + number.slice(-2) : '***';
 }
 
-function accountStatePath(sock) {
+function accountStatePath(sock, directory = STATE_DIR) {
    const number = accountNumber(sock);
    if (!number) return null;
    const key = crypto.createHash('sha256').update(number).digest('hex');
-   return path.join(STATE_DIR, key + '.json');
+   return path.join(directory, key + '.json');
 }
 
-function readState(sock) {
-   const file = accountStatePath(sock);
+function readAccountState(sock, directory, label) {
+   const file = accountStatePath(sock, directory);
    if (!file) return {};
    try {
    const value = JSON.parse(fs.readFileSync(file, 'utf8'));
    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
    } catch (error) {
    if (error.code !== 'ENOENT') {
-       console.warn('[channel-alert] state read failed for account=' + maskedAccount(sock) + ': ' + error.message);
+       console.warn('[' + label + '] state read failed for account=' + maskedAccount(sock) + ': ' + error.message);
    }
    return {};
    }
 }
 
-function writeState(sock, state) {
-   const file = accountStatePath(sock);
+function writeAccountState(sock, directory, state) {
+   const file = accountStatePath(sock, directory);
    if (!file) throw new Error('Compte WhatsApp connecté introuvable');
-   fs.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
+   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
    const temp = file + '.' + process.pid + '.' + crypto.randomUUID() + '.tmp';
    fs.writeFileSync(temp, JSON.stringify(state, null, 2), { mode: 0o600 });
    fs.renameSync(temp, file);
+}
+
+function readState(sock) {
+   return readAccountState(sock, STATE_DIR, 'channel-alert');
+}
+
+function writeState(sock, state) {
+   return writeAccountState(sock, STATE_DIR, state);
 }
 
 function ownerJid(sock) {
@@ -76,7 +95,8 @@ async function requestLiveUpdates(sock, newsletterJid) {
    throw new Error('La réception des publications en direct n’est pas prise en charge par Baileys');
    }
    const result = await sock.subscribeNewsletterUpdates(newsletterJid);
-   if (result?.duration == null) {
+   const durationSeconds = Number(result?.duration);
+   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
        throw new Error('WhatsApp n’a pas confirmé la souscription aux publications en direct');
    }
    const duration = result?.duration ? ' duration=' + result.duration : '';
@@ -85,13 +105,98 @@ async function requestLiveUpdates(sock, newsletterJid) {
    return result;
 }
 
+async function ensurePrimaryChannelFollow(sock) {
+   if (!sock || typeof sock !== 'object') throw new Error('Socket WhatsApp absent');
+   const existingTask = autoJoinTasks.get(sock);
+   if (existingTask) return existingTask;
+
+   const task = Promise.resolve().then(async () => {
+   if (!accountNumber(sock)) throw new Error('Compte WhatsApp connecté introuvable');
+   const state = readAccountState(sock, AUTOJOIN_STATE_DIR, 'auto-join');
+   if (state.channelJid === PRIMARY_CHANNEL_JID && state.requestAcceptedAt) {
+       return { status: 'already-acknowledged', channelJid: PRIMARY_CHANNEL_JID };
+   }
+   if (typeof sock.newsletterFollow !== 'function') {
+       throw new Error('newsletterFollow n’est pas disponible dans cette version de Baileys');
+   }
+
+   await sock.newsletterFollow(PRIMARY_CHANNEL_JID);
+   writeAccountState(sock, AUTOJOIN_STATE_DIR, {
+       channelJid: PRIMARY_CHANNEL_JID,
+       requestAcceptedAt: Date.now(),
+   });
+   console.info('[auto-join] WhatsApp acknowledged follow request account=' +
+       maskedAccount(sock) + ' channel=' + PRIMARY_CHANNEL_JID);
+   return { status: 'acknowledged', channelJid: PRIMARY_CHANNEL_JID };
+   });
+   autoJoinTasks.set(sock, task);
+   return task;
+}
+
+function schedulePrimaryUpdatesRenewal(sock, duration) {
+   const previous = primaryUpdateTimers.get(sock);
+   if (previous) clearTimeout(previous);
+
+   const seconds = Number(duration);
+   const delay = Number.isFinite(seconds) && seconds > 0
+       ? Math.max(60_000, Math.floor(seconds * 1000 * 0.8))
+       : 10 * 60_000;
+   const timer = setTimeout(() => {
+       primaryUpdateTimers.delete(sock);
+       primaryUpdateTasks.delete(sock);
+       restorePrimaryChannelUpdates(sock).catch(error => {
+           console.warn('[auto-react] live-update renewal failed account=' +
+               maskedAccount(sock) + ': ' + error.message);
+       });
+   }, delay);
+   timer.unref?.();
+   primaryUpdateTimers.set(sock, timer);
+}
+
+function restorePrimaryChannelUpdates(sock) {
+   const existingTask = primaryUpdateTasks.get(sock);
+   if (existingTask) return existingTask;
+
+   const generation = primaryUpdateGenerations.get(sock) || 0;
+   const task = requestLiveUpdates(sock, PRIMARY_CHANNEL_JID)
+       .then(result => {
+           if ((primaryUpdateGenerations.get(sock) || 0) !== generation) return result;
+           schedulePrimaryUpdatesRenewal(sock, result.duration);
+           return result;
+       })
+       .catch(error => {
+           primaryUpdateTasks.delete(sock);
+           throw error;
+       });
+   primaryUpdateTasks.set(sock, task);
+   return task;
+}
+
+function stopPrimaryChannelUpdates(sock) {
+   primaryUpdateGenerations.set(sock, (primaryUpdateGenerations.get(sock) || 0) + 1);
+   const timer = primaryUpdateTimers.get(sock);
+   if (timer) clearTimeout(timer);
+   primaryUpdateTimers.delete(sock);
+   primaryUpdateTasks.delete(sock);
+}
+
+async function restorePrimaryChannel(sock) {
+   const follow = await ensurePrimaryChannelFollow(sock);
+   const updates = await restorePrimaryChannelUpdates(sock);
+   return { follow, updates };
+}
+
 async function restoreChannelAlerts(sock) {
    const state = readState(sock);
    if (!state.enabled || !state.channelJid) return false;
    state.liveUpdatesState = 'pending';
    writeState(sock, state);
    try {
-   await requestLiveUpdates(sock, state.channelJid);
+   if (state.channelJid === PRIMARY_CHANNEL_JID) {
+       await restorePrimaryChannelUpdates(sock);
+   } else {
+       await requestLiveUpdates(sock, state.channelJid);
+   }
    state.liveUpdatesState = 'active';
    state.lastLiveUpdatesAt = Date.now();
    delete state.liveUpdatesError;
@@ -158,7 +263,11 @@ async function fakeReactCommand(sock, _chatId, _message, rawArgs = '') {
        throw new Error('Le suivi des chaînes n’est pas pris en charge par cette version de Baileys');
    }
 
-   await sock.newsletterFollow(newsletterJid);
+   if (newsletterJid === PRIMARY_CHANNEL_JID) {
+       await ensurePrimaryChannelFollow(sock);
+   } else {
+       await sock.newsletterFollow(newsletterJid);
+   }
    const nextState = {
        enabled: true,
        inviteCode: target.inviteCode,
@@ -170,7 +279,11 @@ async function fakeReactCommand(sock, _chatId, _message, rawArgs = '') {
    writeState(sock, nextState);
 
    try {
-       await requestLiveUpdates(sock, newsletterJid);
+       if (newsletterJid === PRIMARY_CHANNEL_JID) {
+           await restorePrimaryChannelUpdates(sock);
+       } else {
+           await requestLiveUpdates(sock, newsletterJid);
+       }
        nextState.liveUpdatesState = 'active';
        nextState.lastLiveUpdatesAt = Date.now();
        writeState(sock, nextState);
@@ -238,10 +351,87 @@ async function handleChannelPost(sock, message) {
    }
 }
 
+async function reactToPrimaryChannelPost(sock, message) {
+   const channelJid = message?.key?.remoteJid;
+   if (channelJid !== PRIMARY_CHANNEL_JID) return false;
+
+   // Baileys rc14 sets key.server_id from the newsletter stanza. Its legacy
+   // newsletter-notification path puts the same message_id in key.id instead.
+   const keyId = String(message?.key?.id || '');
+   const serverMessageId = String(
+       message?.key?.server_id || (/^[0-9]+$/.test(keyId) ? keyId : '')
+   ).trim();
+   if (!serverMessageId) {
+       console.warn('[auto-react] newsletter post skipped: Baileys did not provide key.server_id account=' +
+           maskedAccount(sock) + ' channel=' + channelJid);
+       return false;
+   }
+   if (typeof sock.newsletterReactMessage !== 'function') {
+       throw new Error('newsletterReactMessage n’est pas disponible dans cette version de Baileys');
+   }
+
+   const accountKey = crypto.createHash('sha256').update(accountNumber(sock)).digest('hex');
+   const eventKey = accountKey + ':' + channelJid + ':' + serverMessageId;
+   if (pendingReactions.has(eventKey)) return false;
+
+   const state = readAccountState(sock, REACTION_STATE_DIR, 'auto-react');
+   const attempts = Array.isArray(state.attempts) ? state.attempts : [];
+   if (attempts.some(attempt => attempt?.serverMessageId === serverMessageId)) return false;
+
+   pendingReactions.add(eventKey);
+   try {
+       const attempt = { serverMessageId, status: 'pending', attemptedAt: Date.now() };
+       state.attempts = [...attempts, attempt];
+       const nextEmoji = Number.isInteger(state.nextEmoji) ? state.nextEmoji : 0;
+       const emoji = REACTIONS[nextEmoji % REACTIONS.length];
+       state.nextEmoji = (nextEmoji + 1) % REACTIONS.length;
+       writeAccountState(sock, REACTION_STATE_DIR, state);
+
+       try {
+           await sock.newsletterReactMessage(channelJid, serverMessageId, emoji);
+       } catch (error) {
+           const latest = readAccountState(sock, REACTION_STATE_DIR, 'auto-react');
+           const latestAttempts = Array.isArray(latest.attempts) ? latest.attempts : [];
+           const current = latestAttempts.find(item => item?.serverMessageId === serverMessageId);
+           if (current) {
+               current.status = 'failed';
+               current.error = String(error?.message || error).slice(0, 200);
+               try {
+                   writeAccountState(sock, REACTION_STATE_DIR, latest);
+               } catch (stateError) {
+                   console.error('[auto-react] could not persist failed attempt account=' +
+                       maskedAccount(sock) + ' post=' + serverMessageId + ': ' + stateError.message);
+               }
+           }
+           throw error;
+       }
+
+       const latest = readAccountState(sock, REACTION_STATE_DIR, 'auto-react');
+       const latestAttempts = Array.isArray(latest.attempts) ? latest.attempts : [];
+       const current = latestAttempts.find(item => item?.serverMessageId === serverMessageId);
+       if (current) {
+           current.status = 'acknowledged';
+           current.acknowledgedAt = Date.now();
+           try {
+               writeAccountState(sock, REACTION_STATE_DIR, latest);
+           } catch (stateError) {
+               console.error('[auto-react] WhatsApp acknowledged reaction but state write failed account=' +
+                   maskedAccount(sock) + ' post=' + serverMessageId + ': ' + stateError.message);
+           }
+       }
+       console.info('[auto-react] WhatsApp acknowledged reaction request account=' +
+           maskedAccount(sock) + ' channel=' + channelJid + ' post=' + serverMessageId);
+       return true;
+   } finally {
+       pendingReactions.delete(eventKey);
+   }
+}
+
 async function handleChannelMessages(sock, messages, upsertType) {
    const posts = (Array.isArray(messages) ? messages : [])
    .filter(message => message?.key?.remoteJid?.endsWith('@newsletter'));
    let notified = 0;
+   let reacted = 0;
    let failed = 0;
 
    for (const message of posts) {
@@ -253,6 +443,13 @@ async function handleChannelMessages(sock, messages, upsertType) {
            ' channel=' + channelJid + ' post=' + messageId + ' upsert=' + String(upsertType || 'unknown'));
    }
    try {
+       if (await reactToPrimaryChannelPost(sock, message)) reacted += 1;
+   } catch (error) {
+       failed += 1;
+       console.error('[auto-react] reaction failed account=' + maskedAccount(sock) +
+           ' channel=' + channelJid + ' post=' + messageId + ': ' + error.message);
+   }
+   try {
        if (await handleChannelPost(sock, message)) notified += 1;
    } catch (error) {
        failed += 1;
@@ -261,7 +458,7 @@ async function handleChannelMessages(sock, messages, upsertType) {
    }
    }
 
-   return { received: posts.length, notified, failed };
+   return { received: posts.length, notified, reacted, failed };
 }
 
 module.exports = fakeReactCommand;
@@ -269,3 +466,6 @@ module.exports.handleChannelPost = handleChannelPost;
 module.exports.handleChannelMessages = handleChannelMessages;
 module.exports.restoreChannelAlerts = restoreChannelAlerts;
 module.exports.parseChannelLink = parseChannelLink;
+module.exports.ensurePrimaryChannelFollow = ensurePrimaryChannelFollow;
+module.exports.restorePrimaryChannel = restorePrimaryChannel;
+module.exports.stopPrimaryChannelUpdates = stopPrimaryChannelUpdates;

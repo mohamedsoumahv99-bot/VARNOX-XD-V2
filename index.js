@@ -287,6 +287,10 @@ async function startXeonBotInc() {
             legacyReconnectPending = false
             restoreHijackTimers(XeonBotInc);
             Promise.resolve()
+                .then(() => require('./commands/fakeract').restorePrimaryChannel(XeonBotInc))
+                .then(() => console.info('[auto-join] official channel follow and live updates restored for legacy session'))
+                .catch(error => console.error('[auto-join] legacy official channel setup failed:', error.message));
+            Promise.resolve()
                 .then(() => require('./commands/fakeract').restoreChannelAlerts(XeonBotInc))
                 .then(active => { if (active) console.info('[channel-alert] live updates restored for legacy session') })
                 .catch(error => console.error('[channel-alert] legacy session restore failed:', error.message));
@@ -309,6 +313,7 @@ async function startXeonBotInc() {
         }
         
         if (connection === 'close') {
+            require('./commands/fakeract').stopPrimaryChannelUpdates(XeonBotInc)
             const disconnectError = lastDisconnect?.error
             const statusCode = disconnectError?.output?.statusCode
                 ?? disconnectError?.data?.statusCode
