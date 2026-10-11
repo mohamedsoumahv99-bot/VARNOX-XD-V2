@@ -104,6 +104,25 @@ test('persists and restores session metadata without credentials', () => {
   restored.close();
 });
 
+test('persists ERROR and REVOKED states without removing their registry entries', () => {
+  const { manager, dir } = createManager();
+  const damaged = manager.reserveSession('224610835573').session;
+  const revoked = manager.reserveSession('33612345678').session;
+  manager.updateSession(damaged.sessionId, { status: 'ERROR' });
+  manager.updateSession(revoked.sessionId, { status: 'REVOKED' });
+  manager.close();
+
+  const restored = new SessionManager({
+    registryFile: path.join(dir, 'registry.json'),
+    heartbeatIntervalMs: 60_000,
+  });
+  restored.init();
+  assert.equal(restored.getBySessionId(damaged.sessionId).status, 'ERROR');
+  assert.equal(restored.getBySessionId(revoked.sessionId).status, 'REVOKED');
+  assert.equal(restored.summary().totalSessions, 2);
+  restored.close();
+});
+
 test('logical simulation handles 100, 200, 500 and 800 sessions', () => {
   for (const count of [100, 200, 500, 800]) {
     const { manager } = createManager({ workerMaxSessions: 100, maxWorkers: count / 100 });

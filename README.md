@@ -90,7 +90,14 @@ WhatsApp sessions across redeploys, attach a Railway Volume mounted at
 `/app/sessions` and set `SESSION_DIR=/app/sessions` in the service variables.
 The session registry is stored alongside the per-user auth directories there.
 Without that volume, the app will still run, but linked sessions can be lost on
-redeploy or instance replacement.
+redeploy or instance replacement. The healthcheck uses `/ready`, which stays
+unhealthy until the persisted session registry has been restored.
+
+The registry and Baileys auth files are local filesystem storage; setting
+`REDIS_URL` or `DATABASE_URL` does not install a shared-storage adapter. Keep
+Railway at **one replica** and run one `pnpm start` process per mounted volume.
+Horizontal replicas or multiple processes sharing a session directory are not
+coordinated by a distributed lease and are unsupported.
 
 ### Step 3 — Get Your Pairing Link
 Your panel will be live at:
@@ -203,6 +210,9 @@ Baileys auth directory, socket, message queue, reconnect lock and status record.
 The default Render configuration deliberately uses one worker and a persistent
 disk; `MAX_WORKERS` configures this process's session allocation metadata and
 does not create extra Render or Railway services by itself.
+Session allocation, duplicate-pairing suppression and reconnect locks are
+process-local. Railway must remain at one replica unless shared storage and a
+distributed session lease are implemented.
 
 Public runtime routes are `/health`, `/ready`, `/status` and `/pair` (with the
 legacy `/code` alias preserved). The administrative `/workers`, `/sessions`,
