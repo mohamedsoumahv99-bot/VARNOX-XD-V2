@@ -19,7 +19,7 @@ const settings = {
   storeWriteInterval: 10000,
   description: "Bot WhatsApp multifonctions.",
   version: "2.0.0",
-  commandCount: 148,
+  commandCount: 123,
 
   // Ton lien GitHub (optionnel)
   updateZipUrl: "https://github.com/mohamedsoumahv99-bot/VARNOX-XD-V2/archive/refs/heads/main.zip",

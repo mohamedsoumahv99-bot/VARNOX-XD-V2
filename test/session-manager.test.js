@@ -104,15 +104,21 @@ test('persists and restores session metadata without credentials', () => {
   restored.close();
 });
 
-test('logical simulation handles 100, 200, 500 and 800 sessions', () => {
-  for (const count of [100, 200, 500, 800]) {
-    const { manager } = createManager({ workerMaxSessions: 100, maxWorkers: count / 100 });
-    for (let index = 0; index < count; index += 1) {
-      const phone = `${String(index + 1).padStart(3, '0')}555${String(index).padStart(7, '0')}`;
-      manager.reserveSession(phone);
-    }
-    assert.equal(manager.summary().totalSessions, count);
-    assert.equal(manager.summary().totalCapacity, count);
-    manager.close();
+test('enforces the hard 25-session limit and frees capacity after deletion', () => {
+  const { manager } = createManager({ workerMaxSessions: 100, maxWorkers: 3 });
+  const sessions = [];
+  for (let index = 0; index < 25; index += 1) {
+    const phone = '22461083' + String(index).padStart(4, '0');
+    sessions.push(manager.reserveSession(phone).session);
   }
+  assert.equal(manager.summary().totalSessions, 25);
+  assert.equal(manager.summary().maxTotalSessions, 25);
+  assert.equal(manager.summary().totalCapacity, 25);
+  assert.throws(() => manager.reserveSession('224699999999'), error => (
+    error instanceof SessionCapacityError && error.code === 'MAX_SESSIONS' && error.statusCode === 429
+  ));
+  assert.equal(manager.releaseSession(sessions[0].sessionId), true);
+  assert.doesNotThrow(() => manager.reserveSession('224699999999'));
+  assert.equal(manager.summary().totalSessions, 25);
+  manager.close();
 });

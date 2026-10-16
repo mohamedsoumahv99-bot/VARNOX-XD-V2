@@ -8,10 +8,16 @@
     "start": "node web.js",
     "start:bot": "node index.js",
     "start:optimized": "node --max-old-space-size=512 --optimize-for-size --gc-interval=100 index.js",
-    "build": "node --check web.js && node --check index.js && node --check main.js && node --check lib/botInstance.js && node --check commands/fakeract.js",
+    "build": "node --check web.js && node --check index.js && node --check main.js && node --check lib/botInstance.js && node --check lib/session-manager.js && node --check lib/memberEvent.js && node --check lib/reactions.js && node --check commands/fakeract.js && node --check commands/welcome.js && node --check commands/goodbye.js && node -e \"require('@whiskeysockets/baileys')\"",
     "test": "node --test test/*.test.js"
   },
-  "keywords": ["whatsapp-bot", "baileys", "pairing", "varnox", "render"],
+  "keywords": [
+    "whatsapp-bot",
+    "baileys",
+    "pairing",
+    "varnox",
+    "render"
+  ],
   "author": "ʋαɾɳσx ❍ғғɪᴄɪᴀʟ",
   "license": "MIT",
   "dependencies": {
@@ -73,6 +79,6 @@
     }
   },
   "engines": {
-    "node": "20.x"
+    "node": "22.x"
   }
 }

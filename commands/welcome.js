@@ -2,7 +2,14 @@
 
 const { handleWelcome } = require('../lib/welcome');
 const { isWelcomeOn } = require('../lib/index');
-const { channelInfo, participantJid, sendMemberEvent } = require('../lib/memberEvent');
+const {
+    buildWelcomeMessage,
+    channelInfo,
+    getMemberCount,
+    participantJid,
+    participantNumber,
+    sendMemberEvent
+} = require('../lib/memberEvent');
 
 function commandArgs(text, command) {
     return text.replace(new RegExp('^\\s*\\.' + command + '\\b', 'i'), '').trim();
@@ -20,33 +27,47 @@ async function welcomeCommand(sock, chatId, message) {
 async function handleJoinEvent(sock, id, participants) {
     if (!(await isWelcomeOn(id))) return;
 
-    let groupMetadata;
+    let groupMetadata = null;
     try {
         groupMetadata = await sock.groupMetadata(id);
-    } catch {
-        return;
+    } catch (error) {
+        console.error('[welcome] groupe inaccessible pour le comptage :', error.message);
     }
-
-    const groupName = groupMetadata.subject || 'Groupe';
+    const groupName = groupMetadata?.subject || 'Groupe';
 
     for (const participant of participants || []) {
         try {
             const jid = participantJid(participant);
-            const senderNum = jid.split('@')[0];
-            const welcomeMsg = `👋 Bienvenue @${senderNum} dans *${groupName}* !`;
-
+            const senderNum = participantNumber(participant);
+            if (!jid || !senderNum) continue;
+            let memberCount = 'indisponible';
+            try {
+                const count = await getMemberCount(sock, id, participants, 'add', groupMetadata);
+                if (Number.isInteger(count)) memberCount = count;
+            } catch (error) {
+                console.warn('[welcome] nombre de membres indisponible :', error.message);
+            }
+            const welcomeMsg = buildWelcomeMessage({ senderNum, groupName, memberCount, date: new Date() });
             await sendMemberEvent(sock, id, jid, welcomeMsg);
-        } catch (err) {
-            console.error('[welcome] Erreur :', err.message);
+        } catch (error) {
+            console.error('[welcome] Erreur :', error.message);
             try {
                 const jid = participantJid(participant);
-                const num = jid.split('@')[0];
+                const senderNum = participantNumber(participant);
+                if (!jid || !senderNum) continue;
                 await sock.sendMessage(id, {
-                    text: '🎉 Bienvenue @' + num + ' dans *' + (groupMetadata.subject || 'ce groupe') + '* ! 👋',
+                    text: buildWelcomeMessage({
+                        senderNum,
+                        groupName,
+                        memberCount: 'indisponible',
+                        date: new Date()
+                    }),
                     mentions: [jid],
                     ...channelInfo()
                 });
-            } catch { /* rien */ }
+            } catch (fallbackError) {
+                console.error('[welcome] fallback message failed:', fallbackError.message);
+            }
         }
     }
 }

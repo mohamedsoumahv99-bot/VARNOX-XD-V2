@@ -732,6 +732,18 @@ async function handleCode(req, res) {
     }
     allocation = sessionManager.reserveSession(number, { status: 'PAIRING' });
   } catch (error) {
+    PAIRING_METRICS.inFlight = Math.max(0, PAIRING_METRICS.inFlight - 1);
+    PAIRING_METRICS.rejected += 1;
+    pairingRequests.delete(number);
+    if (error.code === 'MAX_SESSIONS') {
+      return res.status(429).json({
+        error: true,
+        code: 'MAX_SESSIONS',
+        message: error.message,
+        maxSessions: sessionManager.summary().maxTotalSessions,
+        registeredSessions: sessionManager.summary().totalSessions,
+      });
+    }
     if (error instanceof SessionCapacityError || error.code === 'WORKERS_FULL') {
       return res.status(503).json({
         error: true,
